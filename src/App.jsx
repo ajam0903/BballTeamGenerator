@@ -14,13 +14,19 @@ export default function TeamGenerator() {
   const [players, setPlayers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [matchups, setMatchups] = useState([]);
+  const [sets, setSets] = useState({});
+  const [currentSet, setCurrentSet] = useState("default");
+  const [newSetName, setNewSetName] = useState("");
+  const [teamSize, setTeamSize] = useState(3);
 
   useEffect(() => {
-    const savedPlayers = localStorage.getItem("players");
-    if (savedPlayers) {
-      setPlayers(JSON.parse(savedPlayers));
+    const saved = localStorage.getItem("playerSets");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setSets(parsed);
+      if (parsed[currentSet]) setPlayers(parsed[currentSet]);
     } else {
-      setPlayers([
+      const defaultSet = [
         {
           name: "",
           scoring: 5,
@@ -32,12 +38,18 @@ export default function TeamGenerator() {
           xfactor: 5,
           active: true,
         },
-      ]);
+      ];
+      setSets({ default: defaultSet });
+      setPlayers(defaultSet);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("players", JSON.stringify(players));
+    if (currentSet) {
+      const updatedSets = { ...sets, [currentSet]: players };
+      setSets(updatedSets);
+      localStorage.setItem("playerSets", JSON.stringify(updatedSets));
+    }
   }, [players]);
 
   const calculateRating = (player) => {
@@ -77,10 +89,33 @@ export default function TeamGenerator() {
     ]);
   };
 
+  const saveNewSet = () => {
+    if (!newSetName.trim()) return;
+    const updatedSets = { ...sets, [newSetName]: [...players] };
+    setSets(updatedSets);
+    setCurrentSet(newSetName);
+    setNewSetName("");
+    localStorage.setItem("playerSets", JSON.stringify(updatedSets));
+  };
+
+  const loadSet = (setName) => {
+    setCurrentSet(setName);
+    setPlayers(sets[setName]);
+  };
+
+  const deleteSet = () => {
+    const updated = { ...sets };
+    delete updated[currentSet];
+    const fallback = Object.keys(updated)[0] || "default";
+    setCurrentSet(fallback);
+    setPlayers(updated[fallback] || []);
+    setSets(updated);
+    localStorage.setItem("playerSets", JSON.stringify(updated));
+  };
+
   const generateTeams = () => {
     const activePlayers = players.filter((p) => p.active && p.name.trim() !== "");
     const enriched = activePlayers.map((p) => ({ ...p, rating: calculateRating(p) }));
-    const teamSize = 3;
     const teamCount = Math.ceil(enriched.length / teamSize);
 
     let bestTeams = [];
@@ -130,7 +165,37 @@ export default function TeamGenerator() {
 
   return (
     <div style={{ padding: "1rem", maxWidth: "800px", margin: "0 auto" }}>
-      <h1 style={{ fontSize: "1.5rem", fontWeight: "bold" }}>3v3 Basketball Team Generator</h1>
+      <h1 style={{ fontSize: "1.5rem", fontWeight: "bold" }}>Basketball Team Generator</h1>
+
+      <div style={{ marginBottom: "1rem" }}>
+        <select value={currentSet} onChange={(e) => loadSet(e.target.value)}>
+          {Object.keys(sets).map((key) => (
+            <option key={key} value={key}>{key}</option>
+          ))}
+        </select>
+        <input
+          placeholder="New set name"
+          value={newSetName}
+          onChange={(e) => setNewSetName(e.target.value)}
+          style={{ marginLeft: "0.5rem" }}
+        />
+        <button onClick={saveNewSet}>Save Set</button>
+        <button onClick={deleteSet} style={{ marginLeft: "0.5rem" }}>Delete Set</button>
+      </div>
+
+      <div style={{ marginBottom: "1rem" }}>
+        <label htmlFor="team-size">Team Size:</label>
+        <select
+          id="team-size"
+          value={teamSize}
+          onChange={(e) => setTeamSize(parseInt(e.target.value))}
+          style={{ marginLeft: "0.5rem" }}
+        >
+          {[1, 2, 3, 4, 5].map((n) => (
+            <option key={n} value={n}>{n}v{n}</option>
+          ))}
+        </select>
+      </div>
 
       {players.map((p, i) => (
         <div key={i} style={{ border: "1px solid #ccc", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
