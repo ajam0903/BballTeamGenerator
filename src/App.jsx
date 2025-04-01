@@ -82,6 +82,33 @@ export default function TeamGenerator() {
     fetchSet();
   }, [currentSet]);
 
+  useEffect(() => {
+    const tally = {};
+    mvpVotes.forEach((name) => {
+      if (name) tally[name] = (tally[name] || 0) + 1;
+    });
+
+    scores.forEach(({ a, b }, i) => {
+      if (a !== "" && b !== "") {
+        const teamA = matchups[i]?.[0] || [];
+        const teamB = matchups[i]?.[1] || [];
+        const teamAWon = parseInt(a) > parseInt(b);
+
+        teamA.forEach((p) => {
+          tally[p.name + "_w"] = (tally[p.name + "_w"] || 0) + (teamAWon ? 1 : 0);
+          tally[p.name + "_l"] = (tally[p.name + "_l"] || 0) + (!teamAWon ? 1 : 0);
+        });
+
+        teamB.forEach((p) => {
+          tally[p.name + "_w"] = (tally[p.name + "_w"] || 0) + (!teamAWon ? 1 : 0);
+          tally[p.name + "_l"] = (tally[p.name + "_l"] || 0) + (teamAWon ? 1 : 0);
+        });
+      }
+    });
+
+    setLeaderboard(tally);
+  }, [mvpVotes, scores, matchups]);
+
   return (
     <div style={{ padding: "1rem", maxWidth: "800px", margin: "0 auto" }}>
       <h1 style={{ fontSize: "1.5rem", fontWeight: "bold" }}>Basketball Team Generator</h1>
@@ -90,89 +117,3 @@ export default function TeamGenerator() {
         <button onClick={() => setActiveTab("teams")}>Team Generator</button>
         <button onClick={() => setActiveTab("leaderboard")}>Leaderboard</button>
       </div>
-
-      {activeTab === "teams" && (
-        <>
-          <div style={{ marginBottom: "1rem" }}>
-            <label htmlFor="team-size">Team Size:</label>
-            <select
-              id="team-size"
-              value={teamSize}
-              onChange={(e) => setTeamSize(parseInt(e.target.value))}
-              style={{ marginLeft: "0.5rem" }}
-            >
-              {[1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>{n}v{n}</option>
-              ))}
-            </select>
-          </div>
-
-          <button onClick={() => alert("Team generation logic not yet implemented")}>Generate Teams</button>
-
-          {teams.length > 0 && (
-            <>
-              <h2 style={{ marginTop: "2rem" }}>Teams</h2>
-              {teams.map((team, i) => (
-                <div key={i} style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "0.5rem" }}>
-                  <strong>Team {i + 1}</strong>
-                  {team.map((player) => (
-                    <div key={player.name}>{player.name} - Rating: {player.rating}</div>
-                  ))}
-                </div>
-              ))}
-
-              <h2 style={{ marginTop: "2rem" }}>Matchups</h2>
-              {matchups.map(([team1, team2], i) => (
-                <div key={i} style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "0.5rem" }}>
-                  <strong>Match {i + 1}</strong>
-                  <div>{team1.map(p => p.name).join(", ")} vs {team2.map(p => p.name).join(", ")}</div>
-                  <div>
-                    MVP: <select value={mvpVotes[i] || ""} onChange={(e) => {
-                      const updated = [...mvpVotes];
-                      updated[i] = e.target.value;
-                      setMvpVotes(updated);
-                    }}>
-                      <option value="">-- Select MVP --</option>
-                      {[...team1, ...team2].map((p) => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    Score: 
-                    <input type="number" value={scores[i]?.a || ""} onChange={(e) => {
-                      const updated = [...scores];
-                      updated[i] = { ...updated[i], a: e.target.value };
-                      setScores(updated);
-                    }} />
-                    vs
-                    <input type="number" value={scores[i]?.b || ""} onChange={(e) => {
-                      const updated = [...scores];
-                      updated[i] = { ...updated[i], b: e.target.value };
-                      setScores(updated);
-                    }} />
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
-        </>
-      )}
-
-      {activeTab === "leaderboard" && (
-        <div>
-          <h2>Leaderboard</h2>
-          <ul>
-            {Object.keys(leaderboard)
-              .filter((key) => !key.includes("_w") && !key.includes("_l"))
-              .map((player) => (
-                <li key={player}>
-                  <strong>{player}</strong>: {leaderboard[player]} MVPs, {leaderboard[player + "_w"] || 0}W - {leaderboard[player + "_l"] || 0}L
-                </li>
-              ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
