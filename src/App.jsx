@@ -183,19 +183,28 @@ export default function TeamGenerator() {
             ))}
           </ul>
 
-          <h3 style={{ marginTop: "2rem" }}>Player List</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <h3 style={{ marginTop: "2rem" }}>Player Ratings & Status</h3>
+          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
             <thead>
               <tr>
                 <th style={{ textAlign: "left" }}>Name</th>
+                <th>Rating</th>
                 <th>Active</th>
-                <th>Submissions</th>
               </tr>
             </thead>
             <tbody>
               {players.map((player) => (
                 <tr key={player.name}>
                   <td>{player.name}</td>
+                  <td>{(
+                    player.scoring * weightings.scoring +
+                    player.defense * weightings.defense +
+                    player.rebounding * weightings.rebounding +
+                    player.playmaking * weightings.playmaking +
+                    player.stamina * weightings.stamina +
+                    player.physicality * weightings.physicality +
+                    player.xfactor * weightings.xfactor
+                  ).toFixed(2)}</td>
                   <td>
                     <input
                       type="checkbox"
@@ -220,7 +229,6 @@ export default function TeamGenerator() {
                       }}
                     />
                   </td>
-                  <td>{player.submissions?.length || 1}</td>
                 </tr>
               ))}
             </tbody>
