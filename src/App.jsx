@@ -76,6 +76,9 @@ export default function TeamGenerator() {
         setMvpVotes(data.mvpVotes || []);
         setScores(data.scores || []);
       } else {
+        console.warn(`No Firestore document found for set: ${currentSet}. Keeping existing data.`);
+      }
+      } else {
         setPlayers([]);
       }
     };
