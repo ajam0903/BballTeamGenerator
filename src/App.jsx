@@ -47,6 +47,18 @@ export default function TeamGenerator() {
     physicality: 5,
     xfactor: 5,
   });
+  // Add states for player editing
+  const [editingPlayer, setEditingPlayer] = useState(null);
+  const [editPlayerForm, setEditPlayerForm] = useState({
+    name: "",
+    scoring: 5,
+    defense: 5,
+    rebounding: 5,
+    playmaking: 5,
+    stamina: 5,
+    physicality: 5,
+    xfactor: 5,
+  });
 
   useEffect(() => {
     const fetchSet = async () => {
@@ -149,6 +161,135 @@ export default function TeamGenerator() {
     }
   };
 
+  // Function to delete a player
+  const handleDeletePlayer = async (playerName) => {
+    if (!window.confirm(`Are you sure you want to delete ${playerName}?`)) {
+      return;
+    }
+    
+    try {
+      const docRef = doc(db, "sets", currentSet);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const updatedPlayers = data.players.filter(
+          p => p.name.toLowerCase() !== playerName.toLowerCase()
+        );
+        
+        await setDoc(docRef, { ...data, players: updatedPlayers });
+        
+        // Update local state
+        setPlayers(prev => 
+          prev.filter(p => p.name.toLowerCase() !== playerName.toLowerCase())
+        );
+        
+        alert(`${playerName} has been deleted.`);
+      }
+    } catch (error) {
+      console.error("Error deleting player:", error);
+      alert("Failed to delete player. Please try again.");
+    }
+  };
+
+  // Function to start editing a player
+  const startEditPlayer = (player) => {
+    setEditingPlayer(player.name);
+    // Initialize form with player's current stats
+    setEditPlayerForm({
+      name: player.name,
+      scoring: player.scoring,
+      defense: player.defense,
+      rebounding: player.rebounding,
+      playmaking: player.playmaking,
+      stamina: player.stamina,
+      physicality: player.physicality,
+      xfactor: player.xfactor,
+    });
+  };
+
+  // Function to save edited player
+  const saveEditedPlayer = async () => {
+    try {
+      const docRef = doc(db, "sets", currentSet);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const playerIndex = data.players.findIndex(
+          p => p.name.toLowerCase() === editingPlayer.toLowerCase()
+        );
+        
+        if (playerIndex > -1) {
+          // Create a new submission with the edited values
+          const newSubmission = {
+            name: editPlayerForm.name,
+            scoring: editPlayerForm.scoring,
+            defense: editPlayerForm.defense,
+            rebounding: editPlayerForm.rebounding,
+            playmaking: editPlayerForm.playmaking,
+            stamina: editPlayerForm.stamina,
+            physicality: editPlayerForm.physicality,
+            xfactor: editPlayerForm.xfactor,
+          };
+          
+          // Add the new submission to the player's submissions
+          const updatedPlayers = [...data.players];
+          updatedPlayers[playerIndex].submissions.push(newSubmission);
+          
+          // If the name was changed, update the player's name too
+          if (editPlayerForm.name.toLowerCase() !== editingPlayer.toLowerCase()) {
+            updatedPlayers[playerIndex].name = editPlayerForm.name;
+          }
+          
+          await setDoc(docRef, { ...data, players: updatedPlayers });
+          
+          // Refetch player data to update averages
+          const updatedDocSnap = await getDoc(docRef);
+          if (updatedDocSnap.exists()) {
+            const updatedData = updatedDocSnap.data();
+            const averagedPlayers = (updatedData.players || []).map((player) => {
+              const submissions = player.submissions || [];
+              const avgStats = {
+                name: player.name,
+                active: player.active !== undefined ? player.active : true,
+                scoring: 0,
+                defense: 0,
+                rebounding: 0,
+                playmaking: 0,
+                stamina: 0,
+                physicality: 0,
+                xfactor: 0,
+              };
+              submissions.forEach((s) => {
+                avgStats.scoring += s.scoring;
+                avgStats.defense += s.defense;
+                avgStats.rebounding += s.rebounding;
+                avgStats.playmaking += s.playmaking;
+                avgStats.stamina += s.stamina;
+                avgStats.physicality += s.physicality;
+                avgStats.xfactor += s.xfactor;
+              });
+              const len = submissions.length || 1;
+              Object.keys(avgStats).forEach((key) => {
+                if (typeof avgStats[key] === 'number') avgStats[key] = parseFloat((avgStats[key] / len).toFixed(2));
+              });
+              avgStats.submissions = submissions;
+              return avgStats;
+            });
+            setPlayers(averagedPlayers);
+          }
+          
+          alert(`${editPlayerForm.name} has been updated.`);
+          setEditingPlayer(null);
+        }
+      }
+    } catch (error) {
+      console.error("Error updating player:", error);
+      alert("Failed to update player. Please try again.");
+    }
+  };
+
   const generateTeams = () => {
     const activePlayers = players.filter((p) => p.active);
     const shuffled = [...activePlayers].sort(() => Math.random() - 0.5);
@@ -220,6 +361,7 @@ export default function TeamGenerator() {
                 <th style={{ textAlign: "left" }}>Name</th>
                 <th>Rating</th>
                 <th>Active</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -242,10 +384,76 @@ export default function TeamGenerator() {
                       onChange={(e) => handlePlayerActiveToggle(player.name, e.target.checked)}
                     />
                   </td>
+                  <td>
+                    <button 
+                      onClick={() => startEditPlayer(player)}
+                      style={{ marginRight: "8px" }}
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      onClick={() => handleDeletePlayer(player.name)}
+                      style={{ backgroundColor: "#ff6b6b" }}
+                    >
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+
+          {/* Edit Player Form */}
+          {editingPlayer && (
+            <div style={{ 
+              marginTop: "2rem", 
+              border: "1px solid #ccc", 
+              padding: "1rem", 
+              borderRadius: "4px" 
+            }}>
+              <h3>Edit Player: {editingPlayer}</h3>
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", marginBottom: "4px" }}>Name:</label>
+                <input 
+                  value={editPlayerForm.name} 
+                  onChange={(e) => setEditPlayerForm({...editPlayerForm, name: e.target.value})}
+                  style={{ width: "100%", padding: "8px" }}
+                />
+              </div>
+              
+              {Object.keys(weightings).map((key) => (
+                <div key={key} style={{ marginBottom: "8px" }}>
+                  <label style={{ display: "block", marginBottom: "4px" }}>{key[0].toUpperCase() + key.slice(1)}:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={editPlayerForm[key]}
+                    onChange={(e) => setEditPlayerForm({
+                      ...editPlayerForm, 
+                      [key]: parseInt(e.target.value) || 1
+                    })}
+                    style={{ width: "100%", padding: "8px" }}
+                  />
+                </div>
+              ))}
+              
+              <div style={{ marginTop: "1rem", display: "flex", justifyContent: "space-between" }}>
+                <button 
+                  onClick={() => setEditingPlayer(null)}
+                  style={{ padding: "8px 16px" }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={saveEditedPlayer}
+                  style={{ padding: "8px 16px", backgroundColor: "#4CAF50", color: "white" }}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          )}
 
           <h3 style={{ marginTop: "2rem" }}>Submit a New Rating</h3>
           <input placeholder="Name" value={newRating.name} onChange={(e) => setNewRating({ ...newRating, name: e.target.value })} />
