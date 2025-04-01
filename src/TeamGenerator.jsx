@@ -3,7 +3,7 @@ import RankingTab from "./components/RankingTab";
 import TeamsTab from "./components/TeamsTab";
 import LeaderboardTab from "./components/LeaderboardTab";
 
-export default function App() {
+export default function TeamGenerator() {
   // All your global states
   const [players, setPlayers] = useState([]);
   const [teams, setTeams] = useState([]);
