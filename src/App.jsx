@@ -80,6 +80,7 @@ export default function TeamGenerator() {
           Object.keys(avgStats).forEach((key) => {
             if (typeof avgStats[key] === 'number') avgStats[key] = parseFloat((avgStats[key] / len).toFixed(2));
           });
+          avgStats.submissions = submissions;
           return avgStats;
         });
         setPlayers(averagedPlayers);
