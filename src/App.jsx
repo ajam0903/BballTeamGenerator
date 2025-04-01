@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
+import { getFirestore, doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCOGeIQoPX7kNVIHUipxBlJIAYissB2AqM",
@@ -37,6 +37,16 @@ export default function TeamGenerator() {
   const [teamSize, setTeamSize] = useState(3);
   const [activeTab, setActiveTab] = useState("teams");
   const [leaderboard, setLeaderboard] = useState({});
+  const [newRating, setNewRating] = useState({
+    name: "",
+    scoring: 5,
+    defense: 5,
+    rebounding: 5,
+    playmaking: 5,
+    stamina: 5,
+    physicality: 5,
+    xfactor: 5,
+  });
 
   useEffect(() => {
     const fetchSet = async () => {
@@ -126,6 +136,24 @@ export default function TeamGenerator() {
     setScores(Array(matchupPairs.length).fill({ a: "", b: "" }));
   };
 
+  const handleRatingSubmit = async () => {
+    const docRef = doc(db, "sets", currentSet);
+    const docSnap = await getDoc(docRef);
+    const data = docSnap.exists() ? docSnap.data() : { players: [] };
+    const updatedPlayers = [...data.players];
+    const index = updatedPlayers.findIndex((p) => p.name.toLowerCase() === newRating.name.toLowerCase());
+
+    if (index > -1) {
+      updatedPlayers[index].submissions = [...(updatedPlayers[index].submissions || []), { ...newRating }];
+    } else {
+      updatedPlayers.push({ name: newRating.name, active: true, submissions: [{ ...newRating }] });
+    }
+
+    await setDoc(docRef, { ...data, players: updatedPlayers });
+    setNewRating({ name: "", scoring: 5, defense: 5, rebounding: 5, playmaking: 5, stamina: 5, physicality: 5, xfactor: 5 });
+    alert("Rating submitted successfully!");
+  };
+
   return (
     <div style={{ padding: "1rem", maxWidth: "800px", margin: "0 auto" }}>
       <h1 style={{ fontSize: "1.5rem", fontWeight: "bold" }}>Basketball Team Generator</h1>
@@ -154,6 +182,22 @@ export default function TeamGenerator() {
               </li>
             ))}
           </ul>
+
+          <h3 style={{ marginTop: "2rem" }}>Submit a New Rating</h3>
+          <input placeholder="Name" value={newRating.name} onChange={(e) => setNewRating({ ...newRating, name: e.target.value })} />
+          {Object.keys(weightings).map((key) => (
+            <div key={key}>
+              <label>{key}: </label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={newRating[key]}
+                onChange={(e) => setNewRating({ ...newRating, [key]: parseInt(e.target.value) })}
+              />
+            </div>
+          ))}
+          <button onClick={handleRatingSubmit}>Submit Rating</button>
         </div>
       )}
 
@@ -183,7 +227,7 @@ export default function TeamGenerator() {
                 <div key={i} style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "0.5rem" }}>
                   <strong>Match {i + 1}:</strong> {teamA.map(p => p.name).join(", ")} vs {teamB.map(p => p.name).join(", ")}
                   <div>
-                    MVP: 
+                    MVP:
                     <select value={mvpVotes[i] || ""} onChange={(e) => {
                       const updated = [...mvpVotes];
                       updated[i] = e.target.value;
@@ -196,7 +240,7 @@ export default function TeamGenerator() {
                     </select>
                   </div>
                   <div>
-                    Score: 
+                    Score:
                     <input type="number" placeholder="Team A" value={scores[i]?.a || ""} onChange={(e) => {
                       const updated = [...scores];
                       updated[i] = { ...updated[i], a: e.target.value };
