@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 
 const weightings = {
   scoring: 0.25,
@@ -131,69 +129,65 @@ export default function TeamGenerator() {
   };
 
   return (
-    <div className="p-4 space-y-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold">3v3 Basketball Team Generator</h1>
+    <div style={{ padding: "1rem", maxWidth: "800px", margin: "0 auto" }}>
+      <h1 style={{ fontSize: "1.5rem", fontWeight: "bold" }}>3v3 Basketball Team Generator</h1>
 
       {players.map((p, i) => (
-        <Card key={i} className="p-4">
-          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div key={i} style={{ border: "1px solid #ccc", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "0.5rem" }}>
             <input
-              className="p-2 rounded border"
               placeholder="Player Name"
               value={p.name}
               onChange={(e) => updatePlayer(i, "name", e.target.value)}
+              style={{ padding: "0.5rem", borderRadius: "4px", border: "1px solid #aaa" }}
             />
             {["scoring", "defense", "rebounding", "playmaking", "stamina", "physicality", "xfactor"].map((field) => (
               <input
                 key={field}
                 type="number"
-                className="p-2 rounded border"
                 min={1}
                 max={10}
                 value={p[field]}
                 onChange={(e) => updatePlayer(i, field, e.target.value)}
+                style={{ padding: "0.5rem", borderRadius: "4px", border: "1px solid #aaa" }}
               />
             ))}
-            <label className="col-span-2 md:col-span-1">
+            <label style={{ gridColumn: "span 2" }}>
               <input
                 type="checkbox"
                 checked={p.active}
                 onChange={(e) => updatePlayer(i, "active", e.target.checked)}
               /> Active
             </label>
-            <div className="col-span-2 md:col-span-1">Rating: {calculateRating(p)}</div>
-          </CardContent>
-        </Card>
+            <div style={{ gridColumn: "span 2" }}>Rating: {calculateRating(p)}</div>
+          </div>
+        </div>
       ))}
 
-      <div className="flex gap-2">
-        <Button onClick={addPlayer}>Add Player</Button>
-        <Button onClick={generateTeams}>Generate Teams</Button>
-        <Button onClick={downloadCSV}>Download CSV</Button>
+      <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+        <button onClick={addPlayer}>Add Player</button>
+        <button onClick={generateTeams}>Generate Teams</button>
+        <button onClick={downloadCSV}>Download CSV</button>
       </div>
 
       {teams.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold mt-6">Teams</h2>
+        <div>
+          <h2 style={{ fontSize: "1.25rem", fontWeight: "bold", marginTop: "2rem" }}>Teams</h2>
           {teams.map((team, i) => (
-            <Card key={i} className="p-2">
-              <CardContent>
-                <p className="font-semibold">Team {i + 1}</p>
-                {team.map((p) => (
-                  <p key={p.name}>{p.name} - {p.rating}</p>
-                ))}
-              </CardContent>
-            </Card>
+            <div key={i} style={{ padding: "0.5rem", border: "1px solid #ddd", marginBottom: "0.5rem" }}>
+              <p style={{ fontWeight: "bold" }}>Team {i + 1}</p>
+              {team.map((p) => (
+                <p key={p.name}>{p.name} - {p.rating}</p>
+              ))}
+            </div>
           ))}
 
-          <h2 className="text-xl font-bold mt-6">Matchups</h2>
+          <h2 style={{ fontSize: "1.25rem", fontWeight: "bold", marginTop: "2rem" }}>Matchups</h2>
           {matchups.map(([team1, team2], i) => (
-            <Card key={i} className="p-2">
-              <CardContent>
-                <p className="font-semibold">Match {i + 1}</p>
-                <p>{team1.map(p => p.name).join(", ")} vs {team2.map(p => p.name).join(", ")}</p>
-              </CardContent>
-            </Card>
+            <div key={i} style={{ padding: "0.5rem", border: "1px solid #ddd", marginBottom: "0.5rem" }}>
+              <p style={{ fontWeight: "bold" }}>Match {i + 1}</p>
+              <p>{team1.map(p => p.name).join(", ")} vs {team2.map(p => p.name).join(", ")}</p>
+            </div>
           ))}
         </div>
       )}
