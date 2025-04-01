@@ -58,7 +58,7 @@ export default function TeamGenerator() {
           const submissions = player.submissions || [];
           const avgStats = {
             name: player.name,
-            active: player.active ?? true,
+            active: player.active,
             scoring: 0,
             defense: 0,
             rebounding: 0,
