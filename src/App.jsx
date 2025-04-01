@@ -18,6 +18,7 @@ export default function TeamGenerator() {
   const [currentSet, setCurrentSet] = useState("default");
   const [newSetName, setNewSetName] = useState("");
   const [teamSize, setTeamSize] = useState(3);
+  const [activeTab, setActiveTab] = useState("rankings");
 
   useEffect(() => {
     const saved = localStorage.getItem("playerSets");
@@ -168,93 +169,109 @@ export default function TeamGenerator() {
       <h1 style={{ fontSize: "1.5rem", fontWeight: "bold" }}>Basketball Team Generator</h1>
 
       <div style={{ marginBottom: "1rem" }}>
-        <select value={currentSet} onChange={(e) => loadSet(e.target.value)}>
-          {Object.keys(sets).map((key) => (
-            <option key={key} value={key}>{key}</option>
-          ))}
-        </select>
-        <input
-          placeholder="New set name"
-          value={newSetName}
-          onChange={(e) => setNewSetName(e.target.value)}
-          style={{ marginLeft: "0.5rem" }}
-        />
-        <button onClick={saveNewSet}>Save Set</button>
-        <button onClick={deleteSet} style={{ marginLeft: "0.5rem" }}>Delete Set</button>
+        <button onClick={() => setActiveTab("rankings")}>Player Rankings</button>
+        <button onClick={() => setActiveTab("teams")}>Team Generator</button>
       </div>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <label htmlFor="team-size">Team Size:</label>
-        <select
-          id="team-size"
-          value={teamSize}
-          onChange={(e) => setTeamSize(parseInt(e.target.value))}
-          style={{ marginLeft: "0.5rem" }}
-        >
-          {[1, 2, 3, 4, 5].map((n) => (
-            <option key={n} value={n}>{n}v{n}</option>
-          ))}
-        </select>
-      </div>
-
-      {players.map((p, i) => (
-        <div key={i} style={{ border: "1px solid #ccc", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "0.5rem" }}>
+      {activeTab === "rankings" && (
+        <>
+          <div style={{ marginBottom: "1rem" }}>
+            <select value={currentSet} onChange={(e) => loadSet(e.target.value)}>
+              {Object.keys(sets).map((key) => (
+                <option key={key} value={key}>{key}</option>
+              ))}
+            </select>
             <input
-              placeholder="Player Name"
-              value={p.name}
-              onChange={(e) => updatePlayer(i, "name", e.target.value)}
-              style={{ padding: "0.5rem", borderRadius: "4px", border: "1px solid #aaa" }}
+              placeholder="New set name"
+              value={newSetName}
+              onChange={(e) => setNewSetName(e.target.value)}
+              style={{ marginLeft: "0.5rem" }}
             />
-            {["scoring", "defense", "rebounding", "playmaking", "stamina", "physicality", "xfactor"].map((field) => (
-              <input
-                key={field}
-                type="number"
-                min={1}
-                max={10}
-                value={p[field]}
-                onChange={(e) => updatePlayer(i, field, e.target.value)}
-                style={{ padding: "0.5rem", borderRadius: "4px", border: "1px solid #aaa" }}
-              />
-            ))}
-            <label style={{ gridColumn: "span 2" }}>
-              <input
-                type="checkbox"
-                checked={p.active}
-                onChange={(e) => updatePlayer(i, "active", e.target.checked)}
-              /> Active
-            </label>
-            <div style={{ gridColumn: "span 2" }}>Rating: {calculateRating(p)}</div>
+            <button onClick={saveNewSet}>Save Set</button>
+            <button onClick={deleteSet} style={{ marginLeft: "0.5rem" }}>Delete Set</button>
           </div>
-        </div>
-      ))}
 
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
-        <button onClick={addPlayer}>Add Player</button>
-        <button onClick={generateTeams}>Generate Teams</button>
-        <button onClick={downloadCSV}>Download CSV</button>
-      </div>
+          {players.map((p, i) => (
+            <div key={i} style={{ border: "1px solid #ccc", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "0.5rem" }}>
+                <input
+                  placeholder="Player Name"
+                  value={p.name}
+                  onChange={(e) => updatePlayer(i, "name", e.target.value)}
+                  style={{ padding: "0.5rem", borderRadius: "4px", border: "1px solid #aaa" }}
+                />
+                {["scoring", "defense", "rebounding", "playmaking", "stamina", "physicality", "xfactor"].map((field) => (
+                  <input
+                    key={field}
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={p[field]}
+                    onChange={(e) => updatePlayer(i, field, e.target.value)}
+                    style={{ padding: "0.5rem", borderRadius: "4px", border: "1px solid #aaa" }}
+                  />
+                ))}
+                <label style={{ gridColumn: "span 2" }}>
+                  <input
+                    type="checkbox"
+                    checked={p.active}
+                    onChange={(e) => updatePlayer(i, "active", e.target.checked)}
+                  /> Active
+                </label>
+                <div style={{ gridColumn: "span 2" }}>Rating: {calculateRating(p)}</div>
+              </div>
+            </div>
+          ))}
 
-      {teams.length > 0 && (
-        <div>
-          <h2 style={{ fontSize: "1.25rem", fontWeight: "bold", marginTop: "2rem" }}>Teams</h2>
-          {teams.map((team, i) => (
-            <div key={i} style={{ padding: "0.5rem", border: "1px solid #ddd", marginBottom: "0.5rem" }}>
-              <p style={{ fontWeight: "bold" }}>Team {i + 1}</p>
-              {team.map((p) => (
-                <p key={p.name}>{p.name} - {p.rating}</p>
+          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+            <button onClick={addPlayer}>Add Player</button>
+          </div>
+        </>
+      )}
+
+      {activeTab === "teams" && (
+        <>
+          <div style={{ marginBottom: "1rem" }}>
+            <label htmlFor="team-size">Team Size:</label>
+            <select
+              id="team-size"
+              value={teamSize}
+              onChange={(e) => setTeamSize(parseInt(e.target.value))}
+              style={{ marginLeft: "0.5rem" }}
+            >
+              {[1, 2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>{n}v{n}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+            <button onClick={generateTeams}>Generate Teams</button>
+            <button onClick={downloadCSV}>Download CSV</button>
+          </div>
+
+          {teams.length > 0 && (
+            <div>
+              <h2 style={{ fontSize: "1.25rem", fontWeight: "bold", marginTop: "2rem" }}>Teams</h2>
+              {teams.map((team, i) => (
+                <div key={i} style={{ padding: "0.5rem", border: "1px solid #ddd", marginBottom: "0.5rem" }}>
+                  <p style={{ fontWeight: "bold" }}>Team {i + 1}</p>
+                  {team.map((p) => (
+                    <p key={p.name}>{p.name} - {p.rating}</p>
+                  ))}
+                </div>
+              ))}
+
+              <h2 style={{ fontSize: "1.25rem", fontWeight: "bold", marginTop: "2rem" }}>Matchups</h2>
+              {matchups.map(([team1, team2], i) => (
+                <div key={i} style={{ padding: "0.5rem", border: "1px solid #ddd", marginBottom: "0.5rem" }}>
+                  <p style={{ fontWeight: "bold" }}>Match {i + 1}</p>
+                  <p>{team1.map(p => p.name).join(", ")} vs {team2.map(p => p.name).join(", ")}</p>
+                </div>
               ))}
             </div>
-          ))}
-
-          <h2 style={{ fontSize: "1.25rem", fontWeight: "bold", marginTop: "2rem" }}>Matchups</h2>
-          {matchups.map(([team1, team2], i) => (
-            <div key={i} style={{ padding: "0.5rem", border: "1px solid #ddd", marginBottom: "0.5rem" }}>
-              <p style={{ fontWeight: "bold" }}>Match {i + 1}</p>
-              <p>{team1.map(p => p.name).join(", ")} vs {team2.map(p => p.name).join(", ")}</p>
-            </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );
