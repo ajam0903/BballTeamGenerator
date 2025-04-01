@@ -78,9 +78,7 @@ export default function TeamGenerator() {
       } else {
         console.warn(`No Firestore document found for set: ${currentSet}. Keeping existing data.`);
       }
-      } else {
-        setPlayers([]);
-      }
+      
     };
     fetchSet();
   }, [currentSet]);
