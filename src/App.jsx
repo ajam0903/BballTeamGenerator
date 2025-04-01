@@ -78,7 +78,6 @@ export default function TeamGenerator() {
       } else {
         console.warn(`No Firestore document found for set: ${currentSet}. Keeping existing data.`);
       }
-      
     };
     fetchSet();
   }, [currentSet]);
@@ -132,9 +131,31 @@ export default function TeamGenerator() {
       <h1 style={{ fontSize: "1.5rem", fontWeight: "bold" }}>Basketball Team Generator</h1>
 
       <div style={{ marginBottom: "1rem" }}>
+        <button onClick={() => setActiveTab("rankings")}>Player Rankings</button>
         <button onClick={() => setActiveTab("teams")}>Team Generator</button>
         <button onClick={() => setActiveTab("leaderboard")}>Leaderboard</button>
       </div>
+
+      {activeTab === "rankings" && (
+        <div>
+          <h2>Player Rankings</h2>
+          <ul>
+            {players.map((player) => (
+              <li key={player.name}>
+                {player.name} - Rating: {(
+                  player.scoring * weightings.scoring +
+                  player.defense * weightings.defense +
+                  player.rebounding * weightings.rebounding +
+                  player.playmaking * weightings.playmaking +
+                  player.stamina * weightings.stamina +
+                  player.physicality * weightings.physicality +
+                  player.xfactor * weightings.xfactor
+                ).toFixed(2)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {activeTab === "teams" && (
         <>
