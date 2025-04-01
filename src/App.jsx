@@ -120,6 +120,35 @@ export default function TeamGenerator() {
     setLeaderboard(tally);
   }, [mvpVotes, scores, matchups]);
 
+  const handlePlayerActiveToggle = async (playerName, isActive) => {
+    try {
+      // Update in Firestore
+      const docRef = doc(db, "sets", currentSet);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const updatedPlayers = [...data.players];
+        const index = updatedPlayers.findIndex(p => p.name.toLowerCase() === playerName.toLowerCase());
+        
+        if (index > -1) {
+          updatedPlayers[index].active = isActive;
+          await setDoc(docRef, { ...data, players: updatedPlayers });
+          
+          // Update local state
+          setPlayers(prev => 
+            prev.map(p => 
+              p.name.toLowerCase() === playerName.toLowerCase() ? { ...p, active: isActive } : p
+            )
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error updating player active status:", error);
+      alert("Failed to update player status. Please try again.");
+    }
+  };
+
   const generateTeams = () => {
     const activePlayers = players.filter((p) => p.active);
     const shuffled = [...activePlayers].sort(() => Math.random() - 0.5);
@@ -210,24 +239,7 @@ export default function TeamGenerator() {
                     <input
                       type="checkbox"
                       checked={player.active}
-                      onChange={async (e) => {
-                        const docRef = doc(db, "sets", currentSet);
-                        const docSnap = await getDoc(docRef);
-                        if (docSnap.exists()) {
-                          const data = docSnap.data();
-                          const updatedPlayers = [...data.players];
-                          const index = updatedPlayers.findIndex(p => p.name.toLowerCase() === player.name.toLowerCase());
-                          if (index > -1) {
-                            updatedPlayers[index].active = e.target.checked;
-                            await setDoc(docRef, { ...data, players: updatedPlayers });
-                            setPlayers((prev) =>
-                              prev.map(p =>
-                                p.name === player.name ? { ...p, active: e.target.checked } : p
-                              )
-                            );
-                          }
-                        }
-                      }}
+                      onChange={(e) => handlePlayerActiveToggle(player.name, e.target.checked)}
                     />
                   </td>
                 </tr>
