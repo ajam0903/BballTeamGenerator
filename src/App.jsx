@@ -183,6 +183,49 @@ export default function TeamGenerator() {
             ))}
           </ul>
 
+          <h3 style={{ marginTop: "2rem" }}>Player List</h3>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left" }}>Name</th>
+                <th>Active</th>
+                <th>Submissions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {players.map((player) => (
+                <tr key={player.name}>
+                  <td>{player.name}</td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={player.active}
+                      onChange={async (e) => {
+                        const docRef = doc(db, "sets", currentSet);
+                        const docSnap = await getDoc(docRef);
+                        if (docSnap.exists()) {
+                          const data = docSnap.data();
+                          const updatedPlayers = [...data.players];
+                          const index = updatedPlayers.findIndex(p => p.name.toLowerCase() === player.name.toLowerCase());
+                          if (index > -1) {
+                            updatedPlayers[index].active = e.target.checked;
+                            await setDoc(docRef, { ...data, players: updatedPlayers });
+                            setPlayers((prev) =>
+                              prev.map(p =>
+                                p.name === player.name ? { ...p, active: e.target.checked } : p
+                              )
+                            );
+                          }
+                        }
+                      }}
+                    />
+                  </td>
+                  <td>{player.submissions?.length || 1}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
           <h3 style={{ marginTop: "2rem" }}>Submit a New Rating</h3>
           <input placeholder="Name" value={newRating.name} onChange={(e) => setNewRating({ ...newRating, name: e.target.value })} />
           {Object.keys(weightings).map((key) => (
