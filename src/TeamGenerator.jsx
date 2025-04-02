@@ -7,6 +7,7 @@ import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import RankingTab from "./components/RankingTab";
 import TeamsTab from "./components/TeamsTab";
 import LeaderboardTab from "./components/LeaderboardTab";
+import TeamSetManager from "./components/TeamSetManager";
 
 // FIREBASE CONFIG
 const firebaseConfig = {
