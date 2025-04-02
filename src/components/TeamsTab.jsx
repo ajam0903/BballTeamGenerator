@@ -1,4 +1,3 @@
-// TeamsTab.jsx
 import React from "react";
 
 export default function TeamsTab({
@@ -13,40 +12,40 @@ export default function TeamsTab({
   setScores,
   teamSize,
   setTeamSize,
-  generateTeams,
 }) {
   return (
     <div>
-      <h2>Team Generator</h2>
       <div style={{ marginBottom: "1rem" }}>
-        <label>Team Size: </label>
+        <label>Team Size:</label>
         <select
           value={teamSize}
           onChange={(e) => setTeamSize(parseInt(e.target.value))}
+          style={{ marginLeft: "0.5rem" }}
         >
-          {[1,2,3,4,5].map((n) => (
-            <option key={n} value={n}>{n}v{n}</option>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <option key={n} value={n}>
+              {n}v{n}
+            </option>
           ))}
         </select>
-        <button onClick={generateTeams} style={{ marginLeft: "1rem" }}>
-          Generate Teams
-        </button>
       </div>
 
-      {/* Show Teams */}
       {teams.length > 0 && (
         <>
-          <h3>Teams</h3>
+          <h2>Teams</h2>
           {teams.map((team, i) => (
             <div key={i} style={{ marginBottom: "0.5rem" }}>
-              <strong>Team {i + 1}:</strong> {team.map(p => p.name).join(", ")}
+              <strong>Team {i + 1}:</strong> {team.map((p) => p.name).join(", ")}
             </div>
           ))}
 
-          <h3>Matchups</h3>
+          <h2>Matchups</h2>
           {matchups.map(([teamA, teamB], i) => (
-            <div key={i} style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "0.5rem" }}>
-              <strong>Match {i + 1}:</strong> {teamA.map(p => p.name).join(", ")} vs {teamB.map(p => p.name).join(", ")}
+            <div
+              key={i}
+              style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "1rem" }}
+            >
+              <strong>Match {i + 1}:</strong> {teamA.map((p) => p.name).join(", ")} vs {teamB.map((p) => p.name).join(", ")}
               <div>
                 MVP:
                 <select
@@ -59,7 +58,9 @@ export default function TeamsTab({
                 >
                   <option value="">-- Select MVP --</option>
                   {[...teamA, ...teamB].map((p) => (
-                    <option key={p.name} value={p.name}>{p.name}</option>
+                    <option key={p.name} value={p.name}>
+                      {p.name}
+                    </option>
                   ))}
                 </select>
               </div>
