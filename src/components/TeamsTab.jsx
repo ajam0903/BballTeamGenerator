@@ -32,6 +32,10 @@ export default function TeamsTab({
         </select>
       </div>
 
+      {teams.length === 0 && (
+        <p style={{ color: "#888", fontStyle: "italic" }}>No teams generated yet. Select active players and click "Generate Teams".</p>
+      )}
+
       {teams.length > 0 && (
         <>
           <h2>Teams</h2>
