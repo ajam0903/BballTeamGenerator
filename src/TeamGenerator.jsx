@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
 import RankingTab from "./components/RankingTab";
 import TeamsTab from "./components/TeamsTab";
 import LeaderboardTab from "./components/LeaderboardTab";
 import TeamSetManager from "./components/TeamSetManager";
 import BalancedTeamGenerator from "./components/BalancedTeamGenerator";
+
+const db = getFirestore();
 
 export default function TeamGenerator() {
   const [activeTab, setActiveTab] = useState("rankings");
@@ -88,6 +91,51 @@ export default function TeamGenerator() {
     setMvpVotes(Array(matchups.length).fill(""));
     setScores(Array(matchups.length).fill({ a: "", b: "" }));
   };
+
+  useEffect(() => {
+    const fetchSet = async () => {
+      const docRef = doc(db, "sets", currentSet);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const averagedPlayers = (data.players || []).map((player) => {
+          const submissions = player.submissions || [];
+          const avgStats = {
+            name: player.name,
+            active: player.active !== undefined ? player.active : true,
+            scoring: 0,
+            defense: 0,
+            rebounding: 0,
+            playmaking: 0,
+            stamina: 0,
+            physicality: 0,
+            xfactor: 0,
+          };
+          submissions.forEach((s) => {
+            avgStats.scoring += s.scoring;
+            avgStats.defense += s.defense;
+            avgStats.rebounding += s.rebounding;
+            avgStats.playmaking += s.playmaking;
+            avgStats.stamina += s.stamina;
+            avgStats.physicality += s.physicality;
+            avgStats.xfactor += s.xfactor;
+          });
+          const len = submissions.length || 1;
+          Object.keys(avgStats).forEach((key) => {
+            if (typeof avgStats[key] === "number") {
+              avgStats[key] = parseFloat((avgStats[key] / len).toFixed(2));
+            }
+          });
+          avgStats.submissions = submissions;
+          return avgStats;
+        });
+        setPlayers(averagedPlayers);
+        setMvpVotes(data.mvpVotes || []);
+        setScores(data.scores || []);
+      }
+    };
+    fetchSet();
+  }, [currentSet]);
 
   return (
     <div>
