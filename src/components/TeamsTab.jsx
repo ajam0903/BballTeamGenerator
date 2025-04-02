@@ -12,6 +12,8 @@ export default function TeamsTab({
   setScores,
   teamSize,
   setTeamSize,
+  handlePlayerActiveToggle,
+  weightings,
 }) {
   return (
     <div>
@@ -92,6 +94,40 @@ export default function TeamsTab({
           ))}
         </>
       )}
+
+      <h2>Player List</h2>
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: "left" }}>Name</th>
+            <th>Overall Rating</th>
+            <th>Active</th>
+          </tr>
+        </thead>
+        <tbody>
+          {players.map((player) => (
+            <tr key={player.name}>
+              <td>{player.name}</td>
+              <td>{(
+                player.scoring * weightings.scoring +
+                player.defense * weightings.defense +
+                player.rebounding * weightings.rebounding +
+                player.playmaking * weightings.playmaking +
+                player.stamina * weightings.stamina +
+                player.physicality * weightings.physicality +
+                player.xfactor * weightings.xfactor
+              ).toFixed(2)}</td>
+              <td>
+                <input
+                  type="checkbox"
+                  checked={player.active}
+                  onChange={(e) => handlePlayerActiveToggle(player.name, e.target.checked)}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
