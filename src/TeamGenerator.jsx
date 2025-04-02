@@ -350,6 +350,7 @@ export default function TeamGenerator() {
             setScores={setScores}
             teamSize={teamSize}
             setTeamSize={setTeamSize}
+            generateBalancedTeams={generateBalancedTeams}
           />
         </>
       )}
