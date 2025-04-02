@@ -36,6 +36,14 @@ export default function TeamsTab({
         </button>
       </div>
 
+      {/* DEBUG SECTION */}
+      <div style={{ marginBottom: "2rem", background: "#f9f9f9", padding: "1rem", border: "1px solid #ccc" }}>
+        <h3>Debug Info</h3>
+        <p>Players: {players.length}</p>
+        <p>Teams: {teams.length}</p>
+        <p>Matchups: {matchups.length}</p>
+      </div>
+
       {teams.length === 0 && (
         <p style={{ color: "#888", fontStyle: "italic" }}>No teams generated yet. Select active players and click "Generate Teams".</p>
       )}
