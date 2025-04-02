@@ -186,7 +186,9 @@ export default function TeamGenerator() {
 
       {activeTab === "players" && (
         <>
-          <BalancedTeamGenerator onGenerate={generateBalancedTeams} />
+          <div style={{ marginBottom: '1rem' }}>
+            <button onClick={generateBalancedTeams}>Generate Balanced Teams</button>
+          </div>
           <TeamsTab
             players={players}
             teams={teams}
