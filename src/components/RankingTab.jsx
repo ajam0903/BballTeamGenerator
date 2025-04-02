@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+""import React, { useState } from "react";
 
 export default function RankingTab({
   players,
@@ -15,7 +15,6 @@ export default function RankingTab({
 }) {
   const [sortKey, setSortKey] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc");
-  const [showActiveOnly, setShowActiveOnly] = useState(false);
 
   const handleSort = (key) => {
     if (sortKey === key) {
@@ -26,15 +25,13 @@ export default function RankingTab({
     }
   };
 
-  const sortedPlayers = [...players]
-    .filter((p) => (showActiveOnly ? p.active : true))
-    .sort((a, b) => {
-      const aValue = sortKey === "name" ? a.name.toLowerCase() : a[sortKey];
-      const bValue = sortKey === "name" ? b.name.toLowerCase() : b[sortKey];
-      if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
-      if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
-      return 0;
-    });
+  const sortedPlayers = [...players].sort((a, b) => {
+    const aValue = sortKey === "name" ? a.name.toLowerCase() : a[sortKey];
+    const bValue = sortKey === "name" ? b.name.toLowerCase() : b[sortKey];
+    if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
+    if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
+    return 0;
+  });
 
   const weightings = {
     scoring: 0.25,
@@ -61,14 +58,6 @@ export default function RankingTab({
   return (
     <div>
       <h2>Player Rankings</h2>
-      <label>
-        <input
-          type="checkbox"
-          checked={showActiveOnly}
-          onChange={(e) => setShowActiveOnly(e.target.checked)}
-        />
-        Show Active Only
-      </label>
       <table>
         <thead>
           <tr>
