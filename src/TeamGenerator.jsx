@@ -214,53 +214,8 @@ export default function TeamGenerator() {
       )}
 
       {activeTab === "rankings" && (
-        <RankingTab
-          players={players}
-          newRating={newRating}
-          setNewRating={setNewRating}
-          handleRatingSubmit={async () => {
-            const docRef = doc(db, "sets", currentSet);
-            const docSnap = await getDoc(docRef);
-            const data = docSnap.exists() ? docSnap.data() : { players: [] };
-            const updatedPlayers = [...data.players];
-            const index = updatedPlayers.findIndex(
-              (p) => p.name.toLowerCase() === newRating.name.toLowerCase()
-            );
-
-            if (index > -1) {
-              updatedPlayers[index].submissions = [
-                ...(updatedPlayers[index].submissions || []),
-                { ...newRating },
-              ];
-            } else {
-              updatedPlayers.push({
-                name: newRating.name,
-                active: true,
-                submissions: [{ ...newRating }],
-              });
-            }
-
-            await setDoc(docRef, { ...data, players: updatedPlayers });
-            setNewRating({
-              name: "",
-              scoring: 5,
-              defense: 5,
-              rebounding: 5,
-              playmaking: 5,
-              stamina: 5,
-              physicality: 5,
-              xfactor: 5,
-            });
-            alert("Rating submitted successfully!");
-          }}
-          editingPlayer={editingPlayer}
-          setEditingPlayer={setEditingPlayer}
-          editPlayerForm={editPlayerForm}
-          setEditPlayerForm={setEditPlayerForm}
-          handleDeletePlayer={handleDeletePlayer}
-          startEditPlayer={startEditPlayer}
-          saveEditedPlayer={saveEditedPlayer}
-        />
+        <RankingTab$1
+  showActiveToggle={false} />
       )}
 
       {activeTab === "leaderboard" && (
