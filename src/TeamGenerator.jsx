@@ -29,6 +29,17 @@ export default function TeamGenerator() {
   const [scores, setScores] = useState([]);
   const [leaderboard, setLeaderboard] = useState({});
   const [currentSet, setCurrentSet] = useState("default");
+  const [editingPlayer, setEditingPlayer] = useState(null);
+  const [editPlayerForm, setEditPlayerForm] = useState({
+    name: "",
+    scoring: 5,
+    defense: 5,
+    rebounding: 5,
+    playmaking: 5,
+    stamina: 5,
+    physicality: 5,
+    xfactor: 5,
+  });
 
   const weightings = {
     scoring: 0.25,
@@ -74,6 +85,43 @@ export default function TeamGenerator() {
     setMatchups(matchups);
     setMvpVotes(Array(matchups.length).fill(""));
     setScores(Array(matchups.length).fill({ a: "", b: "" }));
+  };
+
+  const handleDeletePlayer = async (playerName) => {
+    const docRef = doc(db, "sets", currentSet);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      const updatedPlayers = data.players.filter(
+        (p) => p.name.toLowerCase() !== playerName.toLowerCase()
+      );
+      await setDoc(docRef, { ...data, players: updatedPlayers });
+      setPlayers(updatedPlayers);
+    }
+  };
+
+  const startEditPlayer = (player) => {
+    setEditingPlayer(player.name);
+    setEditPlayerForm({ ...player });
+  };
+
+  const saveEditedPlayer = async () => {
+    const docRef = doc(db, "sets", currentSet);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      const updatedPlayers = [...data.players];
+      const index = updatedPlayers.findIndex(
+        (p) => p.name.toLowerCase() === editingPlayer.toLowerCase()
+      );
+      if (index > -1) {
+        updatedPlayers[index].submissions.push({ ...editPlayerForm });
+        updatedPlayers[index].name = editPlayerForm.name;
+        await setDoc(docRef, { ...data, players: updatedPlayers });
+        setPlayers(updatedPlayers);
+        setEditingPlayer(null);
+      }
+    }
   };
 
   useEffect(() => {
@@ -198,6 +246,13 @@ export default function TeamGenerator() {
             });
             alert("Rating submitted successfully!");
           }}
+          editingPlayer={editingPlayer}
+          setEditingPlayer={setEditingPlayer}
+          editPlayerForm={editPlayerForm}
+          setEditPlayerForm={setEditPlayerForm}
+          handleDeletePlayer={handleDeletePlayer}
+          startEditPlayer={startEditPlayer}
+          saveEditedPlayer={saveEditedPlayer}
         />
       )}
 
