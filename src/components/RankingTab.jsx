@@ -1,4 +1,13 @@
 import React, { useState } from "react";
+import {
+  Section,
+  StyledInput,
+  StyledButton,
+  StyledTable,
+  TableHeader,
+  TableCell,
+  TableRow
+} from "./ui/UIComponents";
 
 export default function RankingTab({
   players,
@@ -56,48 +65,51 @@ export default function RankingTab({
   };
 
   return (
-    <div>
-      <h2>Player Rankings</h2>
-      <table>
-        <thead>
-          <tr>
-            <th onClick={() => handleSort("name")}>Name</th>
-            <th onClick={() => handleSort("score")}>Overall Rating</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sortedPlayers.map((player) => (
-            <tr key={player.name}>
-              <td>{player.name}</td>
-              <td>{calculateScore(player)}</td>
-              <td>
-                <button onClick={() => startEditPlayer(player)}>
-                  {editingPlayer === player.name ? "Cancel" : "Edit"}
-                </button>
-                <button onClick={() => handleDeletePlayer(player.name)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="p-4">
+      <Section title="Player Rankings">
+        <StyledTable>
+          <TableHeader>
+            <th onClick={() => handleSort("name")} className="cursor-pointer px-3 py-2">Name</th>
+            <th onClick={() => handleSort("score")} className="cursor-pointer px-3 py-2">Overall Rating</th>
+            <th className="px-3 py-2">Actions</th>
+          </TableHeader>
+          <tbody>
+            {sortedPlayers.map((player) => (
+              <TableRow key={player.name}>
+                <TableCell>{player.name}</TableCell>
+                <TableCell>{calculateScore(player)}</TableCell>
+                <TableCell>
+                  <StyledButton
+                    onClick={() => startEditPlayer(player)}
+                    className="mr-2 bg-yellow-500 hover:bg-yellow-600"
+                  >
+                    {editingPlayer === player.name ? "Cancel" : "Edit"}
+                  </StyledButton>
+                  <StyledButton
+                    onClick={() => handleDeletePlayer(player.name)}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Delete
+                  </StyledButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </tbody>
+        </StyledTable>
+      </Section>
 
       {editingPlayer && (
-        <div style={{ marginTop: "2rem", border: "1px solid #ccc", padding: "1rem" }}>
-          <h3>Edit Player: {editingPlayer}</h3>
-          <label>
-            Name:
-            <input
-              value={editPlayerForm.name}
-              onChange={(e) =>
-                setEditPlayerForm({ ...editPlayerForm, name: e.target.value })
-              }
-            />
-          </label>
+        <Section title={`Edit Player: ${editingPlayer}`}>
+          <label className="block mb-2">Name:</label>
+          <StyledInput
+            value={editPlayerForm.name}
+            onChange={(e) => setEditPlayerForm({ ...editPlayerForm, name: e.target.value })}
+          />
+
           {Object.keys(weightings).map((key) => (
-            <div key={key}>
-              <label>{key}</label>
-              <input
+            <div key={key} className="mt-2">
+              <label className="block mb-1 capitalize">{key}</label>
+              <StyledInput
                 type="number"
                 min="1"
                 max="10"
@@ -111,37 +123,42 @@ export default function RankingTab({
               />
             </div>
           ))}
-          <button onClick={saveEditedPlayer}>Save</button>
-        </div>
+          <div className="mt-4">
+            <StyledButton onClick={saveEditedPlayer}>Save</StyledButton>
+          </div>
+        </Section>
       )}
 
-      <h3>Submit New Rating</h3>
-      <input
-        placeholder="Name"
-        value={newRating.name}
-        onChange={(e) => setNewRating({ ...newRating, name: e.target.value })}
-      />
-      {Object.entries(newRating).map(
-        ([key, value]) =>
-          key !== "name" && (
-            <div key={key}>
-              <label>{key}</label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                value={value}
-                onChange={(e) =>
-                  setNewRating({
-                    ...newRating,
-                    [key]: parseInt(e.target.value) || 1,
-                  })
-                }
-              />
-            </div>
-          )
-      )}
-      <button onClick={handleRatingSubmit}>Submit Rating</button>
+      <Section title="Submit New Rating">
+        <StyledInput
+          placeholder="Name"
+          value={newRating.name}
+          onChange={(e) => setNewRating({ ...newRating, name: e.target.value })}
+        />
+        {Object.entries(newRating).map(
+          ([key, value]) =>
+            key !== "name" && (
+              <div key={key} className="mt-2">
+                <label className="block mb-1 capitalize">{key}</label>
+                <StyledInput
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={value}
+                  onChange={(e) =>
+                    setNewRating({
+                      ...newRating,
+                      [key]: parseInt(e.target.value) || 1,
+                    })
+                  }
+                />
+              </div>
+            )
+        )}
+        <div className="mt-4">
+          <StyledButton onClick={handleRatingSubmit}>Submit Rating</StyledButton>
+        </div>
+      </Section>
     </div>
   );
 }
