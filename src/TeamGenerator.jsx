@@ -88,6 +88,54 @@ export default function TeamGenerator() {
     setScores(Array(matchups.length).fill({ a: "", b: "" }));
   };
 
+  const handleTogglePlayerActive = async (playerName, newStatus) => {
+    const docRef = doc(db, "sets", currentSet);
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return;
+
+    const data = docSnap.data();
+    const updatedPlayers = data.players.map((p) =>
+      p.name.toLowerCase() === playerName.toLowerCase() ? { ...p, active: newStatus } : p
+    );
+
+    await setDoc(docRef, { ...data, players: updatedPlayers });
+
+    // Refresh UI
+    const refreshed = updatedPlayers.map((player) => {
+      const submissions = player.submissions || [];
+      const avgStats = {
+        name: player.name,
+        active: player.active !== undefined ? player.active : true,
+        scoring: 0,
+        defense: 0,
+        rebounding: 0,
+        playmaking: 0,
+        stamina: 0,
+        physicality: 0,
+        xfactor: 0,
+      };
+      submissions.forEach((s) => {
+        avgStats.scoring += s.scoring;
+        avgStats.defense += s.defense;
+        avgStats.rebounding += s.rebounding;
+        avgStats.playmaking += s.playmaking;
+        avgStats.stamina += s.stamina;
+        avgStats.physicality += s.physicality;
+        avgStats.xfactor += s.xfactor;
+      });
+      const len = submissions.length || 1;
+      Object.keys(avgStats).forEach((key) => {
+        if (typeof avgStats[key] === "number") {
+          avgStats[key] = parseFloat((avgStats[key] / len).toFixed(2));
+        }
+      });
+      avgStats.submissions = submissions;
+      return avgStats;
+    });
+
+    setPlayers(refreshed);
+  };
+
   const handleRatingSubmit = async () => {
     if (!newRating.name) return alert("Player name is required");
 
@@ -212,6 +260,7 @@ export default function TeamGenerator() {
           editPlayerForm={editPlayerForm}
           setEditPlayerForm={setEditPlayerForm}
           handleRatingSubmit={handleRatingSubmit}
+          handleTogglePlayerActive={handleTogglePlayerActive}
           currentSet={currentSet}
         />
       )}
