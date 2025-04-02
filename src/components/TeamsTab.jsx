@@ -14,6 +14,7 @@ export default function TeamsTab({
   setTeamSize,
   handlePlayerActiveToggle,
   weightings,
+  generateBalancedTeams
 }) {
   return (
     <div>
@@ -30,6 +31,9 @@ export default function TeamsTab({
             </option>
           ))}
         </select>
+        <button onClick={generateBalancedTeams} style={{ marginLeft: "1rem" }}>
+          Generate Teams
+        </button>
       </div>
 
       {teams.length === 0 && (
