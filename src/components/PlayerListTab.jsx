@@ -1,74 +1,45 @@
 import React from "react";
 
-export default function PlayerListTab({
-  players,
-  handleTogglePlayerActive,
-  startEditPlayer,
-  handleDeletePlayer,
-  editingPlayer,
-  setEditingPlayer,
-  editPlayerForm,
-  setEditPlayerForm,
-  showEditForm,
-  setShowEditForm
-}) {
+export default function PlayerListTab({ players, handleTogglePlayerActive }) {
   return (
-    <div>
+    <div style={{ marginBottom: "2rem" }}>
       <h2>Player List</h2>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
             <th>Name</th>
+            <th>Overall Rating</th>
             <th>Active</th>
-            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {players.map((player) => (
-            <tr key={player.name}>
-              <td>{player.name}</td>
-              <td>
-                <input
-                  type="checkbox"
-                  checked={player.active}
-                  onChange={(e) => handleTogglePlayerActive(player.name, e.target.checked)}
-                />
-              </td>
-              <td>
-                <button onClick={() => startEditPlayer(player)}>Edit</button>
-                <button onClick={() => handleDeletePlayer(player.name)} style={{ marginLeft: "0.5rem" }}>
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
+          {players.map((player) => {
+            const rating = (
+              player.scoring * 0.25 +
+              player.defense * 0.2 +
+              player.rebounding * 0.15 +
+              player.playmaking * 0.15 +
+              player.stamina * 0.1 +
+              player.physicality * 0.1 +
+              player.xfactor * 0.05
+            ).toFixed(2);
+
+            return (
+              <tr key={player.name}>
+                <td>{player.name}</td>
+                <td>{rating}</td>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={player.active}
+                    onChange={(e) => handleTogglePlayerActive(player.name, e.target.checked)}
+                  />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
-
-      {showEditForm && editingPlayer && (
-        <div style={{ marginTop: "2rem", padding: "1rem", border: "1px solid #ccc" }}>
-          <h3>Edit Player: {editingPlayer}</h3>
-          {Object.keys(editPlayerForm).map((key) =>
-            key !== "name" ? (
-              <div key={key} style={{ marginBottom: "8px" }}>
-                <label>{key}</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={editPlayerForm[key]}
-                  onChange={(e) =>
-                    setEditPlayerForm({
-                      ...editPlayerForm,
-                      [key]: parseInt(e.target.value),
-                    })
-                  }
-                />
-              </div>
-            ) : null
-          )}
-        </div>
-      )}
     </div>
   );
 }
