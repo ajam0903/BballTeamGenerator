@@ -4,9 +4,9 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 
 // CHILD COMPONENTS
-import RankingTab from "./RankingTab";
-import TeamsTab from "./TeamsTab";
-import LeaderboardTab from "./LeaderboardTab";
+import RankingTab from "./components/RankingTab";
+import TeamsTab from "./components/TeamsTab";
+import LeaderboardTab from "./components/LeaderboardTab";
 
 // FIREBASE CONFIG
 const firebaseConfig = {
