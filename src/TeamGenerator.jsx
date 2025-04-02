@@ -262,6 +262,8 @@ export default function TeamGenerator() {
           handleRatingSubmit={handleRatingSubmit}
           handlePlayerActiveToggle={handleTogglePlayerActive}
           currentSet={currentSet}
+          startEditPlayer={startEditPlayer}
+          handleDeletePlayer={handleDeletePlayer}
         />
       )}
 
