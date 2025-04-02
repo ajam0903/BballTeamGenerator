@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import RankingTab from "./components/RankingTab";
 import TeamsTab from "./components/TeamsTab";
 import LeaderboardTab from "./components/LeaderboardTab";
@@ -11,7 +11,6 @@ const db = getFirestore();
 export default function TeamGenerator() {
   const [activeTab, setActiveTab] = useState("rankings");
 
-  // Player / Ranking states
   const [players, setPlayers] = useState([]);
   const [newRating, setNewRating] = useState({
     name: "",
@@ -35,17 +34,14 @@ export default function TeamGenerator() {
     xfactor: 5,
   });
 
-  // Teams / Matchups states
   const [teamSize, setTeamSize] = useState(3);
   const [teams, setTeams] = useState([]);
   const [matchups, setMatchups] = useState([]);
   const [mvpVotes, setMvpVotes] = useState([]);
   const [scores, setScores] = useState([]);
 
-  // Leaderboard
   const [leaderboard, setLeaderboard] = useState({});
 
-  // Team Set Management
   const [currentSet, setCurrentSet] = useState("default");
 
   const weightings = {
@@ -90,6 +86,64 @@ export default function TeamGenerator() {
     setMatchups(matchups);
     setMvpVotes(Array(matchups.length).fill(""));
     setScores(Array(matchups.length).fill({ a: "", b: "" }));
+  };
+
+  const handleRatingSubmit = async () => {
+    if (!newRating.name) return alert("Player name is required");
+
+    const docRef = doc(db, "sets", currentSet);
+    const docSnap = await getDoc(docRef);
+    const data = docSnap.exists() ? docSnap.data() : { players: [] };
+    const updatedPlayers = [...data.players];
+    const index = updatedPlayers.findIndex((p) => p.name.toLowerCase() === newRating.name.toLowerCase());
+
+    if (index > -1) {
+      updatedPlayers[index].submissions = [...(updatedPlayers[index].submissions || []), { ...newRating }];
+    } else {
+      updatedPlayers.push({ name: newRating.name, active: true, submissions: [{ ...newRating }] });
+    }
+
+    await setDoc(docRef, { ...data, players: updatedPlayers });
+    setNewRating({ name: "", scoring: 5, defense: 5, rebounding: 5, playmaking: 5, stamina: 5, physicality: 5, xfactor: 5 });
+    alert("Rating submitted successfully!");
+
+    // Trigger data refresh
+    const updatedDocSnap = await getDoc(docRef);
+    if (updatedDocSnap.exists()) {
+      const newData = updatedDocSnap.data();
+      const averagedPlayers = (newData.players || []).map((player) => {
+        const submissions = player.submissions || [];
+        const avgStats = {
+          name: player.name,
+          active: player.active !== undefined ? player.active : true,
+          scoring: 0,
+          defense: 0,
+          rebounding: 0,
+          playmaking: 0,
+          stamina: 0,
+          physicality: 0,
+          xfactor: 0,
+        };
+        submissions.forEach((s) => {
+          avgStats.scoring += s.scoring;
+          avgStats.defense += s.defense;
+          avgStats.rebounding += s.rebounding;
+          avgStats.playmaking += s.playmaking;
+          avgStats.stamina += s.stamina;
+          avgStats.physicality += s.physicality;
+          avgStats.xfactor += s.xfactor;
+        });
+        const len = submissions.length || 1;
+        Object.keys(avgStats).forEach((key) => {
+          if (typeof avgStats[key] === "number") {
+            avgStats[key] = parseFloat((avgStats[key] / len).toFixed(2));
+          }
+        });
+        avgStats.submissions = submissions;
+        return avgStats;
+      });
+      setPlayers(averagedPlayers);
+    }
   };
 
   useEffect(() => {
@@ -157,6 +211,7 @@ export default function TeamGenerator() {
           setEditingPlayer={setEditingPlayer}
           editPlayerForm={editPlayerForm}
           setEditPlayerForm={setEditPlayerForm}
+          handleRatingSubmit={handleRatingSubmit}
           currentSet={currentSet}
         />
       )}
