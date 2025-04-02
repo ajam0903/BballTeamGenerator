@@ -1,25 +1,30 @@
-// src/components/TeamsTab.jsx
+// TeamsTab.jsx
 import React from "react";
 
 export default function TeamsTab({
   players,
   teams,
+  setTeams,
   matchups,
-  generateTeams,
+  setMatchups,
   mvpVotes,
-  scores,
   setMvpVotes,
+  scores,
   setScores,
   teamSize,
-  setTeamSize
+  setTeamSize,
+  generateTeams,
 }) {
   return (
     <div>
       <h2>Team Generator</h2>
       <div style={{ marginBottom: "1rem" }}>
-        <label>Team Size:</label>
-        <select value={teamSize} onChange={(e) => setTeamSize(parseInt(e.target.value))}>
-          {[1, 2, 3, 4, 5].map(n => (
+        <label>Team Size: </label>
+        <select
+          value={teamSize}
+          onChange={(e) => setTeamSize(parseInt(e.target.value))}
+        >
+          {[1,2,3,4,5].map((n) => (
             <option key={n} value={n}>{n}v{n}</option>
           ))}
         </select>
@@ -28,12 +33,12 @@ export default function TeamsTab({
         </button>
       </div>
 
-      {/* TEAMS & MATCHUPS */}
+      {/* Show Teams */}
       {teams.length > 0 && (
         <>
           <h3>Teams</h3>
           {teams.map((team, i) => (
-            <div key={i}>
+            <div key={i} style={{ marginBottom: "0.5rem" }}>
               <strong>Team {i + 1}:</strong> {team.map(p => p.name).join(", ")}
             </div>
           ))}
