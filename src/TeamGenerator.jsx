@@ -155,16 +155,6 @@ export default function TeamGenerator() {
             }}
             weightings={weightings}
           />
-          <PlayerListTab
-            players={players}
-            handlePlayerActiveToggle={(name, value) => {
-              const updated = players.map((p) =>
-                p.name === name ? { ...p, active: value } : p
-              );
-              setPlayers(updated);
-            }}
-            weightings={weightings}
-          />
         </>
       )}
 
