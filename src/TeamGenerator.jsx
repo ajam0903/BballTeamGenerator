@@ -1,20 +1,16 @@
-// TeamGenerator.jsx
 import React, { useState, useEffect } from "react";
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
-
-// CHILD COMPONENTS
+import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 import RankingTab from "./components/RankingTab";
 import TeamsTab from "./components/TeamsTab";
 import LeaderboardTab from "./components/LeaderboardTab";
 import TeamSetManager from "./components/TeamSetManager";
 
-// FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyCOGeIQoPX7kNVIHUipxBlJIAYissB2AqM",
   authDomain: "bball-team-generator.firebaseapp.com",
   projectId: "bball-team-generator",
-  storageBucket: "bball-team-generator.firebasestorage.app",
+  storageBucket: "bball-team-generator.appspot.com",
   messagingSenderId: "698253006350",
   appId: "1:698253006350:web:ddb9e7e799c034b61c8e5f",
   measurementId: "G-41WKPGWFMK",
@@ -24,10 +20,9 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 export default function TeamGenerator() {
-  // GLOBAL STATES
   const [activeTab, setActiveTab] = useState("rankings");
+  const [currentSet, setCurrentSet] = useState("default");
 
-  // Player / Ranking states
   const [players, setPlayers] = useState([]);
   const [newRating, setNewRating] = useState({
     name: "",
@@ -40,216 +35,97 @@ export default function TeamGenerator() {
     xfactor: 5,
   });
   const [editingPlayer, setEditingPlayer] = useState(null);
-  const [editPlayerForm, setEditPlayerForm] = useState({
-    name: "",
-    scoring: 5,
-    defense: 5,
-    rebounding: 5,
-    playmaking: 5,
-    stamina: 5,
-    physicality: 5,
-    xfactor: 5,
-  });
+  const [editPlayerForm, setEditPlayerForm] = useState({ ...newRating });
 
-  // Teams / Matchups states
-  const [teamSize, setTeamSize] = useState(3);
   const [teams, setTeams] = useState([]);
   const [matchups, setMatchups] = useState([]);
   const [mvpVotes, setMvpVotes] = useState([]);
   const [scores, setScores] = useState([]);
-
-  // Leaderboard
+  const [teamSize, setTeamSize] = useState(3);
   const [leaderboard, setLeaderboard] = useState({});
 
-  // FETCH PLAYERS ON MOUNT
   useEffect(() => {
-    const fetchPlayers = async () => {
-      const docRef = doc(db, "sets", "default");
+    const fetchSet = async () => {
+      const docRef = doc(db, "sets", currentSet);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        setPlayers(docSnap.data().players || []);
+        const data = docSnap.data();
+        const averagedPlayers = (data.players || []).map((player) => {
+          const submissions = player.submissions || [];
+          const avgStats = {
+            name: player.name,
+            active: player.active !== undefined ? player.active : true,
+            scoring: 0,
+            defense: 0,
+            rebounding: 0,
+            playmaking: 0,
+            stamina: 0,
+            physicality: 0,
+            xfactor: 0,
+          };
+          submissions.forEach((s) => {
+            avgStats.scoring += s.scoring;
+            avgStats.defense += s.defense;
+            avgStats.rebounding += s.rebounding;
+            avgStats.playmaking += s.playmaking;
+            avgStats.stamina += s.stamina;
+            avgStats.physicality += s.physicality;
+            avgStats.xfactor += s.xfactor;
+          });
+          const len = submissions.length || 1;
+          Object.keys(avgStats).forEach((key) => {
+            if (typeof avgStats[key] === "number") {
+              avgStats[key] = parseFloat((avgStats[key] / len).toFixed(2));
+            }
+          });
+          avgStats.submissions = submissions;
+          return avgStats;
+        });
+        setPlayers(averagedPlayers);
+        setMvpVotes(data.mvpVotes || []);
+        setScores(data.scores || []);
       }
     };
-    fetchPlayers();
-  }, []);
+    fetchSet();
+  }, [currentSet]);
 
-  // ========== PLAYER ACTIONS ==========
-
-  // Toggle active/inactive
-  const handlePlayerActiveToggle = async (playerName, isActive) => {
-    try {
-      const docRef = doc(db, "sets", "default");
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const updatedPlayers = [...(data.players || [])];
-        const idx = updatedPlayers.findIndex(
-          (p) => p.name.toLowerCase() === playerName.toLowerCase()
-        );
-        if (idx > -1) {
-          updatedPlayers[idx].active = isActive;
-          await setDoc(docRef, { ...data, players: updatedPlayers });
-          setPlayers(updatedPlayers);
-        }
-      }
-    } catch (error) {
-      console.error("Error toggling active status:", error);
-    }
-  };
-
-  // Delete Player
-  const handleDeletePlayer = async (playerName) => {
-    if (!window.confirm(`Are you sure you want to delete ${playerName}?`)) return;
-    try {
-      const docRef = doc(db, "sets", "default");
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const updatedPlayers = (data.players || []).filter(
-          (p) => p.name.toLowerCase() !== playerName.toLowerCase()
-        );
-        await setDoc(docRef, { ...data, players: updatedPlayers });
-        setPlayers(updatedPlayers);
-      }
-    } catch (error) {
-      console.error("Error deleting player:", error);
-    }
-  };
-
-  // Start editing a player
-  const startEditPlayer = (player) => {
-    setEditingPlayer(player.name);
-    setEditPlayerForm({
-      name: player.name,
-      scoring: player.scoring || 5,
-      defense: player.defense || 5,
-      rebounding: player.rebounding || 5,
-      playmaking: player.playmaking || 5,
-      stamina: player.stamina || 5,
-      physicality: player.physicality || 5,
-      xfactor: player.xfactor || 5,
+  useEffect(() => {
+    const tally = {};
+    mvpVotes.forEach((name) => {
+      if (name) tally[name] = (tally[name] || 0) + 1;
     });
-  };
 
-  // Save edited player
-  const saveEditedPlayer = async () => {
-    try {
-      const docRef = doc(db, "sets", "default");
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const updatedPlayers = [...(data.players || [])];
-        const idx = updatedPlayers.findIndex(
-          (p) => p.name.toLowerCase() === editingPlayer.toLowerCase()
-        );
-        if (idx > -1) {
-          // create a submission from the edited stats
-          const newSubmission = {
-            scoring: editPlayerForm.scoring,
-            defense: editPlayerForm.defense,
-            rebounding: editPlayerForm.rebounding,
-            playmaking: editPlayerForm.playmaking,
-            stamina: editPlayerForm.stamina,
-            physicality: editPlayerForm.physicality,
-            xfactor: editPlayerForm.xfactor,
-          };
-          // push to submissions
-          if (!updatedPlayers[idx].submissions) {
-            updatedPlayers[idx].submissions = [];
-          }
-          updatedPlayers[idx].submissions.push(newSubmission);
+    scores.forEach(({ a, b }, i) => {
+      if (a !== "" && b !== "") {
+        const teamA = matchups[i]?.[0] || [];
+        const teamB = matchups[i]?.[1] || [];
+        const teamAWon = parseInt(a) > parseInt(b);
 
-          // If name changed, update name
-          if (
-            editPlayerForm.name.toLowerCase() !==
-            editingPlayer.toLowerCase()
-          ) {
-            updatedPlayers[idx].name = editPlayerForm.name;
-          }
+        teamA.forEach((p) => {
+          tally[p.name + "_w"] = (tally[p.name + "_w"] || 0) + (teamAWon ? 1 : 0);
+          tally[p.name + "_l"] = (tally[p.name + "_l"] || 0) + (!teamAWon ? 1 : 0);
+        });
 
-          // Save to Firestore
-          await setDoc(docRef, { ...data, players: updatedPlayers });
-          setPlayers(updatedPlayers);
-          setEditingPlayer(null);
-        }
-      }
-    } catch (error) {
-      console.error("Error editing player:", error);
-    }
-  };
-
-  // Submit a new rating
-  const handleRatingSubmit = async () => {
-    try {
-      const docRef = doc(db, "sets", "default");
-      const docSnap = await getDoc(docRef);
-      const data = docSnap.exists() ? docSnap.data() : { players: [] };
-      const updatedPlayers = [...(data.players || [])];
-      const index = updatedPlayers.findIndex(
-        (p) => p.name.toLowerCase() === newRating.name.toLowerCase()
-      );
-      if (index > -1) {
-        // add new submission
-        if (!updatedPlayers[index].submissions) {
-          updatedPlayers[index].submissions = [];
-        }
-        updatedPlayers[index].submissions.push({ ...newRating });
-      } else {
-        // create new player with submissions
-        updatedPlayers.push({
-          name: newRating.name,
-          active: true,
-          submissions: [{ ...newRating }],
+        teamB.forEach((p) => {
+          tally[p.name + "_w"] = (tally[p.name + "_w"] || 0) + (!teamAWon ? 1 : 0);
+          tally[p.name + "_l"] = (tally[p.name + "_l"] || 0) + (teamAWon ? 1 : 0);
         });
       }
-      await setDoc(docRef, { ...data, players: updatedPlayers });
-      setPlayers(updatedPlayers);
-      // reset form
-      setNewRating({
-        name: "",
-        scoring: 5,
-        defense: 5,
-        rebounding: 5,
-        playmaking: 5,
-        stamina: 5,
-        physicality: 5,
-        xfactor: 5,
-      });
-    } catch (error) {
-      console.error("Error submitting rating:", error);
-    }
-  };
+    });
 
-  // ========== TEAM/MATCHUP ACTIONS ==========
-
-  const generateTeams = () => {
-    const activePlayers = players.filter((p) => p.active);
-    // shuffle
-    const shuffled = [...activePlayers].sort(() => Math.random() - 0.5);
-    const newTeams = Array.from(
-      { length: Math.ceil(shuffled.length / teamSize) },
-      (_, i) => shuffled.slice(i * teamSize, (i + 1) * teamSize)
-    );
-    setTeams(newTeams);
-
-    const matchupPairs = [];
-    for (let i = 0; i < newTeams.length - 1; i += 2) {
-      matchupPairs.push([newTeams[i], newTeams[i + 1] || []]);
-    }
-    setMatchups(matchupPairs);
-    setMvpVotes(Array(matchupPairs.length).fill(""));
-    setScores(Array(matchupPairs.length).fill({ a: "", b: "" }));
-  };
-
-  // ... Add your logic for MVP votes, scoreboard, etc. if you want
+    setLeaderboard(tally);
+  }, [mvpVotes, scores, matchups]);
 
   return (
-    <div style={{ padding: "1rem" }}>
-      <nav style={{ marginBottom: "1rem" }}>
+    <div style={{ padding: "1rem", maxWidth: "900px", margin: "0 auto" }}>
+      <h1>Basketball Team Generator</h1>
+      <TeamSetManager currentSet={currentSet} setCurrentSet={setCurrentSet} />
+
+      <div style={{ marginBottom: "1rem" }}>
         <button onClick={() => setActiveTab("rankings")}>Player Rankings</button>
-        <button onClick={() => setActiveTab("teams")}>Team Generator</button>
+        <button onClick={() => setActiveTab("teams")}>Teams</button>
         <button onClick={() => setActiveTab("leaderboard")}>Leaderboard</button>
-      </nav>
+      </div>
 
       {activeTab === "rankings" && (
         <RankingTab
@@ -257,15 +133,11 @@ export default function TeamGenerator() {
           setPlayers={setPlayers}
           newRating={newRating}
           setNewRating={setNewRating}
-          handleRatingSubmit={handleRatingSubmit}
           editingPlayer={editingPlayer}
           setEditingPlayer={setEditingPlayer}
           editPlayerForm={editPlayerForm}
           setEditPlayerForm={setEditPlayerForm}
-          saveEditedPlayer={saveEditedPlayer}
-          handlePlayerActiveToggle={handlePlayerActiveToggle}
-          handleDeletePlayer={handleDeletePlayer}
-          startEditPlayer={startEditPlayer}
+          currentSet={currentSet}
         />
       )}
 
@@ -282,7 +154,6 @@ export default function TeamGenerator() {
           setScores={setScores}
           teamSize={teamSize}
           setTeamSize={setTeamSize}
-          generateTeams={generateTeams}
         />
       )}
 
