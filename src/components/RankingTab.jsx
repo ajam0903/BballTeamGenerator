@@ -7,7 +7,7 @@ import {
   TableHeader,
   TableCell,
   TableRow
-} from "./ui/UIComponents";
+} from "./UIComponents";
 
 export default function RankingTab({
   players,
