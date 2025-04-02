@@ -65,7 +65,8 @@ export default function TeamGenerator() {
 
   const generateBalancedTeams = () => {
     const activePlayers = players.filter((p) => p.active);
-    const sortedPlayers = [...activePlayers].sort(
+    const shuffledPlayers = [...activePlayers].sort(() => Math.random() - 0.5);
+    const sortedPlayers = [...shuffledPlayers].sort(
       (a, b) => calculatePlayerScore(b) - calculatePlayerScore(a)
     );
     const numTeams = Math.ceil(sortedPlayers.length / teamSize);
