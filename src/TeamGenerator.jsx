@@ -136,6 +136,59 @@ export default function TeamGenerator() {
     setPlayers(refreshed);
   };
 
+  const startEditPlayer = (player) => {
+    setEditingPlayer(player.name);
+    setEditPlayerForm({ ...player });
+  };
+
+  const handleDeletePlayer = async (playerName) => {
+    if (!window.confirm(`Are you sure you want to delete ${playerName}?`)) return;
+    const docRef = doc(db, "sets", currentSet);
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return;
+
+    const data = docSnap.data();
+    const updatedPlayers = data.players.filter(
+      (p) => p.name.toLowerCase() !== playerName.toLowerCase()
+    );
+
+    await setDoc(docRef, { ...data, players: updatedPlayers });
+
+    const refreshed = updatedPlayers.map((player) => {
+      const submissions = player.submissions || [];
+      const avgStats = {
+        name: player.name,
+        active: player.active !== undefined ? player.active : true,
+        scoring: 0,
+        defense: 0,
+        rebounding: 0,
+        playmaking: 0,
+        stamina: 0,
+        physicality: 0,
+        xfactor: 0,
+      };
+      submissions.forEach((s) => {
+        avgStats.scoring += s.scoring;
+        avgStats.defense += s.defense;
+        avgStats.rebounding += s.rebounding;
+        avgStats.playmaking += s.playmaking;
+        avgStats.stamina += s.stamina;
+        avgStats.physicality += s.physicality;
+        avgStats.xfactor += s.xfactor;
+      });
+      const len = submissions.length || 1;
+      Object.keys(avgStats).forEach((key) => {
+        if (typeof avgStats[key] === "number") {
+          avgStats[key] = parseFloat((avgStats[key] / len).toFixed(2));
+        }
+      });
+      avgStats.submissions = submissions;
+      return avgStats;
+    });
+
+    setPlayers(refreshed);
+  };
+
   const handleRatingSubmit = async () => {
     if (!newRating.name) return alert("Player name is required");
 
@@ -155,7 +208,6 @@ export default function TeamGenerator() {
     setNewRating({ name: "", scoring: 5, defense: 5, rebounding: 5, playmaking: 5, stamina: 5, physicality: 5, xfactor: 5 });
     alert("Rating submitted successfully!");
 
-    // Trigger data refresh
     const updatedDocSnap = await getDoc(docRef);
     if (updatedDocSnap.exists()) {
       const newData = updatedDocSnap.data();
@@ -260,7 +312,9 @@ export default function TeamGenerator() {
           editPlayerForm={editPlayerForm}
           setEditPlayerForm={setEditPlayerForm}
           handleRatingSubmit={handleRatingSubmit}
-          handlePlayerActiveToggle={handleTogglePlayerActive}
+          handleTogglePlayerActive={handleTogglePlayerActive}
+          startEditPlayer={startEditPlayer}
+          handleDeletePlayer={handleDeletePlayer}
           currentSet={currentSet}
         />
       )}
