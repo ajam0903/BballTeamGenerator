@@ -33,6 +33,7 @@ export default function TeamGenerator() {
     physicality: 5,
     xfactor: 5,
   });
+  const [showEditForm, setShowEditForm] = useState(false);
 
   const [teamSize, setTeamSize] = useState(3);
   const [teams, setTeams] = useState([]);
@@ -137,8 +138,14 @@ export default function TeamGenerator() {
   };
 
   const startEditPlayer = (player) => {
-    setEditingPlayer(player.name);
-    setEditPlayerForm({ ...player });
+    if (editingPlayer === player.name && showEditForm) {
+      setShowEditForm(false);
+      setEditingPlayer(null);
+    } else {
+      setEditingPlayer(player.name);
+      setEditPlayerForm({ ...player });
+      setShowEditForm(true);
+    }
   };
 
   const handleDeletePlayer = async (playerName) => {
@@ -311,8 +318,10 @@ export default function TeamGenerator() {
           setEditingPlayer={setEditingPlayer}
           editPlayerForm={editPlayerForm}
           setEditPlayerForm={setEditPlayerForm}
+          showEditForm={showEditForm}
+          setShowEditForm={setShowEditForm}
           handleRatingSubmit={handleRatingSubmit}
-          handlePlayerActiveToggle={handleTogglePlayerActive}
+          handleTogglePlayerActive={handleTogglePlayerActive}
           startEditPlayer={startEditPlayer}
           handleDeletePlayer={handleDeletePlayer}
           currentSet={currentSet}
