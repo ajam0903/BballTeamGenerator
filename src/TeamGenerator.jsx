@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import RankingTab from "./components/RankingTab";
+import PlayerListTab from "./components/PlayerListTab";
 import TeamsTab from "./components/TeamsTab";
 import LeaderboardTab from "./components/LeaderboardTab";
 import TeamSetManager from "./components/TeamSetManager";
@@ -9,7 +10,7 @@ import BalancedTeamGenerator from "./components/BalancedTeamGenerator";
 const db = getFirestore();
 
 export default function TeamGenerator() {
-  const [activeTab, setActiveTab] = useState("rankings");
+  const [activeTab, setActiveTab] = useState("players");
 
   const [players, setPlayers] = useState([]);
   const [newRating, setNewRating] = useState({
@@ -303,28 +304,34 @@ export default function TeamGenerator() {
       <TeamSetManager currentSet={currentSet} setCurrentSet={setCurrentSet} />
 
       <nav>
+        <button onClick={() => setActiveTab("players")}>Player List</button>
         <button onClick={() => setActiveTab("rankings")}>Player Rankings</button>
         <button onClick={() => setActiveTab("teams")}>Teams</button>
         <button onClick={() => setActiveTab("leaderboard")}>Leaderboard</button>
       </nav>
 
-      {activeTab === "rankings" && (
-        <RankingTab
+      {activeTab === "players" && (
+        <PlayerListTab
           players={players}
-          setPlayers={setPlayers}
-          newRating={newRating}
-          setNewRating={setNewRating}
+          handleTogglePlayerActive={handleTogglePlayerActive}
+          startEditPlayer={startEditPlayer}
+          handleDeletePlayer={handleDeletePlayer}
           editingPlayer={editingPlayer}
           setEditingPlayer={setEditingPlayer}
           editPlayerForm={editPlayerForm}
           setEditPlayerForm={setEditPlayerForm}
           showEditForm={showEditForm}
           setShowEditForm={setShowEditForm}
-          handleRatingSubmit={handleRatingSubmit}
-          handleTogglePlayerActive={handleTogglePlayerActive}
-          startEditPlayer={startEditPlayer}
-          handleDeletePlayer={handleDeletePlayer}
           currentSet={currentSet}
+        />
+      )}
+
+      {activeTab === "rankings" && (
+        <RankingTab
+          players={players}
+          newRating={newRating}
+          setNewRating={setNewRating}
+          handleRatingSubmit={handleRatingSubmit}
         />
       )}
 
