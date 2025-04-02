@@ -101,8 +101,12 @@ export default function TeamGenerator() {
   };
 
   const startEditPlayer = (player) => {
-    setEditingPlayer(player.name);
-    setEditPlayerForm({ ...player });
+    if (editingPlayer === player.name) {
+      setEditingPlayer(null);
+    } else {
+      setEditingPlayer(player.name);
+      setEditPlayerForm({ ...player });
+    }
   };
 
   const saveEditedPlayer = async () => {
