@@ -1,164 +1,163 @@
+// RankingTab.jsx
 import React, { useState } from "react";
 import {
-  Section,
-  StyledInput,
-  StyledButton,
-  StyledTable,
-  TableHeader,
-  TableCell,
-  TableRow
+    StyledButton,
+    // Remove or adjust default StyledInput if it was causing white BG:
+    // We'll do custom classes directly below.
 } from "./UIComponents";
 
 export default function RankingTab({
-  players,
-  newRating,
-  setNewRating,
-  handleRatingSubmit,
-  editingPlayer,
-  setEditingPlayer,
-  editPlayerForm,
-  setEditPlayerForm,
-  handleDeletePlayer,
-  startEditPlayer,
-  saveEditedPlayer,
+    players,
+    newRating,
+    setNewRating,
+    handleRatingSubmit,
+    handleDeletePlayer,
+    openEditModal,
 }) {
-  const [sortKey, setSortKey] = useState("name");
-  const [sortOrder, setSortOrder] = useState("asc");
+    const [sortKey, setSortKey] = useState("name");
 
-  const handleSort = (key) => {
-    if (sortKey === key) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortKey(key);
-      setSortOrder("asc");
-    }
-  };
+    const computeRating = (p) => {
+        return (
+            (p.scoring || 5) * 0.25 +
+            (p.defense || 5) * 0.2 +
+            (p.rebounding || 5) * 0.15 +
+            (p.playmaking || 5) * 0.15 +
+            (p.stamina || 5) * 0.1 +
+            (p.physicality || 5) * 0.1 +
+            (p.xfactor || 5) * 0.05
+        ).toFixed(2);
+    };
 
-  const sortedPlayers = [...players].sort((a, b) => {
-    const aValue = sortKey === "name" ? a.name.toLowerCase() : a[sortKey];
-    const bValue = sortKey === "name" ? b.name.toLowerCase() : b[sortKey];
-    if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
-    if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
-    return 0;
-  });
+    const sortedPlayers = [...players].sort((a, b) => {
+        if (sortKey === "name") {
+            return a.name.localeCompare(b.name);
+        } else {
+            // rating desc
+            return computeRating(b) - computeRating(a);
+        }
+    });
 
-  const weightings = {
-    scoring: 0.25,
-    defense: 0.2,
-    rebounding: 0.15,
-    playmaking: 0.15,
-    stamina: 0.1,
-    physicality: 0.1,
-    xfactor: 0.05,
-  };
-
-  const calculateScore = (player) => {
     return (
-      player.scoring * weightings.scoring +
-      player.defense * weightings.defense +
-      player.rebounding * weightings.rebounding +
-      player.playmaking * weightings.playmaking +
-      player.stamina * weightings.stamina +
-      player.physicality * weightings.physicality +
-      player.xfactor * weightings.xfactor
-    ).toFixed(2);
-  };
+        <div className="p-6 space-y-8 bg-gray-900 text-gray-100 min-h-screen">
+            <h2 className="text-2xl font-bold">Player Rankings</h2>
 
-  return (
-    <div className="p-4">
-      <Section title="Player Rankings">
-        <StyledTable>
-          <TableHeader>
-            <th onClick={() => handleSort("name")} className="cursor-pointer px-3 py-2">Name</th>
-            <th onClick={() => handleSort("score")} className="cursor-pointer px-3 py-2">Overall Rating</th>
-            <th className="px-3 py-2">Actions</th>
-          </TableHeader>
-          <tbody>
-            {sortedPlayers.map((player) => (
-              <TableRow key={player.name}>
-                <TableCell>{player.name}</TableCell>
-                <TableCell>{calculateScore(player)}</TableCell>
-                <TableCell>
-                  <StyledButton
-                    onClick={() => startEditPlayer(player)}
-                    className="mr-2 bg-yellow-500 hover:bg-yellow-600"
-                  >
-                    {editingPlayer === player.name ? "Cancel" : "Edit"}
-                  </StyledButton>
-                  <StyledButton
-                    onClick={() => handleDeletePlayer(player.name)}
-                    className="bg-red-600 hover:bg-red-700"
-                  >
-                    Delete
-                  </StyledButton>
-                </TableCell>
-              </TableRow>
-            ))}
-          </tbody>
-        </StyledTable>
-      </Section>
-
-      {editingPlayer && (
-        <Section title={`Edit Player: ${editingPlayer}`}>
-          <label className="block mb-2">Name:</label>
-          <StyledInput
-            value={editPlayerForm.name}
-            onChange={(e) => setEditPlayerForm({ ...editPlayerForm, name: e.target.value })}
-          />
-
-          {Object.keys(weightings).map((key) => (
-            <div key={key} className="mt-2">
-              <label className="block mb-1 capitalize">{key}</label>
-              <StyledInput
-                type="number"
-                min="1"
-                max="10"
-                value={editPlayerForm[key]}
-                onChange={(e) =>
-                  setEditPlayerForm({
-                    ...editPlayerForm,
-                    [key]: parseInt(e.target.value) || 1,
-                  })
-                }
-              />
+            {/* Rating Criteria Card */}
+            <div className="bg-gray-800 p-4 rounded shadow space-y-2">
+                <h3 className="text-xl font-bold">Rating Criteria</h3>
+                <ul className="list-disc pl-6 space-y-1 text-sm sm:text-base text-gray-200">
+                    <li>
+                        <strong>Scoring Ability</strong> – Can they create and finish?
+                    </li>
+                    <li>
+                        <strong>Defense</strong> – On-ball defense, help defense, lateral movement.
+                    </li>
+                    <li>
+                        <strong>Rebounding</strong> – Positioning, effort, box-out ability.
+                    </li>
+                    <li>
+                        <strong>Playmaking / IQ</strong> – Passing, decision-making, court vision.
+                    </li>
+                    <li>
+                        <strong>Stamina / Speed</strong> – Hustle, quickness, movement without the ball.
+                    </li>
+                    <li>
+                        <strong>Size / Physicality</strong> – Height, strength, ability to guard bigger players.
+                    </li>
+                    <li>
+                        <strong>X-Factor (Optional)</strong> – Leadership, clutch play, hustle, or consistency.
+                    </li>
+                </ul>
             </div>
-          ))}
-          <div className="mt-4">
-            <StyledButton onClick={saveEditedPlayer}>Save</StyledButton>
-          </div>
-        </Section>
-      )}
 
-      <Section title="Submit New Rating">
-        <StyledInput
-          placeholder="Name"
-          value={newRating.name}
-          onChange={(e) => setNewRating({ ...newRating, name: e.target.value })}
-        />
-        {Object.entries(newRating).map(
-          ([key, value]) =>
-            key !== "name" && (
-              <div key={key} className="mt-2">
-                <label className="block mb-1 capitalize">{key}</label>
-                <StyledInput
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={value}
-                  onChange={(e) =>
-                    setNewRating({
-                      ...newRating,
-                      [key]: parseInt(e.target.value) || 1,
-                    })
-                  }
+            {/* Sort & Filter Controls */}
+            <div className="flex items-center space-x-4 mb-4">
+                <label className="font-medium">Sort By:</label>
+                <select
+                    className="border border-gray-700 bg-gray-800 rounded px-3 py-2 text-gray-100"
+                    value={sortKey}
+                    onChange={(e) => setSortKey(e.target.value)}
+                >
+                    <option value="name">Name</option>
+                    <option value="rating">Rating</option>
+                </select>
+            </div>
+
+            {/* Player List */}
+            <div className="space-y-2">
+                {sortedPlayers.map((player) => {
+                    const rating = computeRating(player);
+                    return (
+                        <div
+                            key={player.name}
+                            className="flex items-center bg-gray-800 shadow p-3 rounded justify-between"
+                        >
+                            <div>
+                                <span className="font-medium text-white">{player.name}</span>
+                                <span className="ml-2 text-sm text-gray-400">
+                                    (Rating: {rating})
+                                </span>
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                                <StyledButton
+                                    onClick={() => openEditModal(player)}
+                                    className="bg-yellow-600 hover:bg-yellow-700"
+                                >
+                                    Edit
+                                </StyledButton>
+                               
+                                <StyledButton
+                                    onClick={() => handleDeletePlayer(player.name)}
+                                    className="bg-red-600 hover:bg-red-700"
+                                >
+                                    Delete
+                                </StyledButton>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+
+            {/* Submit New Rating */}
+            <div className="bg-gray-800 p-4 rounded shadow space-y-2">
+                <h3 className="text-xl font-bold text-gray-100">Submit New Rating</h3>
+                <input
+                    placeholder="Name"
+                    className="border border-gray-700 bg-gray-700 text-gray-100 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={newRating.name}
+                    onChange={(e) => setNewRating({ ...newRating, name: e.target.value })}
                 />
-              </div>
-            )
-        )}
-        <div className="mt-4">
-          <StyledButton onClick={handleRatingSubmit}>Submit Rating</StyledButton>
+                {Object.entries(newRating).map(([key, value]) => {
+                    if (key === "name") return null;
+                    return (
+                        <div key={key}>
+                            <label className="block font-medium mb-1 capitalize text-gray-200">
+                                {key}
+                            </label>
+                            <input
+                                type="number"
+                                min="1"
+                                max="10"
+                                className="border border-gray-700 bg-gray-700 text-gray-100 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                value={value}
+                                onChange={(e) =>
+                                    setNewRating({
+                                        ...newRating,
+                                        [key]: parseInt(e.target.value) || 1,
+                                    })
+                                }
+                            />
+                        </div>
+                    );
+                })}
+                <StyledButton
+                    onClick={handleRatingSubmit}
+                    className="bg-blue-600 hover:bg-blue-700"
+                >
+                    Submit Rating
+                </StyledButton>
+            </div>
         </div>
-      </Section>
-    </div>
-  );
+    );
 }
