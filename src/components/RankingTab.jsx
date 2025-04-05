@@ -13,6 +13,7 @@ export default function RankingTab({
     handleRatingSubmit,
     handleDeletePlayer,
     openEditModal,
+    isAdmin,
 }) {
     const [sortKey, setSortKey] = useState("name");
 
@@ -93,25 +94,28 @@ export default function RankingTab({
                         >
                             <div>
                                 <span className="font-medium text-white">{player.name}</span>
-                                <span className="ml-2 text-sm text-gray-400">
-                                    (Rating: {rating})
-                                </span>
+                                <span className="ml-2 text-sm text-gray-400">(Rating: {rating})</span>
+                                <p className="text-xs text-gray-400">Ratings submitted: {player.submissions?.length || 0}</p>
                             </div>
 
                             <div className="flex items-center space-x-2">
-                                <StyledButton
-                                    onClick={() => openEditModal(player)}
-                                    className="bg-yellow-600 hover:bg-yellow-700"
-                                >
-                                    Edit
-                                </StyledButton>
+                                {isAdmin && (
+                                    <StyledButton
+                                        onClick={() => openEditModal(player)}
+                                        className="bg-yellow-600 hover:bg-yellow-700"
+                                    >
+                                        Edit
+                                    </StyledButton>
+                                )}
                                
-                                <StyledButton
-                                    onClick={() => handleDeletePlayer(player.name)}
-                                    className="bg-red-600 hover:bg-red-700"
-                                >
-                                    Delete
-                                </StyledButton>
+                                {isAdmin && (
+                                    <StyledButton
+                                        onClick={() => handleDeletePlayer(player.name)}
+                                        className="bg-red-600 hover:bg-red-700"
+                                    >
+                                        Delete
+                                    </StyledButton>
+                                )}
                             </div>
                         </div>
                     );

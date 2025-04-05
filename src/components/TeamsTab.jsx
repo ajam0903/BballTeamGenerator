@@ -1,6 +1,7 @@
 // /src/components/TeamsTab.jsx
 import React from "react";
 import { StyledButton } from "./UIComponents";
+import { useEffect, useState } from "react";
 
 export default function TeamsTab({
     players = [],

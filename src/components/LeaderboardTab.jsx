@@ -1,6 +1,7 @@
 ﻿import React from "react";
+import { StyledButton } from "./UIComponents";
 
-export default function LeaderboardTab({ leaderboard, resetLeaderboardData }) {
+export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAdmin }) {
     const sortedPlayers = Object.keys(leaderboard).sort((a, b) => {
         return (leaderboard[b].MVPs || 0) - (leaderboard[a].MVPs || 0);
     });
@@ -8,12 +9,14 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData }) {
     return (
         <div className="p-6 space-y-6 bg-gray-900 text-gray-100 min-h-screen">
             <h2 className="text-2xl font-bold mb-4">🏆 Leaderboard</h2>
-            <button
-                onClick={resetLeaderboardData}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded shadow mb-4"
-            >
-                Reset Leaderboard
-            </button>
+            {isAdmin && (
+                <StyledButton
+                    onClick={resetLeaderboardData}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded shadow mb-4"
+                >
+                    Reset Leaderboard
+                </StyledButton>
+            )}
 
             {sortedPlayers.length === 0 ? (
                 <p className="text-gray-400 italic">No results recorded yet.</p>

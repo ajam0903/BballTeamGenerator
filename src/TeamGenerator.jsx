@@ -9,6 +9,14 @@ import TeamSetManager from "./components/TeamSetManager";
 import BalancedTeamGenerator from "./components/BalancedTeamGenerator";
 import { DarkContainer } from "./components/UIComponents";
 import EditPlayerModal from "./components/EditPlayerModal";
+import { auth } from "./firebase";
+import {
+    onAuthStateChanged,
+    signInWithPopup,
+    GoogleAuthProvider,
+    signOut,
+} from "firebase/auth";
+
 
 
 const db = getFirestore();
@@ -35,6 +43,8 @@ export default function TeamGenerator() {
     const [scores, setScores] = useState([]);
     const [leaderboard, setLeaderboard] = useState({});
     const [currentSet, setCurrentSet] = useState("default");
+    const [user, setUser] = useState(null);
+
 
     const weightings = {
         scoring: 0.25,
@@ -44,6 +54,17 @@ export default function TeamGenerator() {
         stamina: 0.1,
         physicality: 0.1,
         xfactor: 0.05,
+    };
+
+    const handleLogin = () => {
+        const provider = new GoogleAuthProvider();
+        signInWithPopup(auth, provider).catch((error) => {
+            console.error("Login failed:", error);
+        });
+    };
+
+    const handleLogout = () => {
+        signOut(auth);
     };
 
     const calculatePlayerScore = (player) => {
@@ -160,6 +181,11 @@ export default function TeamGenerator() {
     };
 
     const handleRatingSubmit = async () => {
+        if (!user) {
+            alert("Please sign in to submit ratings.");
+            return;
+        }
+
         const docRef = doc(db, "sets", currentSet);
         const docSnap = await getDoc(docRef);
         const data = docSnap.exists() ? docSnap.data() : { players: [] };
@@ -168,16 +194,28 @@ export default function TeamGenerator() {
             (p) => p.name.toLowerCase() === newRating.name.toLowerCase()
         );
 
+        const submission = {
+            ...newRating,
+            submittedBy: user.email,
+        };
+
         if (index > -1) {
-            updatedPlayers[index].submissions = [
-                ...(updatedPlayers[index].submissions || []),
-                { ...newRating },
-            ];
+            const existing = updatedPlayers[index];
+            const alreadySubmitted = existing.submissions?.some(
+                (s) => s.submittedBy === user.email
+            );
+
+            if (alreadySubmitted) {
+                alert("You've already submitted a rating for this player.");
+                return;
+            }
+
+            existing.submissions = [...(existing.submissions || []), submission];
         } else {
             updatedPlayers.push({
                 name: newRating.name,
                 active: true,
-                submissions: [{ ...newRating }],
+                submissions: [submission],
             });
         }
 
@@ -222,6 +260,7 @@ export default function TeamGenerator() {
         setSelectedPlayerToEdit(null);
     };
 
+    const isAdmin = user?.email === "ajamali0903@gmail.com";
 
     const saveEditedPlayerFromModal = async (updatedPlayer) => {
         const docRef = doc(db, "sets", currentSet);
@@ -248,6 +287,13 @@ export default function TeamGenerator() {
         calculateLeaderboard();
     }, [matchups, scores, mvpVotes]);
 
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            console.log("Auth change:", currentUser);
+            setUser(currentUser);
+        });
+        return () => unsubscribe();
+    }, []);
 
     useEffect(() => {
         const fetchSet = async () => {
@@ -297,6 +343,16 @@ export default function TeamGenerator() {
 
     return (
         <DarkContainer>
+            <div className="flex items-center justify-between mb-4">
+                {user ? (
+                    <div className="text-sm text-gray-300">
+                        Signed in as <strong>{user.displayName}</strong>
+                        <StyledButton className="ml-4 bg-red-600" onClick={handleLogout}>Log out</StyledButton>
+                    </div>
+                ) : (
+                    <StyledButton onClick={handleLogin} className="bg-blue-600">Sign in with Google</StyledButton>
+                )}
+            </div>
 
             {/* Navigation row for tabs */}
             <div className="flex items-center space-x-4 mb-6">
@@ -356,12 +412,18 @@ export default function TeamGenerator() {
                     handleRatingSubmit={handleRatingSubmit}
                     handleDeletePlayer={handleDeletePlayer}
                     openEditModal={openEditModal}
+                    isAdmin={isAdmin}
                 />
 
             )}
 
             {activeTab === "leaderboard" && (
-                <LeaderboardTab leaderboard={leaderboard} resetLeaderboardData={resetLeaderboardData} />
+                <LeaderboardTab
+                    leaderboard={leaderboard}
+                    resetLeaderboardData={resetLeaderboardData}
+                    isAdmin={isAdmin}
+                />
+
             )}
 
             {editPlayerModalOpen && selectedPlayerToEdit && (
