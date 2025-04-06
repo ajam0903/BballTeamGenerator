@@ -104,6 +104,7 @@ export default function TeamGenerator() {
         setMvpVotes(Array(matchups.length).fill(""));
         setScores(Array(matchups.length).fill({ a: "", b: "" }));
     };
+    const [isEditingExisting, setIsEditingExisting] = useState(false);
 
     const calculateLeaderboard = () => {
         const tally = {};
@@ -281,8 +282,9 @@ export default function TeamGenerator() {
         }
     };
 
-    const openEditModal = (player) => {
+    const openEditModal = (player, isEdit = true) => {
         setSelectedPlayerToEdit(player);
+        setIsEditingExisting(isEdit);
         setEditPlayerModalOpen(true);
     };
 
@@ -374,6 +376,59 @@ export default function TeamGenerator() {
         fetchSet();
     }, [currentSet]);
 
+    const handlePlayerSaveFromModal = async (playerData) => {
+        if (!user) {
+            setToastMessage("⚠️ Please sign in to submit a rating.");
+            setTimeout(() => setToastMessage(""), 3000);
+            return;
+        }
+
+        const docRef = doc(db, "sets", currentSet);
+        const docSnap = await getDoc(docRef);
+        const data = docSnap.exists() ? docSnap.data() : { players: [] };
+
+        const updatedPlayers = [...data.players];
+        const index = updatedPlayers.findIndex(
+            (p) => p.name.toLowerCase() === playerData.name.toLowerCase()
+        );
+
+        if (index > -1) {
+            // Edit existing player
+            updatedPlayers[index] = {
+                ...updatedPlayers[index],
+                ...playerData,
+            };
+        } else {
+            // Add new player
+            updatedPlayers.push({
+                name: playerData.name,
+                active: true,
+                submissions: [
+                    {
+                        submittedBy: user.email,
+                        ...playerData,
+                    }
+                ],
+                rating:
+                    (playerData.scoring +
+                        playerData.defense +
+                        playerData.rebounding +
+                        playerData.playmaking +
+                        playerData.stamina +
+                        playerData.physicality +
+                        playerData.xfactor) / 7,
+            });
+        }
+
+        await setDoc(docRef, { ...data, players: updatedPlayers });
+
+        setPlayers(updatedPlayers); // update local list
+        setToastMessage("✅ Player saved!");
+        setTimeout(() => setToastMessage(""), 3000);
+        closeEditModal();
+    };
+
+
     return (
         <DarkContainer>
             <div className="flex items-center justify-between mb-4">
@@ -462,10 +517,10 @@ export default function TeamGenerator() {
 
             )}
 
-            {editPlayerModalOpen && selectedPlayerToEdit && (
+            {editPlayerModalOpen && (
                 <EditPlayerModal
                     player={selectedPlayerToEdit}
-                    onSave={saveEditedPlayerFromModal}
+                    onSave={handlePlayerSaveFromModal}
                     onClose={closeEditModal}
                 />
             )}

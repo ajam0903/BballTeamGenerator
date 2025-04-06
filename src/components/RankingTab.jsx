@@ -1,10 +1,24 @@
 ﻿// RankingTab.jsx
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
     StyledButton,
     // Remove or adjust default StyledInput if it was causing white BG:
     // We'll do custom classes directly below.
 } from "./UIComponents";
+
+import Tooltip from "./Tooltip";
+import { PlusCircleIcon } from "@heroicons/react/24/solid";
+
+const ratingHelp = {
+    scoring: "Ability to score consistently and create shots.",
+    defense: "On-ball defense, help-side positioning, effort.",
+    rebounding: "Positioning and effort on offensive/defensive glass.",
+    playmaking: "Court vision, passing, and decision-making.",
+    stamina: "Endurance to stay active and impactful.",
+    physicality: "Strength, toughness, and ability to play through contact.",
+    xfactor: "Intangibles — leadership, clutch play, and hustle.",
+};
+
 
 export default function RankingTab({
     players,
@@ -19,25 +33,29 @@ export default function RankingTab({
     setToastMessage,
 }) {
     const [sortKey, setSortKey] = useState("name");
-
+    const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     const [showRatingModal, setShowRatingModal] = useState(false);
     const [activeRatingIndex, setActiveRatingIndex] = useState(null);
 
     const openRatingModal = (index) => {
         const p = sortedPlayers[index];
+        const userSubmission = p.submissions?.find((s) => s.submittedBy === user?.email);
+
         setNewRating({
             name: p.name,
-            scoring: 5,
-            defense: 5,
-            rebounding: 5,
-            playmaking: 5,
-            stamina: 5,
-            physicality: 5,
-            xfactor: 5,
+            scoring: userSubmission?.scoring ?? p.scoring ?? 5,
+            defense: userSubmission?.defense ?? p.defense ?? 5,
+            rebounding: userSubmission?.rebounding ?? p.rebounding ?? 5,
+            playmaking: userSubmission?.playmaking ?? p.playmaking ?? 5,
+            stamina: userSubmission?.stamina ?? p.stamina ?? 5,
+            physicality: userSubmission?.physicality ?? p.physicality ?? 5,
+            xfactor: userSubmission?.xfactor ?? p.xfactor ?? 5,
         });
+
         setActiveRatingIndex(index);
         setShowRatingModal(true);
     };
+
 
     const closeRatingModal = () => {
         setShowRatingModal(false);
@@ -62,25 +80,63 @@ export default function RankingTab({
             (p.xfactor || 5) * 0.05
         ).toFixed(2);
     };
+    const sortedPlayers = [...players];
 
-    const sortedPlayers = [...players].sort((a, b) => {
-        const aRated = a.submissions?.some((s) => s.submittedBy === user?.email);
-        const bRated = b.submissions?.some((s) => s.submittedBy === user?.email);
+    const modalRef = useRef();
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-        // If one is rated and the other isn't, push rated one up
-        if (aRated && !bRated) return -1;
-        if (!aRated && bRated) return 1;
+    useEffect(() => {
+        function handleClickOutside(e) {
+            if (showRatingModal && modalRef.current && !modalRef.current.contains(e.target)) {
+                if (hasUnsavedChanges) {
+                    if (confirm("You have unsaved changes. Are you sure you want to close?")) {
+                        setShowRatingModal(false);
+                    }
+                } else {
+                    setShowRatingModal(false);
+                }
+            }
+        }
 
-        // If both are the same, fall back to rating sort
-        return computeRating(b) - computeRating(a);
-    });
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [showRatingModal, hasUnsavedChanges]);
+
+    {
+        toastMessage && (
+            <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded shadow-lg z-50 transition-opacity duration-300">
+                {toastMessage}
+            </div>
+        )
+    }
 
     return (
         <div className="p-6 space-y-8 bg-gray-900 text-gray-100 min-h-screen">
-            <h2 className="text-2xl font-bold">Player Rankings</h2>
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-white">Player Rankings</h2>
+                <div className="flex items-center space-x-1">
+                    <span className="text-sm text-gray-300">Add Player</span>
+                    <button
+                        onClick={() => openEditModal({
+                            name: "",
+                            scoring: 5,
+                            defense: 5,
+                            rebounding: 5,
+                            playmaking: 5,
+                            stamina: 5,
+                            physicality: 5,
+                            xfactor: 5,
+                        }, false)} // false means it's not editing existing
+                        title="Add new player"
+                    >
+                        <PlusCircleIcon className="w-6 h-6 text-green-400 hover:text-green-300" />
+                    </button>
+                </div>
+            </div>
+
             {showRatingModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-                    <div className="bg-gray-900 p-6 rounded-md w-[90%] max-w-lg">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div ref={modalRef} className="bg-gray-800 p-6 rounded-lg w-full max-w-lg shadow-lg">
                         <h2 className="text-xl font-bold mb-4 text-white">
                             Rate: {sortedPlayers[activeRatingIndex]?.name}
                         </h2>
@@ -89,23 +145,25 @@ export default function RankingTab({
                         {Object.entries(newRating).map(([key, value]) => {
                             if (key === "name") return null;
                             return (
-                                <div key={key}>
-                                    <label className="block font-medium mb-1 capitalize text-gray-200">
-                                        {key}
-                                    </label>
+                                <div key={key} className="mb-6">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-sm font-semibold text-white">
+                                            {capitalize(key)}
+                                        </label>
+                                        <Tooltip text={ratingHelp[key]} />
+                                    </div>
                                     <input
-                                        type="number"
+                                        type="range"
                                         min="1"
                                         max="10"
-                                        className="border border-gray-700 bg-gray-700 text-gray-100 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        step="1"
                                         value={value}
                                         onChange={(e) =>
-                                            setNewRating({
-                                                ...newRating,
-                                                [key]: parseInt(e.target.value) || 1,
-                                            })
+                                            setNewRating({ ...newRating, [key]: parseInt(e.target.value) })
                                         }
+                                        className="w-full mt-2 accent-blue-500"
                                     />
+                                    <p className="text-right text-xs text-gray-300">Value: {value}</p>
                                 </div>
                             );
                         })}
@@ -139,34 +197,6 @@ export default function RankingTab({
                     </div>
                 </div>
             )}
-
-            {/* Rating Criteria Card */}
-            <div className="bg-gray-800 p-4 rounded shadow space-y-2">
-                <h3 className="text-xl font-bold">Rating Criteria</h3>
-                <ul className="list-disc pl-6 space-y-1 text-sm sm:text-base text-gray-200">
-                    <li>
-                        <strong>Scoring Ability</strong> – Can they create and finish?
-                    </li>
-                    <li>
-                        <strong>Defense</strong> – On-ball defense, help defense, lateral movement.
-                    </li>
-                    <li>
-                        <strong>Rebounding</strong> – Positioning, effort, box-out ability.
-                    </li>
-                    <li>
-                        <strong>Playmaking / IQ</strong> – Passing, decision-making, court vision.
-                    </li>
-                    <li>
-                        <strong>Stamina / Speed</strong> – Hustle, quickness, movement without the ball.
-                    </li>
-                    <li>
-                        <strong>Size / Physicality</strong> – Height, strength, ability to guard bigger players.
-                    </li>
-                    <li>
-                        <strong>X-Factor (Optional)</strong> – Leadership, clutch play, hustle, or consistency.
-                    </li>
-                </ul>
-            </div>
 
             {/* Sort & Filter Controls */}
             <div className="flex items-center space-x-4 mb-4">
@@ -238,52 +268,6 @@ export default function RankingTab({
                         </div>
                     );
                 })}
-            </div>
-
-
-            {/* Submit New Rating */}
-            <div className="bg-gray-800 p-4 rounded shadow space-y-2">
-                <h3 className="text-xl font-bold text-gray-100">Submit New Rating</h3>
-                <input
-                    placeholder="Name"
-                    className="border border-gray-700 bg-gray-700 text-gray-100 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={newRating.name}
-                    onChange={(e) => setNewRating({ ...newRating, name: e.target.value })}
-                />
-                {Object.entries(newRating).map(([key, value]) => {
-                    if (key === "name") return null;
-                    return (
-                        <div key={key}>
-                            <label className="block font-medium mb-1 capitalize text-gray-200">
-                                {key}
-                            </label>
-                            <input
-                                type="number"
-                                min="1"
-                                max="10"
-                                className="border border-gray-700 bg-gray-700 text-gray-100 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                value={value}
-                                onChange={(e) =>
-                                    setNewRating({
-                                        ...newRating,
-                                        [key]: parseInt(e.target.value) || 1,
-                                    })
-                                }
-                            />
-                        </div>
-                    );
-                })}
-                <StyledButton
-                    onClick={handleRatingSubmit}
-                    className="bg-blue-600 hover:bg-blue-700"
-                >
-                    Submit Rating
-                </StyledButton>
-                {toastMessage && (
-                    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded shadow-lg z-50 animate-fadeInOut">
-                        {toastMessage}
-                    </div>
-                )}
             </div>
         </div>
     );
