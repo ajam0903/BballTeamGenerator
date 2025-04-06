@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { StyledButton, /* If you want more from UIComponents, import them here */ } from "./components/UIComponents";
 import RankingTab from "./components/RankingTab";
@@ -44,6 +44,7 @@ export default function TeamGenerator() {
     const [leaderboard, setLeaderboard] = useState({});
     const [currentSet, setCurrentSet] = useState("default");
     const [user, setUser] = useState(null);
+    const [toastMessage, setToastMessage] = useState("");
 
 
     const weightings = {
@@ -162,6 +163,8 @@ export default function TeamGenerator() {
             );
             await setDoc(docRef, { ...data, players: updatedPlayers });
             setPlayers(updatedPlayers);
+            setToastMessage("🗑️ Player deleted!");
+            setTimeout(() => setToastMessage(""), 3000);
         }
     };
 
@@ -182,7 +185,8 @@ export default function TeamGenerator() {
 
     const handleRatingSubmit = async () => {
         if (!user) {
-            alert("Please sign in to submit ratings.");
+            setToastMessage("⚠️ Please sign in to submit a rating.");
+            setTimeout(() => setToastMessage(""), 3000);
             return;
         }
 
@@ -199,27 +203,51 @@ export default function TeamGenerator() {
             submittedBy: user.email,
         };
 
+        let message = "✅ Rating submitted!";
+
         if (index > -1) {
             const existing = updatedPlayers[index];
-            const alreadySubmitted = existing.submissions?.some(
-                (s) => s.submittedBy === user.email
+            const updatedSubmissions = (existing.submissions || []).filter(
+                (s) => s.submittedBy !== user.email
             );
 
-            if (alreadySubmitted) {
-                alert("You've already submitted a rating for this player.");
-                return;
-            }
+            const wasUpdate = updatedSubmissions.length < (existing.submissions?.length || 0);
 
-            existing.submissions = [...(existing.submissions || []), submission];
+            updatedSubmissions.push(submission);
+
+            const total = updatedSubmissions.reduce((sum, sub) => {
+                const { name, submittedBy, ...scores } = sub;
+                const avg = Object.values(scores).reduce((a, b) => a + b, 0) / 7;
+                return sum + avg;
+            }, 0);
+            const newAvg = total / updatedSubmissions.length;
+
+            updatedPlayers[index] = {
+                ...existing,
+                submissions: updatedSubmissions,
+                rating: newAvg,
+            };
+
+            message = wasUpdate ? "✏️ Rating updated!" : "✅ Rating submitted!";
         } else {
             updatedPlayers.push({
                 name: newRating.name,
                 active: true,
                 submissions: [submission],
+                rating:
+                    (submission.scoring +
+                        submission.defense +
+                        submission.rebounding +
+                        submission.playmaking +
+                        submission.stamina +
+                        submission.physicality +
+                        submission.xfactor) /
+                    7,
             });
         }
 
         await setDoc(docRef, { ...data, players: updatedPlayers });
+
         setNewRating({
             name: "",
             scoring: 5,
@@ -230,8 +258,11 @@ export default function TeamGenerator() {
             physicality: 5,
             xfactor: 5,
         });
-        alert("Rating submitted successfully!");
+
+        setToastMessage(message);
+        setTimeout(() => setToastMessage(""), 3000);
     };
+
 
     const resetLeaderboardData = async () => {
         const docRef = doc(db, "sets", currentSet);
@@ -279,6 +310,8 @@ export default function TeamGenerator() {
                 };
                 await setDoc(docRef, { ...data, players: updatedPlayers });
                 setPlayers(updatedPlayers);
+                setToastMessage("✅ Rating submitted!");
+                setTimeout(() => setToastMessage(""), 3000);
             }
         }
     };
@@ -413,6 +446,9 @@ export default function TeamGenerator() {
                     handleDeletePlayer={handleDeletePlayer}
                     openEditModal={openEditModal}
                     isAdmin={isAdmin}
+                    user={user}
+                    toastMessage={toastMessage}
+                    setToastMessage={setToastMessage}
                 />
 
             )}

@@ -1,4 +1,4 @@
-// RankingTab.jsx
+﻿// RankingTab.jsx
 import React, { useState } from "react";
 import {
     StyledButton,
@@ -14,8 +14,42 @@ export default function RankingTab({
     handleDeletePlayer,
     openEditModal,
     isAdmin,
+    user,
+    toastMessage,
+    setToastMessage,
 }) {
     const [sortKey, setSortKey] = useState("name");
+
+    const [showRatingModal, setShowRatingModal] = useState(false);
+    const [activeRatingIndex, setActiveRatingIndex] = useState(null);
+
+    const openRatingModal = (index) => {
+        const p = sortedPlayers[index];
+        setNewRating({
+            name: p.name,
+            scoring: 5,
+            defense: 5,
+            rebounding: 5,
+            playmaking: 5,
+            stamina: 5,
+            physicality: 5,
+            xfactor: 5,
+        });
+        setActiveRatingIndex(index);
+        setShowRatingModal(true);
+    };
+
+    const closeRatingModal = () => {
+        setShowRatingModal(false);
+    };
+
+    const nextPlayer = () => {
+        setActiveRatingIndex((prev) => Math.min(prev + 1, sortedPlayers.length - 1));
+    };
+
+    const prevPlayer = () => {
+        setActiveRatingIndex((prev) => Math.max(prev - 1, 0));
+    };
 
     const computeRating = (p) => {
         return (
@@ -30,42 +64,106 @@ export default function RankingTab({
     };
 
     const sortedPlayers = [...players].sort((a, b) => {
-        if (sortKey === "name") {
-            return a.name.localeCompare(b.name);
-        } else {
-            // rating desc
-            return computeRating(b) - computeRating(a);
-        }
+        const aRated = a.submissions?.some((s) => s.submittedBy === user?.email);
+        const bRated = b.submissions?.some((s) => s.submittedBy === user?.email);
+
+        // If one is rated and the other isn't, push rated one up
+        if (aRated && !bRated) return -1;
+        if (!aRated && bRated) return 1;
+
+        // If both are the same, fall back to rating sort
+        return computeRating(b) - computeRating(a);
     });
 
     return (
         <div className="p-6 space-y-8 bg-gray-900 text-gray-100 min-h-screen">
             <h2 className="text-2xl font-bold">Player Rankings</h2>
+            {showRatingModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+                    <div className="bg-gray-900 p-6 rounded-md w-[90%] max-w-lg">
+                        <h2 className="text-xl font-bold mb-4 text-white">
+                            Rate: {sortedPlayers[activeRatingIndex]?.name}
+                        </h2>
+
+                        {/* Reuse the existing form fields here */}
+                        {Object.entries(newRating).map(([key, value]) => {
+                            if (key === "name") return null;
+                            return (
+                                <div key={key}>
+                                    <label className="block font-medium mb-1 capitalize text-gray-200">
+                                        {key}
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="10"
+                                        className="border border-gray-700 bg-gray-700 text-gray-100 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        value={value}
+                                        onChange={(e) =>
+                                            setNewRating({
+                                                ...newRating,
+                                                [key]: parseInt(e.target.value) || 1,
+                                            })
+                                        }
+                                    />
+                                </div>
+                            );
+                        })}
+
+                        <div className="flex justify-between mt-4">
+                            <button
+                                className="text-white text-lg disabled:text-gray-500"
+                                onClick={prevPlayer}
+                                disabled={activeRatingIndex === 0}
+                            >
+                                ⬅️
+                            </button>
+                            <StyledButton onClick={handleRatingSubmit} className="bg-blue-600 hover:bg-blue-700">
+                                Submit Rating
+                            </StyledButton>
+                            <button
+                                className="text-white text-lg disabled:text-gray-500"
+                                onClick={nextPlayer}
+                                disabled={activeRatingIndex === sortedPlayers.length - 1}
+                            >
+                                ➡️
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={closeRatingModal}
+                            className="mt-4 text-sm text-red-400 hover:text-red-300"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Rating Criteria Card */}
             <div className="bg-gray-800 p-4 rounded shadow space-y-2">
                 <h3 className="text-xl font-bold">Rating Criteria</h3>
                 <ul className="list-disc pl-6 space-y-1 text-sm sm:text-base text-gray-200">
                     <li>
-                        <strong>Scoring Ability</strong> � Can they create and finish?
+                        <strong>Scoring Ability</strong> – Can they create and finish?
                     </li>
                     <li>
-                        <strong>Defense</strong> � On-ball defense, help defense, lateral movement.
+                        <strong>Defense</strong> – On-ball defense, help defense, lateral movement.
                     </li>
                     <li>
-                        <strong>Rebounding</strong> � Positioning, effort, box-out ability.
+                        <strong>Rebounding</strong> – Positioning, effort, box-out ability.
                     </li>
                     <li>
-                        <strong>Playmaking / IQ</strong> � Passing, decision-making, court vision.
+                        <strong>Playmaking / IQ</strong> – Passing, decision-making, court vision.
                     </li>
                     <li>
-                        <strong>Stamina / Speed</strong> � Hustle, quickness, movement without the ball.
+                        <strong>Stamina / Speed</strong> – Hustle, quickness, movement without the ball.
                     </li>
                     <li>
-                        <strong>Size / Physicality</strong> � Height, strength, ability to guard bigger players.
+                        <strong>Size / Physicality</strong> – Height, strength, ability to guard bigger players.
                     </li>
                     <li>
-                        <strong>X-Factor (Optional)</strong> � Leadership, clutch play, hustle, or consistency.
+                        <strong>X-Factor (Optional)</strong> – Leadership, clutch play, hustle, or consistency.
                     </li>
                 </ul>
             </div>
@@ -85,8 +183,12 @@ export default function RankingTab({
 
             {/* Player List */}
             <div className="space-y-2">
-                {sortedPlayers.map((player) => {
+                {sortedPlayers.map((player, index) => {
                     const rating = computeRating(player);
+                    const userSubmission = player.submissions?.find(
+                        (s) => s.submittedBy === user?.email
+                    );
+                    const isRatedByUser = !!userSubmission;
                     return (
                         <div
                             key={player.name}
@@ -96,6 +198,22 @@ export default function RankingTab({
                                 <span className="font-medium text-white">{player.name}</span>
                                 <span className="ml-2 text-sm text-gray-400">(Rating: {rating})</span>
                                 <p className="text-xs text-gray-400">Ratings submitted: {player.submissions?.length || 0}</p>
+                                {user && (
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <button
+                                            onClick={() => openRatingModal(index)}
+                                            className="hover:scale-110 transition"
+                                            title="Rate or update rating"
+                                        >
+                                            📝
+                                        </button>
+                                        {userSubmission ? (
+                                            <span className="text-xs text-green-400">✓ You've rated this player</span>
+                                        ) : (
+                                            <span className="text-xs text-yellow-400">🟡 You haven’t rated this player yet.</span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex items-center space-x-2">
@@ -161,6 +279,11 @@ export default function RankingTab({
                 >
                     Submit Rating
                 </StyledButton>
+                {toastMessage && (
+                    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded shadow-lg z-50 animate-fadeInOut">
+                        {toastMessage}
+                    </div>
+                )}
             </div>
         </div>
     );
