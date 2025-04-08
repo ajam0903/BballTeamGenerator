@@ -135,22 +135,30 @@ export default function RankingTab({
             </div>
 
             {showRatingModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                    <div ref={modalRef} className="bg-gray-800 p-6 rounded-lg w-full max-w-lg shadow-lg">
-                        <h2 className="text-xl font-bold mb-4 text-white">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+                    <div ref={modalRef} className="bg-gray-800 p-4 rounded-lg w-full max-w-sm max-h-[90vh] overflow-y-auto shadow-lg relative">
+                        {/* Close button - fixed in the top right */}
+                        <button
+                            onClick={closeRatingModal}
+                            className="absolute top-2 right-2 text-gray-400 hover:text-white text-xl font-bold"
+                        >
+                            ✕
+                        </button>
+
+                        <h2 className="text-xl font-bold mb-4 text-white pr-8">
                             Rate: {sortedPlayers[activeRatingIndex]?.name}
                         </h2>
 
-                        {/* Reuse the existing form fields here */}
                         {Object.entries(newRating).map(([key, value]) => {
                             if (key === "name") return null;
                             return (
-                                <div key={key} className="mb-6">
-                                    <div className="flex items-center justify-between">
-                                        <label className="text-sm font-semibold text-white">
+                                <div key={key} className="mb-2">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-sm font-semibold text-white flex items-center">
                                             {capitalize(key)}
+                                            <Tooltip text={ratingHelp[key]} />
                                         </label>
-                                        <Tooltip text={ratingHelp[key]} />
+                                        <span className="text-sm">{value}</span>
                                     </div>
                                     <input
                                         type="range"
@@ -161,39 +169,34 @@ export default function RankingTab({
                                         onChange={(e) =>
                                             setNewRating({ ...newRating, [key]: parseInt(e.target.value) })
                                         }
-                                        className="w-full mt-2 accent-blue-500"
+                                        className="w-full mt-1 accent-blue-500"
                                     />
-                                    <p className="text-right text-xs text-gray-300">Value: {value}</p>
                                 </div>
                             );
                         })}
 
-                        <div className="flex justify-between mt-4">
+                        <div className="flex justify-between items-center mt-4">
                             <button
-                                className="text-white text-lg disabled:text-gray-500"
+                                className="text-white text-lg disabled:text-gray-500 p-1"
                                 onClick={prevPlayer}
                                 disabled={activeRatingIndex === 0}
                             >
                                 ⬅️
                             </button>
-                            <StyledButton onClick={handleRatingSubmit} className="bg-blue-600 hover:bg-blue-700">
+                            <StyledButton
+                                onClick={handleRatingSubmit}
+                                className="bg-blue-600 hover:bg-blue-700 py-1 px-3 text-sm"
+                            >
                                 Submit Rating
                             </StyledButton>
                             <button
-                                className="text-white text-lg disabled:text-gray-500"
+                                className="text-white text-lg disabled:text-gray-500 p-1"
                                 onClick={nextPlayer}
                                 disabled={activeRatingIndex === sortedPlayers.length - 1}
                             >
                                 ➡️
                             </button>
                         </div>
-
-                        <button
-                            onClick={closeRatingModal}
-                            className="mt-4 text-sm text-red-400 hover:text-red-300"
-                        >
-                            Close
-                        </button>
                     </div>
                 </div>
             )}
