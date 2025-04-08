@@ -1,5 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
 import { StyledButton } from "./UIComponents";
+import Tooltip from "./Tooltip";
+import { ratingHelp } from "./ratingHelp";
 
 export default function EditPlayerModal({ player, onSave, onClose }) {
     const [form, setForm] = useState({ ...player });
@@ -52,7 +54,12 @@ export default function EditPlayerModal({ player, onSave, onClose }) {
                     return (
                         <div key={key} className="mb-1">
                             <div className="flex justify-between items-center">
-                                <label className="block text-sm capitalize">{key}</label>
+                                <label className="block text-sm capitalize flex items-center">
+                                    {key}
+                                    <span className="ml-2">
+                                        <Tooltip text={ratingHelp[key]} />
+                                    </span>
+                                </label>
                                 <span className="text-sm">{form[key]}</span>
                             </div>
                             <input

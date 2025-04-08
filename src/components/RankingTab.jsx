@@ -8,17 +8,8 @@ import {
 
 import Tooltip from "./Tooltip";
 import { PlusCircleIcon } from "@heroicons/react/24/solid";
-
-const ratingHelp = {
-    scoring: "Ability to score consistently and create shots.",
-    defense: "On-ball defense, help-side positioning, effort.",
-    rebounding: "Positioning and effort on offensive/defensive glass.",
-    playmaking: "Court vision, passing, and decision-making.",
-    stamina: "Endurance to stay active and impactful.",
-    physicality: "Strength, toughness, and ability to play through contact.",
-    xfactor: "Intangibles — leadership, clutch play, and hustle.",
-};
-
+// In RankingTab.jsx
+import { ratingHelp } from "./ratingHelp";
 
 export default function RankingTab({
     players,
@@ -156,7 +147,9 @@ export default function RankingTab({
                                     <div className="flex justify-between items-center">
                                         <label className="text-sm font-semibold text-white flex items-center">
                                             {capitalize(key)}
-                                            <Tooltip text={ratingHelp[key]} />
+                                            <span className="ml-2">
+                                                <Tooltip text={ratingHelp[key]} />
+                                            </span>
                                         </label>
                                         <span className="text-sm">{value}</span>
                                     </div>
