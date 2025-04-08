@@ -57,8 +57,6 @@ export default function TeamGenerator() {
         xfactor: 0.05,
     };
 
-    const [hasGeneratedTeams, setHasGeneratedTeams] = useState(false);
-
     const handleLogin = () => {
         const provider = new GoogleAuthProvider();
         signInWithPopup(auth, provider).catch((error) => {
@@ -97,7 +95,6 @@ export default function TeamGenerator() {
         });
 
         setTeams(balanced);
-        setHasGeneratedTeams(true); // Set to true when teams are generated
 
         const newMatchups = [];
         for (let i = 0; i < balanced.length - 1; i += 2) {
@@ -657,10 +654,14 @@ export default function TeamGenerator() {
                 });
 
                 setPlayers(averagedPlayers);
-
-                // Only set MVP votes and scores, but don't load teams and matchups automatically
                 setMvpVotes(data.mvpVotes || []);
                 setScores(data.scores || []);
+
+                // Also load matchups from the database
+                if (data.matchups && data.matchups.length > 0) {
+                    setMatchups(data.matchups);
+                    setTeams(data.teams || []);
+                }
 
                 // Set leaderboard after all data is loaded
                 if (data.leaderboard && Object.keys(data.leaderboard).length > 0) {
@@ -775,6 +776,7 @@ export default function TeamGenerator() {
 
             {activeTab === "players" && (
                 <div className="mb-6">
+                    
                     <TeamsTab
                         players={players}
                         teams={teams}
@@ -797,7 +799,6 @@ export default function TeamGenerator() {
                         weightings={weightings}
                         saveMatchResults={saveMatchResults}
                         archiveCompletedMatches={archiveCompletedMatches}
-                        hasGeneratedTeams={hasGeneratedTeams} // Add this prop
                     />
                 </div>
             )}

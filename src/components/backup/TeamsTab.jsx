@@ -20,7 +20,6 @@ export default function TeamsTab({
     weightings,
     saveMatchResults,
     archiveCompletedMatches,
-    hasGeneratedTeams, // Add this prop
 }) {
     // Sort players so active ones appear on top
     const sortedPlayers = [...players].sort((a, b) => {
@@ -85,13 +84,13 @@ export default function TeamsTab({
             </div>
 
             {/* Teams List */}
-            {!hasGeneratedTeams && teams.length === 0 && (
+            {teams.length === 0 && (
                 <p className="text-gray-400 italic">
                     No teams generated yet. Select active players and click "Generate Teams".
                 </p>
             )}
 
-            {hasGeneratedTeams && teams.length > 0 && (
+            {teams.length > 0 && (
                 <div className="space-y-4">
                     <h2 className="text-xl font-bold">Teams</h2>
                     {teams.map((team, i) => (
@@ -104,7 +103,7 @@ export default function TeamsTab({
             )}
 
             {/* Matchups Section */}
-            {hasGeneratedTeams && matchups.length > 0 && (
+            {matchups.length > 0 && (
                 <div className="space-y-4">
                     <h2 className="text-xl font-bold">Matchups</h2>
                     {matchups.map(([teamA, teamB], i) => (
@@ -138,6 +137,13 @@ export default function TeamsTab({
                                 >
                                     Save Match Results
                                 </StyledButton>
+                                {/*<StyledButton
+                                    onClick={archiveCompletedMatches}
+                                    className="bg-purple-600 hover:bg-purple-700 ml-2" // Add margin-left for spacing
+                                >
+                                    Archive Matches
+                                </StyledButton>*/}
+
                             </div>
 
                             <div className="flex items-center space-x-2">
