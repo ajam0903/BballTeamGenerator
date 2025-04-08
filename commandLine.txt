@@ -1,1 +1,0 @@
-cd W:\0_PROJECTS\BballTeamGenerator && npm run dev

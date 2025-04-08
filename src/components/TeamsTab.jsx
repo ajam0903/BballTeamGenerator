@@ -19,6 +19,7 @@ export default function TeamsTab({
     handlePlayerActiveToggle,
     weightings,
     saveMatchResults,
+    archiveCompletedMatches,
 }) {
     // Sort players so active ones appear on top
     const sortedPlayers = [...players].sort((a, b) => {
@@ -47,7 +48,7 @@ export default function TeamsTab({
             physicality * weightings.physicality +
             xfactor * weightings.xfactor;
 
-        // clamp if you want to ensure 10 is max
+        // clamp rating to 10
         const rating = Math.min(raw, 10);
         return rating;
     };
@@ -136,6 +137,12 @@ export default function TeamsTab({
                                 >
                                     Save Match Results
                                 </StyledButton>
+                                {/*<StyledButton
+                                    onClick={archiveCompletedMatches}
+                                    className="bg-purple-600 hover:bg-purple-700 ml-2" // Add margin-left for spacing
+                                >
+                                    Archive Matches
+                                </StyledButton>*/}
 
                             </div>
 

@@ -80,7 +80,7 @@ export default function TeamGenerator() {
         );
     };
 
-    const generateBalancedTeams = () => {
+    const generateBalancedTeams = async () => {
         const activePlayers = players.filter((p) => p.active);
         const shuffledPlayers = [...activePlayers].sort(() => Math.random() - 0.5);
         const sortedPlayers = [...shuffledPlayers].sort(
@@ -96,25 +96,76 @@ export default function TeamGenerator() {
 
         setTeams(balanced);
 
-        const matchups = [];
+        const newMatchups = [];
         for (let i = 0; i < balanced.length - 1; i += 2) {
-            matchups.push([balanced[i], balanced[i + 1] || []]);
+            newMatchups.push([balanced[i], balanced[i + 1] || []]);
         }
-        setMatchups(matchups);
-        setMvpVotes(Array(matchups.length).fill(""));
-        setScores(Array(matchups.length).fill({ a: "", b: "" }));
+
+        // Get the existing data first
+        const docRef = doc(db, "sets", currentSet);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+
+            // Save the new matchups without overwriting history or leaderboard
+            setMatchups(newMatchups);
+
+            // Initialize new MVP votes and scores for these matchups only
+            const newMvpVotes = Array(newMatchups.length).fill("");
+            const newScores = Array(newMatchups.length).fill({ a: "", b: "" });
+
+            setMvpVotes(newMvpVotes);
+            setScores(newScores);
+
+            // Save to Firestore - preserve existing leaderboard
+            const firestoreData = prepareDataForFirestore({
+                ...data,
+                teams: balanced,
+                matchups: newMatchups,
+                mvpVotes: newMvpVotes,
+                scores: newScores,
+                // Keep existing leaderboard
+                leaderboard: data.leaderboard || {}
+            });
+            await setDoc(docRef, firestoreData);
+        }
     };
+
     const [isEditingExisting, setIsEditingExisting] = useState(false);
 
-    const calculateLeaderboard = () => {
-        const tally = {};
+    const calculateLeaderboard = async () => {
+        // Only proceed if we have matchups data
+        if (!matchups || matchups.length === 0) {
+            console.log("No matchups data to calculate leaderboard");
+            return;
+        }
 
+        // Fetch the current leaderboard data from Firestore to maintain history
+        const docRef = doc(db, "sets", currentSet);
+        const docSnap = await getDoc(docRef);
+
+        // Start with existing leaderboard data or empty object if none exists
+        let existingLeaderboard = {};
+        if (docSnap.exists() && docSnap.data().leaderboard) {
+            existingLeaderboard = docSnap.data().leaderboard;
+        }
+
+        // Create a tally just for the current matches
+        const currentTally = {};
+
+        // Process all matches and their scores
         matchups.forEach(([teamA, teamB], i) => {
+            // Only process matches that have scores and haven't been processed before
+            if (!scores[i] || scores[i].processed) return;
             const score = scores[i];
-            const mvp = mvpVotes[i];
+            const mvp = mvpVotes[i] || "";
 
-            const teamAPlayers = teamA.map((p) => p.name);
-            const teamBPlayers = teamB.map((p) => p.name);
+            // Skip if either score is missing
+            if (!score?.a || !score?.b) return;
+
+            const teamAPlayers = teamA.map((p) => p.name).filter(name => name && name.trim() !== "");
+            const teamBPlayers = teamB.map((p) => p.name).filter(name => name && name.trim() !== "");
 
             const scoreA = parseInt(score?.a);
             const scoreB = parseInt(score?.b);
@@ -123,36 +174,159 @@ export default function TeamGenerator() {
                 const winnerTeam = scoreA > scoreB ? teamAPlayers : teamBPlayers;
                 const loserTeam = scoreA > scoreB ? teamBPlayers : teamAPlayers;
 
+                // Initialize player records in current tally
+                [...teamAPlayers, ...teamBPlayers].forEach(name => {
+                    if (name && name.trim() !== "" && !currentTally[name]) {
+                        currentTally[name] = { _w: 0, _l: 0, MVPs: 0 };
+                    }
+                });
+
+                // Add wins for current match
                 winnerTeam.forEach((name) => {
-                    tally[name] = {
-                        ...(tally[name] || {}),
-                        _w: (tally[name]?._w || 0) + 1,
-                        MVPs: tally[name]?.MVPs || 0,
-                    };
+                    if (name && name.trim() !== "") {
+                        currentTally[name]._w += 1;
+                    }
                 });
 
+                // Add losses for current match
                 loserTeam.forEach((name) => {
-                    tally[name] = {
-                        ...(tally[name] || {}),
-                        _l: (tally[name]?._l || 0) + 1,
-                        MVPs: tally[name]?.MVPs || 0,
-                    };
+                    if (name && name.trim() !== "") {
+                        currentTally[name]._l += 1;
+                    }
                 });
             }
 
-            if (mvp) {
-                tally[mvp] = {
-                    ...(tally[mvp] || {}),
-                    MVPs: (tally[mvp]?.MVPs || 0) + 1,
-                    _w: tally[mvp]?._w || 0,
-                    _l: tally[mvp]?._l || 0,
-                };
+            // Process MVP vote
+            if (mvp && mvp.trim() !== "") {
+                if (!currentTally[mvp]) {
+                    currentTally[mvp] = { _w: 0, _l: 0, MVPs: 0 };
+                }
+                currentTally[mvp].MVPs += 1;
             }
+
+            // Mark this match as processed to avoid counting it multiple times
+            scores[i].processed = true;
         });
 
-        setLeaderboard(tally);
+        // Merge current tally with existing leaderboard
+        const updatedLeaderboard = { ...existingLeaderboard };
+
+        Object.keys(currentTally).forEach(player => {
+            if (!updatedLeaderboard[player]) {
+                updatedLeaderboard[player] = { _w: 0, _l: 0, MVPs: 0 };
+            }
+
+            // Add current match statistics to historical data
+            updatedLeaderboard[player]._w += currentTally[player]._w;
+            updatedLeaderboard[player]._l += currentTally[player]._l;
+            updatedLeaderboard[player].MVPs += currentTally[player].MVPs;
+        });
+        // Log the final leaderboard before saving
+        console.log("Final leaderboard to be saved:", updatedLeaderboard);
+        // Update the leaderboard state
+        setLeaderboard(updatedLeaderboard);
+
+        // Save updated leaderboard to Firestore
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            await setDoc(docRef, {
+                ...data,
+                leaderboard: updatedLeaderboard,
+                // Update scores to include processed flag
+                scores: scores
+            });
+        }
+    };
+    const prepareDataForFirestore = (data) => {
+        // Convert matchups from nested arrays to objects
+        if (data.matchups) {
+            data.matchups = data.matchups.map((matchup, index) => {
+                // Add this check to ensure matchup[0] exists
+                if (!matchup || !matchup[0]) {
+                    return {
+                        id: index,
+                        teamA: [],
+                        teamB: []
+                    };
+                }
+                return {
+                    id: index,
+                    teamA: matchup[0].map(player => ({
+                        name: player.name,
+                        active: player.active,
+                        scoring: player.scoring,
+                        defense: player.defense,
+                        rebounding: player.rebounding,
+                        playmaking: player.playmaking,
+                        stamina: player.stamina,
+                        physicality: player.physicality,
+                        xfactor: player.xfactor
+                    })),
+                    teamB: matchup[1] ? matchup[1].map(player => ({
+                        name: player.name,
+                        active: player.active,
+                        scoring: player.scoring,
+                        defense: player.defense,
+                        rebounding: player.rebounding,
+                        playmaking: player.playmaking,
+                        stamina: player.stamina,
+                        physicality: player.physicality,
+                        xfactor: player.xfactor
+                    })) : []
+                };
+            });
+        }
+        // Convert teams from nested arrays to objects
+        if (data.teams) {
+            console.log("Teams data:", data.teams);
+            data.teams = data.teams.map((team, index) => {
+                // Check if team exists and is an array
+                if (!team || !Array.isArray(team)) {
+                    return {
+                        id: index,
+                        players: []
+                    };
+                }
+                return {
+                    id: index,
+                    players: team.map(player => {
+                        if (!player) return {};
+                        return {
+                            name: player.name || "",
+                            active: player.active !== undefined ? player.active : true,
+                            scoring: player.scoring || 0,
+                            defense: player.defense || 0,
+                            rebounding: player.rebounding || 0,
+                            playmaking: player.playmaking || 0,
+                            stamina: player.stamina || 0,
+                            physicality: player.physicality || 0,
+                            xfactor: player.xfactor || 0
+                        };
+                    })
+                };
+            });
+        }
+        return data;
     };
 
+    const convertFirestoreDataToAppFormat = (data) => {
+        // Convert matchups from objects back to arrays
+        if (data.matchups) {
+            const matchupsArray = data.matchups.map(matchup => [
+                matchup.teamA,
+                matchup.teamB || []
+            ]);
+            data.matchups = matchupsArray;
+        }
+
+        // Convert teams from objects back to arrays
+        if (data.teams) {
+            const teamsArray = data.teams.map(team => team.players);
+            data.teams = teamsArray;
+        }
+
+        return data;
+    };
 
     const handleDeletePlayer = async (playerName) => {
         const docRef = doc(db, "sets", currentSet);
@@ -174,12 +348,28 @@ export default function TeamGenerator() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
             const data = docSnap.data();
-            const updated = {
+
+            // Mark each match with a valid score as ready to be processed
+            const updatedScores = scores.map((score, index) => {
+                if (score && score.a && score.b) {
+                    return { ...score, readyToProcess: true };
+                }
+                return score;
+            });
+
+            setScores(updatedScores);
+
+            const firestoreData = prepareDataForFirestore({
                 ...data,
                 mvpVotes: mvpVotes,
-                scores: scores
-            };
-            await setDoc(docRef, updated);
+                scores: updatedScores
+            });
+
+            await setDoc(docRef, firestoreData);
+
+            // Calculate leaderboard after saving match results
+            await calculateLeaderboard();
+
             alert("Match results saved!");
         }
     };
@@ -264,24 +454,77 @@ export default function TeamGenerator() {
         setTimeout(() => setToastMessage(""), 3000);
     };
 
-
-    const resetLeaderboardData = async () => {
+    const archiveCompletedMatches = async () => {
         const docRef = doc(db, "sets", currentSet);
         const docSnap = await getDoc(docRef);
+
         if (docSnap.exists()) {
             const data = docSnap.data();
-            const clearedData = {
+
+            // Find matches that have scores and are ready to be archived
+            const completedMatches = matchups.map((matchup, index) => {
+                if (scores[index] && scores[index].a && scores[index].b) {
+                    return {
+                        teams: matchup,
+                        score: scores[index],
+                        mvp: mvpVotes[index] || "",
+                        date: new Date().toISOString()
+                    };
+                }
+                return null;
+            }).filter(match => match !== null);
+
+            // Get existing match history or create a new array
+            const existingHistory = data.matchHistory || [];
+
+            // Merge new completed matches with existing history
+            const updatedHistory = [...existingHistory, ...completedMatches];
+
+            // Save the updated match history
+            await setDoc(docRef, {
                 ...data,
-                mvpVotes: [],
-                scores: []
-            };
-            await setDoc(docRef, clearedData);
-            setMvpVotes([]);
+                matchHistory: updatedHistory
+            });
+
+            // Now that matches are archived, we can start fresh with new matches
+            // but keep the leaderboard intact
+            setMatchups([]);
             setScores([]);
-            alert("Leaderboard and match data have been reset.");
+            setMvpVotes([]);
+            setTeams([]);
+
+            alert("Matches have been archived and leaderboard has been updated!");
         }
     };
 
+    const resetLeaderboardData = async () => {
+        if (confirm("Are you sure you want to reset the leaderboard? All match history will be lost.")) {
+            const docRef = doc(db, "sets", currentSet);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const clearedData = {
+                    ...data,
+                    mvpVotes: [],
+                    scores: [],
+                    matchups: [], // Clear matchups
+                    teams: [],    // Clear teams
+                    leaderboard: {}, // Clear leaderboard explicitly
+                    matchHistory: [] // Clear match history
+                };
+                await setDoc(docRef, clearedData);
+
+                // Update all relevant state variables
+                setMvpVotes([]);
+                setScores([]);
+                setMatchups([]);  // Clear local matchups state
+                setTeams([]);     // Clear local teams state
+                setLeaderboard({}); // Clear local leaderboard state
+
+                alert("Leaderboard and match data have been reset.");
+            }
+        }
+    };
     const openEditModal = (player, isEdit = true) => {
         setSelectedPlayerToEdit(player);
         setIsEditingExisting(isEdit);
@@ -317,6 +560,45 @@ export default function TeamGenerator() {
             }
         }
     };
+    useEffect(() => {
+        const loadMatchHistory = async () => {
+            const docRef = doc(db, "sets", currentSet);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.matchHistory) {
+                    console.log("Loaded match history:", data.matchHistory.length, "matches");
+                }
+            }
+        };
+
+        loadMatchHistory();
+    }, [currentSet]);
+
+        useEffect(() => {
+        const autoSaveMatchData = async () => {
+            const docRef = doc(db, "sets", currentSet);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const firestoreData = prepareDataForFirestore({
+                    ...data,
+                    mvpVotes,
+                    scores,
+                    matchups,
+                    teams
+                });
+
+                await setDoc(docRef, firestoreData);
+            }
+        };
+
+        // Only run if we have matchups and scores
+        if (matchups.length > 0 && scores.length > 0) {
+            autoSaveMatchData();
+        }
+    }, [scores, mvpVotes, matchups]);
 
     useEffect(() => {
         calculateLeaderboard();
@@ -335,8 +617,11 @@ export default function TeamGenerator() {
             const docRef = doc(db, "sets", currentSet);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
-                const data = docSnap.data();
+                const data = convertFirestoreDataToAppFormat(docSnap.data());
+                // Log the raw leaderboard data
+                console.log("Raw leaderboard data from Firestore:", data.leaderboard);
                 const averagedPlayers = (data.players || []).map((player) => {
+                    // Your existing player processing code...
                     const submissions = player.submissions || [];
                     const avgStats = {
                         name: player.name,
@@ -367,14 +652,32 @@ export default function TeamGenerator() {
                     avgStats.submissions = submissions;
                     return avgStats;
                 });
+
                 setPlayers(averagedPlayers);
                 setMvpVotes(data.mvpVotes || []);
                 setScores(data.scores || []);
+
+                // Also load matchups from the database
+                if (data.matchups && data.matchups.length > 0) {
+                    setMatchups(data.matchups);
+                    setTeams(data.teams || []);
+                }
+
+                // Set leaderboard after all data is loaded
+                if (data.leaderboard && Object.keys(data.leaderboard).length > 0) {
+                    console.log("Setting leaderboard with data:", data.leaderboard);
+                    setLeaderboard(data.leaderboard);
+                } else if ((data.scores?.length || 0) > 0 && (data.matchups?.length || 0) > 0) {
+                    console.log("No leaderboard data found, calculating from scores and matchups");
+                    // Only recalculate if we have both scores and matchups
+                    setTimeout(() => calculateLeaderboard(), 100);
+                }
             }
         };
 
         fetchSet();
     }, [currentSet]);
+
 
     const handlePlayerSaveFromModal = async (playerData) => {
         if (!user) {
@@ -428,6 +731,9 @@ export default function TeamGenerator() {
         closeEditModal();
     };
 
+    useEffect(() => {
+        console.log("Current leaderboard data:", leaderboard);
+    }, [leaderboard]);
 
     return (
         <DarkContainer>
@@ -457,7 +763,10 @@ export default function TeamGenerator() {
                     Player Rankings
                 </StyledButton>
                 <StyledButton
-                    onClick={() => setActiveTab("leaderboard")}
+                    onClick={() => {
+                        console.log("Switching to leaderboard tab");
+                        setActiveTab("leaderboard");
+                    }}
                     className={activeTab === "leaderboard" ? "bg-blue-600" : "bg-gray-700"}
                 >
                     Leaderboard
@@ -488,6 +797,7 @@ export default function TeamGenerator() {
                         }}
                         weightings={weightings}
                         saveMatchResults={saveMatchResults}
+                        archiveCompletedMatches={archiveCompletedMatches}
                     />
                 </div>
             )}
