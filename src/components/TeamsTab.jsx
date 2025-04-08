@@ -28,6 +28,8 @@ export default function TeamsTab({
         return a.active ? -1 : 1;
     });
 
+    // Count active players
+    const activePlayerCount = players.filter(player => player.active).length;
     // Compute rating 1–10 based on your skill weighting
     const computeRating1to10 = (player) => {
         const {
@@ -174,7 +176,12 @@ export default function TeamsTab({
             {/* Player List with percentage-based rating bar */}
             {sortedPlayers.length > 0 && (
                 <div className="space-y-2">
-                    <h2 className="text-xl font-bold">Player List</h2>
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-xl font-bold">Player List</h2>
+                        <div className="bg-blue-800 rounded-full px-3 py-1 text-sm font-medium">
+                            Active Players: {activePlayerCount}
+                        </div>
+                    </div>
                     {sortedPlayers.map((player) => {
                         const rating = computeRating1to10(player);
                         // from 0-10 => 0-100%
