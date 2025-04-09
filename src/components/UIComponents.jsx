@@ -22,7 +22,7 @@ export const Section = ({ title, children }) => (
 export const StyledInput = (props) => (
     <input
         {...props}
-        className="border border-gray-300 rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="border border-gray-600 bg-gray-700 text-white rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
     />
 );
 
