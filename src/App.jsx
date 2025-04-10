@@ -50,7 +50,7 @@ export default function App() {
     const [currentSet, setCurrentSet] = useState("default");
     const [user, setUser] = useState(null);
     const [toastMessage, setToastMessage] = useState("");
-    // New state for league functionality
+    const [teamRankings, setTeamRankings] = useState([]);
     const [currentLeagueId, setCurrentLeagueId] = useState(null);
     const [currentLeague, setCurrentLeague] = useState(null);
     const weightings = {
@@ -90,21 +90,64 @@ export default function App() {
         );
     };
 
+    const calculateTeamStrength = (team) => {
+        if (!team || team.length === 0) return 0;
+
+        const totalScore = team.reduce((sum, player) => {
+            return sum + calculatePlayerScore(player);
+        }, 0);
+
+        // Average score per player (to account for teams with different sizes)
+        return totalScore / team.length;
+    };
+
     // Modified to use league structure
     const generateBalancedTeams = async () => {
         if (!currentLeagueId) return;
 
         const activePlayers = players.filter((p) => p.active);
         const shuffledPlayers = [...activePlayers].sort(() => Math.random() - 0.5);
+
+        // Sort players by rating (highest to lowest)
         const sortedPlayers = [...shuffledPlayers].sort(
             (a, b) => calculatePlayerScore(b) - calculatePlayerScore(a)
         );
-        const numTeams = Math.ceil(sortedPlayers.length / teamSize);
-        const balanced = Array.from({ length: numTeams }, () => []);
 
-        sortedPlayers.forEach((player, index) => {
-            const teamIndex = index % numTeams;
-            balanced[teamIndex].push(player);
+        const numTeams = Math.floor(sortedPlayers.length / teamSize);
+        // Ensure at least 2 teams for matchups
+        const finalNumTeams = Math.max(2, numTeams);
+        const balanced = Array.from({ length: finalNumTeams }, () => []);
+        let benchPlayers = [];
+
+        // If we have players that don't divide evenly
+        if (sortedPlayers.length % teamSize !== 0) {
+            // Take the lowest rated players as bench (extra players)
+            const benchCount = sortedPlayers.length % teamSize;
+            benchPlayers = sortedPlayers.slice(-benchCount);
+
+            // Distribute the remaining players evenly
+            sortedPlayers.slice(0, sortedPlayers.length - benchCount).forEach((player, index) => {
+                const teamIndex = index % finalNumTeams;
+                balanced[teamIndex].push(player);
+            });
+        } else {
+            // If players divide evenly, distribute normally
+            sortedPlayers.forEach((player, index) => {
+                const teamIndex = index % finalNumTeams;
+                balanced[teamIndex].push(player);
+            });
+        }
+
+        // Add bench players to teams with fewest players
+        benchPlayers.forEach(player => {
+            // Find team with fewest players
+            const teamWithFewestPlayers = balanced
+                .map((team, idx) => ({ count: team.length, idx }))
+                .sort((a, b) => a.count - b.count)[0];
+
+            // Add bench player with designation
+            player.isBench = true;
+            balanced[teamWithFewestPlayers.idx].push(player);
         });
 
         setTeams(balanced);
@@ -727,6 +770,49 @@ export default function App() {
 
         fetchSet();
     }, [currentLeagueId, currentSet]);
+
+    useEffect(() => {
+        if (teams && teams.length > 0) {
+            const rankings = teams.map((team, index) => {
+                const strength = calculateTeamStrength(team);
+                return {
+                    teamIndex: index,
+                    strength: strength,
+                    players: team
+                };
+            });
+
+            // Sort by team strength (highest to lowest)
+            setTeamRankings(rankings.sort((a, b) => b.strength - a.strength));
+        }
+    }, [teams]);
+
+    // Get team rank string showing position out of total
+    const getTeamRankString = (teamIndex) => {
+        if (!teamRankings || teamRankings.length === 0) return "";
+
+        const rankObj = teamRankings.find(rank => rank.teamIndex === teamIndex);
+        if (!rankObj) return "";
+
+        const rankPosition = teamRankings.indexOf(rankObj) + 1;
+        return `Rank: ${rankPosition}/${teamRankings.length}`;
+    };
+
+    // Get color class based on rank
+    const getRankColorClass = (teamIndex) => {
+        if (!teamRankings || teamRankings.length === 0) return "text-gray-400";
+
+        const rankObj = teamRankings.find(rank => rank.teamIndex === teamIndex);
+        if (!rankObj) return "text-gray-400";
+
+        const rankPosition = teamRankings.indexOf(rankObj) + 1;
+
+        // Top team gets gold, second gets silver, third gets bronze
+        if (rankPosition === 1) return "text-yellow-400";
+        if (rankPosition === 2) return "text-gray-300";
+        if (rankPosition === 3) return "text-yellow-600";
+        return "text-gray-400";
+    };
 
     // Modified to use league structure
     const handlePlayerSaveFromModal = async (playerData) => {
