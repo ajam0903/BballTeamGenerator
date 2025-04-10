@@ -97,8 +97,14 @@ export default function TeamsTab({
 
     // Initialize manual teams when team size changes
     useEffect(() => {
-        const numTeams = Math.ceil(activePlayerCount / teamSize);
-        setManualTeams(Array.from({ length: numTeams }, () => []));
+        // Calculate required number of teams to fit all active players
+        // For 2v2, we need a team for every 2 players
+        const numTeams = Math.floor(activePlayerCount / teamSize);
+
+        // Always ensure we have at least 2 teams for matchup creation
+        const finalNumTeams = Math.max(2, numTeams);
+
+        setManualTeams(Array.from({ length: finalNumTeams }, () => []));
     }, [teamSize, activePlayerCount]);
 
     // Handle adding a player to a specific team
@@ -113,8 +119,14 @@ export default function TeamsTab({
             return team;
         });
 
-        // Add player to the selected team if not already there
-        if (!playerExistsOnTeam || updatedTeams[teamIndex].length < teamSize) {
+        // Add player to the selected team
+        if (!playerExistsOnTeam) {
+            // If team already has the required players, add as bench
+            if (updatedTeams[teamIndex].filter(p => !p.isBench).length >= teamSize) {
+                player.isBench = true;
+            } else {
+                player.isBench = false;
+            }
             updatedTeams[teamIndex] = [...updatedTeams[teamIndex], player];
         }
 
@@ -162,7 +174,9 @@ export default function TeamsTab({
     // Check if teams are valid based on team size
     const areTeamsValid = () => {
         const unassignedCount = getUnassignedPlayers().length;
-        const teamsWithCorrectSize = manualTeams.filter(team => team.length === teamSize).length;
+        const teamsWithCorrectSize = manualTeams.filter(team =>
+            team.filter(p => !p.isBench).length === teamSize
+        ).length;
 
         // All active players should be assigned and most teams should have the correct size
         return unassignedCount === 0 && teamsWithCorrectSize >= manualTeams.length - 1;
@@ -280,13 +294,34 @@ export default function TeamsTab({
 
                                 {/* Selected players */}
                                 <div className="space-y-2 min-h-20 mb-3">
-                                    {team.map((player, idx) => (
+                                    {/* Regular players (non-bench) */}
+                                    {team.filter(p => !p.isBench).map((player, idx) => (
                                         <div key={idx} className="flex justify-between items-center bg-gray-700 rounded px-2 py-1">
                                             <span className="text-sm text-white">{player.name}</span>
                                             <button
                                                 onClick={() => {
                                                     const updatedTeams = [...manualTeams];
-                                                    updatedTeams[teamIndex] = team.filter((_, i) => i !== idx);
+                                                    updatedTeams[teamIndex] = team.filter((_, i) => i !== team.indexOf(player));
+                                                    setManualTeams(updatedTeams);
+                                                }}
+                                                className="text-red-400 hover:text-red-300 text-xs"
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    ))}
+
+                                    {/* Bench players */}
+                                    {team.filter(p => p.isBench).map((player, idx) => (
+                                        <div key={idx} className="flex justify-between items-center bg-gray-600 rounded px-2 py-1 border-l-2 border-yellow-500">
+                                            <span className="text-sm text-gray-300">
+                                                <span className="text-yellow-500 text-xs mr-1">Bench:</span>
+                                                {player.name}
+                                            </span>
+                                            <button
+                                                onClick={() => {
+                                                    const updatedTeams = [...manualTeams];
+                                                    updatedTeams[teamIndex] = team.filter((_, i) => i !== team.indexOf(player));
                                                     setManualTeams(updatedTeams);
                                                 }}
                                                 className="text-red-400 hover:text-red-300 text-xs"
@@ -301,9 +336,14 @@ export default function TeamsTab({
                                     )}
                                 </div>
 
-                                {/* Player count indicator */}
+                                {/* Player count indicator - show bench players separately */}
                                 <div className="text-xs text-gray-400 mb-2">
-                                    {team.length}/{teamSize} players
+                                    {team.filter(p => !p.isBench).length}/{teamSize} players
+                                    {team.filter(p => p.isBench).length > 0 && (
+                                        <span className="ml-2 text-yellow-500">
+                                            +{team.filter(p => p.isBench).length} bench
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -321,10 +361,15 @@ export default function TeamsTab({
                                             <button
                                                 key={teamIndex}
                                                 onClick={() => addPlayerToTeam(player, teamIndex)}
-                                                className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded"
-                                                disabled={manualTeams[teamIndex].length >= teamSize}
+                                                className={`text-xs px-2 py-1 rounded ${manualTeams[teamIndex].filter(p => !p.isBench).length >= teamSize
+                                                        ? 'bg-yellow-600 hover:bg-yellow-500'  // Bench styling
+                                                        : 'bg-blue-600 hover:bg-blue-500'      // Regular styling
+                                                    }`}
                                             >
-                                                Team {teamIndex + 1}
+                                                {manualTeams[teamIndex].filter(p => !p.isBench).length >= teamSize
+                                                    ? `Bench Team ${teamIndex + 1}`
+                                                    : `Team ${teamIndex + 1}`
+                                                }
                                             </button>
                                         ))}
                                     </div>
@@ -341,9 +386,13 @@ export default function TeamsTab({
                     <div className="flex justify-end space-x-3 mt-4">
                         <button
                             onClick={() => {
-                                // Reset the manual teams
-                                const numTeams = Math.ceil(activePlayerCount / teamSize);
-                                setManualTeams(Array.from({ length: numTeams }, () => []));
+                                // Calculate required number of teams to fit all active players
+                                const numTeams = Math.floor(activePlayerCount / teamSize);
+
+                                // Always ensure we have at least 2 teams for matchup creation  
+                                const finalNumTeams = Math.max(2, numTeams);
+
+                                setManualTeams(Array.from({ length: finalNumTeams }, () => []));
                             }}
                             className="px-3 py-1 text-sm text-gray-300 hover:text-white border border-gray-700 rounded"
                         >
@@ -352,8 +401,7 @@ export default function TeamsTab({
                         <button
                             onClick={generateMatchupsFromManualTeams}
                             disabled={!areTeamsValid()}
-                            className={`px-3 py-1 text-sm text-white bg-blue-600 rounded ${areTeamsValid() ? 'hover:bg-blue-500' : 'opacity-50 cursor-not-allowed'
-                                }`}
+                            className={`px-3 py-1 text-sm text-white bg-blue-600 rounded ${areTeamsValid() ? 'hover:bg-blue-500' : 'opacity-50 cursor-not-allowed'}`}
                         >
                             Create Matchups
                         </button>
