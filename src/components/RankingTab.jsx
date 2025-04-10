@@ -27,7 +27,19 @@ export default function RankingTab({
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     const [showRatingModal, setShowRatingModal] = useState(false);
     const [activeRatingIndex, setActiveRatingIndex] = useState(null);
+    const handleRatingSubmitWithPreserve = () => {
+        // Store current values before submission
+        const currentValues = { ...newRating };
 
+        // Call the original submit function from props
+        handleRatingSubmit();
+
+        // After the original function resets the values to 5, put back our stored values
+        setTimeout(() => {
+            setNewRating(currentValues);
+            setHasUnsavedChanges(false); // Reset the unsaved changes flag after submission
+        }, 10);
+    };
     const openRatingModal = (index) => {
         const p = sortedPlayers[index];
         const userSubmission = p.submissions?.find((s) => s.submittedBy === user?.email);
@@ -53,11 +65,51 @@ export default function RankingTab({
     };
 
     const nextPlayer = () => {
-        setActiveRatingIndex((prev) => Math.min(prev + 1, sortedPlayers.length - 1));
+        const nextIndex = Math.min(activeRatingIndex + 1, sortedPlayers.length - 1);
+        setActiveRatingIndex(nextIndex);
+
+        // Load the next player's data
+        const nextPlayer = sortedPlayers[nextIndex];
+        if (nextPlayer) {
+            const userSubmission = nextPlayer.submissions?.find((s) => s.submittedBy === user?.email);
+
+            setNewRating({
+                name: nextPlayer.name,
+                scoring: userSubmission?.scoring ?? nextPlayer.scoring ?? 5,
+                defense: userSubmission?.defense ?? nextPlayer.defense ?? 5,
+                rebounding: userSubmission?.rebounding ?? nextPlayer.rebounding ?? 5,
+                playmaking: userSubmission?.playmaking ?? nextPlayer.playmaking ?? 5,
+                stamina: userSubmission?.stamina ?? nextPlayer.stamina ?? 5,
+                physicality: userSubmission?.physicality ?? nextPlayer.physicality ?? 5,
+                xfactor: userSubmission?.xfactor ?? nextPlayer.xfactor ?? 5,
+            });
+
+            setHasUnsavedChanges(false);
+        }
     };
 
     const prevPlayer = () => {
-        setActiveRatingIndex((prev) => Math.max(prev - 1, 0));
+        const prevIndex = Math.max(activeRatingIndex - 1, 0);
+        setActiveRatingIndex(prevIndex);
+
+        // Load the previous player's data
+        const prevPlayer = sortedPlayers[prevIndex];
+        if (prevPlayer) {
+            const userSubmission = prevPlayer.submissions?.find((s) => s.submittedBy === user?.email);
+
+            setNewRating({
+                name: prevPlayer.name,
+                scoring: userSubmission?.scoring ?? prevPlayer.scoring ?? 5,
+                defense: userSubmission?.defense ?? prevPlayer.defense ?? 5,
+                rebounding: userSubmission?.rebounding ?? prevPlayer.rebounding ?? 5,
+                playmaking: userSubmission?.playmaking ?? prevPlayer.playmaking ?? 5,
+                stamina: userSubmission?.stamina ?? prevPlayer.stamina ?? 5,
+                physicality: userSubmission?.physicality ?? prevPlayer.physicality ?? 5,
+                xfactor: userSubmission?.xfactor ?? prevPlayer.xfactor ?? 5,
+            });
+
+            setHasUnsavedChanges(false);
+        }
     };
 
     const computeRating = (p) => {
@@ -71,7 +123,7 @@ export default function RankingTab({
             (p.xfactor || 5) * 0.05
         ).toFixed(2);
     };
-    const sortedPlayers = [...players];
+    const [sortedPlayers, setSortedPlayers] = useState([]);
 
     const modalRef = useRef();
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -93,13 +145,28 @@ export default function RankingTab({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [showRatingModal, hasUnsavedChanges]);
 
-    {
-        toastMessage && (
-            <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded shadow-lg z-50 transition-opacity duration-300">
-                {toastMessage}
-            </div>
-        )
-    }
+
+    useEffect(() => {
+        const sorted = [...players].sort((a, b) => {
+            if (sortKey === 'name') {
+                return a.name.localeCompare(b.name);
+            } else if (sortKey === 'rating') {
+                return computeRating(b) - computeRating(a); // Sort by rating descending
+            }
+            return 0;
+        });
+
+        setSortedPlayers(sorted);
+    }, [players, sortKey]);
+
+    useEffect(() => {
+        if (showRatingModal) {
+            // Set hasUnsavedChanges to true if user modifies any rating
+            setHasUnsavedChanges(true);
+        }
+    }, [newRating]);
+
+
 
     return (
         <div className="p-6 space-y-8 bg-gray-900 text-gray-100 min-h-screen">
@@ -177,7 +244,7 @@ export default function RankingTab({
                                 ⬅️
                             </button>
                             <StyledButton
-                                onClick={handleRatingSubmit}
+                                onClick={handleRatingSubmitWithPreserve}
                                 className="bg-blue-600 hover:bg-blue-700 py-1 px-3 text-sm"
                             >
                                 Submit Rating

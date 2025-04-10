@@ -436,16 +436,43 @@ export default function App() {
 
         await firestoreSetDoc(docRef, { ...data, players: updatedPlayers });
 
-        setNewRating({
-            name: "",
-            scoring: 5,
-            defense: 5,
-            rebounding: 5,
-            playmaking: 5,
-            stamina: 5,
-            physicality: 5,
-            xfactor: 5,
-        });
+        setPlayers(updatedPlayers.map(player => {
+            // Calculate averages from submissions
+            if (player.submissions && player.submissions.length > 0) {
+                const avgStats = {
+                    name: player.name,
+                    active: player.active !== undefined ? player.active : true,
+                    scoring: 0,
+                    defense: 0,
+                    rebounding: 0,
+                    playmaking: 0,
+                    stamina: 0,
+                    physicality: 0,
+                    xfactor: 0,
+                };
+
+                player.submissions.forEach((s) => {
+                    avgStats.scoring += s.scoring || 0;
+                    avgStats.defense += s.defense || 0;
+                    avgStats.rebounding += s.rebounding || 0;
+                    avgStats.playmaking += s.playmaking || 0;
+                    avgStats.stamina += s.stamina || 0;
+                    avgStats.physicality += s.physicality || 0;
+                    avgStats.xfactor += s.xfactor || 0;
+                });
+
+                const len = player.submissions.length;
+                Object.keys(avgStats).forEach((key) => {
+                    if (typeof avgStats[key] === "number") {
+                        avgStats[key] = parseFloat((avgStats[key] / len).toFixed(2));
+                    }
+                });
+
+                avgStats.submissions = player.submissions;
+                return avgStats;
+            }
+            return player;
+        }));
 
         setToastMessage(message);
         setTimeout(() => setToastMessage(""), 3000);
