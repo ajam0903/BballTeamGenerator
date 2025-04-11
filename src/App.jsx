@@ -24,7 +24,16 @@ import {
 } from "firebase/auth";
 
 const db = getFirestore();
-
+// This helps hide the default scrollbar while maintaining scroll functionality
+const scrollbarHideStyles = `
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+`;
 export default function App() {
 
     const [activeTab, setActiveTab] = useState("players");
@@ -62,7 +71,8 @@ export default function App() {
         physicality: 0.1,
         xfactor: 0.05,
     };
-
+    const [showRematchPrompt, setShowRematchPrompt] = useState(false);
+    const [matchHistory, setMatchHistory] = useState([]);
     const [hasGeneratedTeams, setHasGeneratedTeams] = useState(false);
     const [isEditingExisting, setIsEditingExisting] = useState(false);
     const [isEditingLeagueName, setIsEditingLeagueName] = useState(false);
@@ -73,11 +83,37 @@ export default function App() {
             console.error("Login failed:", error);
         });
     };
+    const isRematch = (teamA, teamB) => {
+        if (!matchHistory || matchHistory.length === 0) return false;
 
+        // Convert teams to player name arrays for comparison
+        const teamANames = teamA.map(p => p.name).sort();
+        const teamBNames = teamB.map(p => p.name).sort();
+
+        // Look through match history to find matching matchups
+        return matchHistory.some(match => {
+            const historyTeamA = match.teams[0].map(p => p.name).sort();
+            const historyTeamB = match.teams[1].map(p => p.name).sort();
+
+            // Check if current matchup matches historical matchup (in either order)
+            const matchesExactly =
+                (arraysEqual(teamANames, historyTeamA) && arraysEqual(teamBNames, historyTeamB)) ||
+                (arraysEqual(teamANames, historyTeamB) && arraysEqual(teamBNames, historyTeamA));
+
+            return matchesExactly;
+        });
+    };
     const handleLogout = () => {
         signOut(auth);
     };
-
+    // Helper function to check if arrays are equal
+    const arraysEqual = (a, b) => {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
+    };
     const calculatePlayerScore = (player) => {
         return (
             player.scoring * weightings.scoring +
@@ -89,7 +125,21 @@ export default function App() {
             player.xfactor * weightings.xfactor
         );
     };
+    const getPreviousResults = (teamA, teamB) => {
+        if (!matchHistory || matchHistory.length === 0) return [];
 
+        const teamANames = teamA.map(p => p.name).sort();
+        const teamBNames = teamB.map(p => p.name).sort();
+
+        return matchHistory.filter(match => {
+            const historyTeamA = match.teams[0].map(p => p.name).sort();
+            const historyTeamB = match.teams[1].map(p => p.name).sort();
+
+            // Check if this history match involves the same teams
+            return (arraysEqual(teamANames, historyTeamA) && arraysEqual(teamBNames, historyTeamB)) ||
+                (arraysEqual(teamANames, historyTeamB) && arraysEqual(teamBNames, historyTeamA));
+        });
+    };
     const calculateTeamStrength = (team) => {
         if (!team || team.length === 0) return 0;
 
@@ -106,7 +156,14 @@ export default function App() {
         if (!currentLeagueId) return;
 
         const activePlayers = players.filter((p) => p.active);
-        const shuffledPlayers = [...activePlayers].sort(() => Math.random() - 0.5);
+
+        // Reset isBench property for all players
+        const cleanedPlayers = activePlayers.map(player => ({
+            ...player,
+            isBench: false
+        }));
+
+        const shuffledPlayers = [...cleanedPlayers].sort(() => Math.random() - 0.5);
 
         // Sort players by rating (highest to lowest)
         const sortedPlayers = [...shuffledPlayers].sort(
@@ -403,8 +460,43 @@ export default function App() {
             await firestoreSetDoc(docRef, firestoreData);
             await calculateLeaderboard();
 
-            alert("Match results saved!");
+            // Show rematch prompt after saving
+            setShowRematchPrompt(true);
         }
+    };
+
+    const handleRematchYes = () => {
+        // Reset scores and MVP votes for a rematch with the same teams
+        const newScores = Array(matchups.length).fill({ a: "", b: "" });
+        const newMvpVotes = Array(matchups.length).fill("");
+
+        setScores(newScores);
+        setMvpVotes(newMvpVotes);
+        setShowRematchPrompt(false);
+
+        // You might want to save this state to Firestore as well
+        const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+        getDoc(docRef).then(docSnap => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const firestoreData = prepareDataForFirestore({
+                    ...data,
+                    mvpVotes: newMvpVotes,
+                    scores: newScores
+                });
+                firestoreSetDoc(docRef, firestoreData);
+            }
+        });
+    };
+
+    const handleRematchNo = () => {
+        // Reset everything for new team generation
+        setTeams([]);
+        setMatchups([]);
+        setScores([]);
+        setMvpVotes([]);
+        setHasGeneratedTeams(false);
+        setShowRematchPrompt(false);
     };
 
     // Modified to use league structure
@@ -551,6 +643,9 @@ export default function App() {
                 matchHistory: updatedHistory
             });
 
+            // Update local state with the latest history
+            setMatchHistory(updatedHistory);
+
             setMatchups([]);
             setScores([]);
             setMvpVotes([]);
@@ -647,6 +742,38 @@ export default function App() {
         };
 
         loadMatchHistory();
+    }, [currentLeagueId, currentSet]);
+
+    useEffect(() => {
+        // Add the styles to the document
+        const styleElement = document.createElement('style');
+        styleElement.innerHTML = scrollbarHideStyles;
+        document.head.appendChild(styleElement);
+
+        // Clean up function to remove styles when component unmounts
+        return () => {
+            document.head.removeChild(styleElement);
+        };
+    }, []);
+
+    // Fetch match history when the app loads
+    useEffect(() => {
+        if (!currentLeagueId) return;
+
+        const fetchMatchHistory = async () => {
+            const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.matchHistory) {
+                    console.log("Loaded match history:", data.matchHistory.length, "matches");
+                    setMatchHistory(data.matchHistory);
+                }
+            }
+        };
+
+        fetchMatchHistory();
     }, [currentLeagueId, currentSet]);
 
     // Modified to use league structure
@@ -947,6 +1074,29 @@ export default function App() {
                             handleBackToLeagues={handleBackToLeagues}
                         />
                     </div>
+                    {/* Rematch Prompt */}
+                    {showRematchPrompt && (
+                        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+                            <div className="bg-gray-800 rounded-lg p-6 w-80 text-center">
+                                <h3 className="text-white text-lg mb-4">Play Rematch?</h3>
+                                <p className="text-gray-300 mb-6">Would you like to play again with the same teams?</p>
+                                <div className="flex justify-center space-x-4">
+                                    <button
+                                        onClick={handleRematchNo}
+                                        className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                                    >
+                                        No, New Teams
+                                    </button>
+                                    <button
+                                        onClick={handleRematchYes}
+                                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                                    >
+                                        Yes, Rematch
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Navigation tabs - keep as is */}
                     <div className="flex items-center space-x-6 mb-8">
@@ -976,7 +1126,7 @@ export default function App() {
                             ? "text-blue-400 border-b border-blue-400"
                             : "text-gray-400 hover:text-gray-200"}`}
                     >
-                        Player Rankings
+                        Players
                     </button>
                     <button
                         onClick={() => {
@@ -1024,6 +1174,11 @@ export default function App() {
                         saveMatchResults={saveMatchResults}
                         archiveCompletedMatches={archiveCompletedMatches}
                         hasGeneratedTeams={hasGeneratedTeams}
+                        isRematch={isRematch}
+                        getPreviousResults={getPreviousResults}
+                        showRematchPrompt={showRematchPrompt}
+                        onRematchYes={handleRematchYes}
+                        onRematchNo={handleRematchNo}
                     />
                 </div>
             )}
@@ -1048,6 +1203,8 @@ export default function App() {
                     leaderboard={leaderboard}
                     resetLeaderboardData={resetLeaderboardData}
                     isAdmin={isAdmin}
+                    matchHistory={matchHistory}  // Pass match history for calculating trends and OVR
+                    players={players}  // Pass players data to display abilities
                 />
             )}
 
@@ -1059,5 +1216,6 @@ export default function App() {
                 />
             )}
         </DarkContainer>
+
     );
 }

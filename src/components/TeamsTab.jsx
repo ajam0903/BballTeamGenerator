@@ -22,11 +22,67 @@ export default function TeamsTab({
     saveMatchResults,
     archiveCompletedMatches,
     hasGeneratedTeams,
+    isRematch = () => false,
+    getPreviousResults = () => []
 }) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [showTeamSelector, setShowTeamSelector] = useState(false);
     const [manualTeams, setManualTeams] = useState([[], []]);
     const dropdownRef = useRef(null);
+    // Rematch indicator component
+    const RematchIndicator = ({ teamA, teamB, previousMatches }) => {
+        if (!previousMatches || previousMatches.length === 0) return null;
+
+        // Calculate the win-loss record between these teams
+        let teamAWins = 0;
+        let teamBWins = 0;
+
+        previousMatches.forEach(match => {
+            const matchTeamA = match.teams[0].map(p => p.name).sort().join(',');
+            const matchTeamB = match.teams[1].map(p => p.name).sort().join(',');
+            const currentTeamA = teamA.map(p => p.name).sort().join(',');
+            const currentTeamB = teamB.map(p => p.name).sort().join(',');
+
+            // Figure out which historical team corresponds to current teamA
+            const isTeamAMatchesHistoryTeamA = matchTeamA === currentTeamA;
+
+            if (match.score) {
+                const scoreA = parseInt(match.score.a);
+                const scoreB = parseInt(match.score.b);
+
+                if (!isNaN(scoreA) && !isNaN(scoreB)) {
+                    if (scoreA > scoreB) {
+                        // History Team A won
+                        isTeamAMatchesHistoryTeamA ? teamAWins++ : teamBWins++;
+                    } else if (scoreB > scoreA) {
+                        // History Team B won
+                        isTeamAMatchesHistoryTeamA ? teamBWins++ : teamAWins++;
+                    }
+                }
+            }
+        });
+
+        // Format date of last match
+        const lastMatchDate = new Date(previousMatches[previousMatches.length - 1].date);
+        const formattedDate = lastMatchDate.toLocaleDateString();
+
+        return (
+            <div className="bg-yellow-800 bg-opacity-30 p-2 rounded-md mb-3">
+                <div className="flex items-center mb-1">
+                    <span className="text-yellow-400 text-xs font-bold mr-2">⟳ REMATCH</span>
+                    <span className="text-xs text-gray-300">
+                        {previousMatches.length} previous {previousMatches.length === 1 ? 'game' : 'games'}
+                    </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                    <span className="text-gray-300">
+                        Record: <span className="text-green-400">{teamAWins}</span>-<span className="text-red-400">{teamBWins}</span>
+                    </span>
+                    <span className="text-gray-400">Last played: {formattedDate}</span>
+                </div>
+            </div>
+        );
+    };
 
     // Sort players so active ones appear on top
     const sortedPlayers = [...players].sort((a, b) => {
@@ -462,6 +518,10 @@ export default function TeamsTab({
                         const teamAStrength = calculateTeamStrength(teamA).toFixed(1);
                         const teamBStrength = calculateTeamStrength(teamB).toFixed(1);
 
+                        // Check if this is a rematch and get previous results
+                        const previousMatches = getPreviousResults(teamA, teamB);
+                        const isRematchGame = previousMatches.length > 0;
+
                         return (
                             <div key={i} className="border border-gray-800 p-3 rounded">
                                 <div className="flex justify-between items-center mb-3">
@@ -473,6 +533,15 @@ export default function TeamsTab({
                                         Save Result
                                     </button>
                                 </div>
+
+                                {/* Rematch indicator */}
+                                {isRematchGame && (
+                                    <RematchIndicator
+                                        teamA={teamA}
+                                        teamB={teamB}
+                                        previousMatches={previousMatches}
+                                    />
+                                )}
 
                                 <div className="flex justify-between items-center mb-3">
                                     <div className="flex-1">

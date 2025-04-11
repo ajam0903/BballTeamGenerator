@@ -171,7 +171,7 @@ export default function RankingTab({
     return (
         <div className="p-6 space-y-8 bg-gray-900 text-gray-100 min-h-screen">
             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-white">Player Rankings</h2>
+                <h2 className="text-2xl font-bold text-white">Players</h2>
                 <div className="flex items-center space-x-1">
                     <span className="text-sm text-gray-300">Add Player</span>
                     <button
