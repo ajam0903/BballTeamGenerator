@@ -312,7 +312,22 @@ export default function RankingTab({
                             <div className="flex items-center space-x-2">
                                 {isAdmin && (
                                     <StyledButton
-                                        onClick={() => openEditModal(player)}
+                                        onClick={() => {
+                                            // Create a clean player object with all the necessary fields
+                                            const playerToEdit = {
+                                                name: player.name,
+                                                scoring: player.scoring || 5,
+                                                defense: player.defense || 5,
+                                                rebounding: player.rebounding || 5,
+                                                playmaking: player.playmaking || 5,
+                                                stamina: player.stamina || 5,
+                                                physicality: player.physicality || 5,
+                                                xfactor: player.xfactor || 5,
+                                                active: player.active !== undefined ? player.active : true
+                                            };
+                                            // Pass true to indicate this is an edit of an existing player
+                                            openEditModal(playerToEdit, true);
+                                        }}
                                         className="bg-yellow-600 hover:bg-yellow-700"
                                     >
                                         Edit

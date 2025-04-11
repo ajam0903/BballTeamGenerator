@@ -687,6 +687,10 @@ export default function App() {
     };
 
     const openEditModal = (player, isEdit = true) => {
+        // Store the original name as a separate property
+        if (player && isEdit) {
+            player.originalName = player.name;
+        }
         setSelectedPlayerToEdit(player);
         setIsEditingExisting(isEdit);
         setEditPlayerModalOpen(true);
@@ -700,7 +704,7 @@ export default function App() {
     const isAdmin = user?.email === "ajamali0903@gmail.com";
 
     // Modified to use league structure
-    const saveEditedPlayerFromModal = async (updatedPlayer) => {
+    const saveEditedPlayerFromModal = async (updatedPlayer, originalName) => {
         if (!currentLeagueId) return;
 
         const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
@@ -708,23 +712,46 @@ export default function App() {
         if (docSnap.exists()) {
             const data = docSnap.data();
             const updatedPlayers = [...data.players];
+
+            // Find the player by the original name that was passed to the modal
             const index = updatedPlayers.findIndex(
-                (p) => p.name.toLowerCase() === updatedPlayer.name.toLowerCase()
+                (p) => p.name.toLowerCase() === originalName.toLowerCase()
             );
 
             if (index > -1) {
+                // Get existing submissions before replacing the player
+                const existingSubmissions = updatedPlayers[index].submissions || [];
+
+                // Create a completely new player object with the updated stats
                 updatedPlayers[index] = {
-                    ...updatedPlayers[index],
-                    ...updatedPlayer,
+                    name: updatedPlayer.name, // This can be different from the original name
+                    active: updatedPlayer.active !== undefined ? updatedPlayer.active : true,
+                    scoring: updatedPlayer.scoring,
+                    defense: updatedPlayer.defense,
+                    rebounding: updatedPlayer.rebounding,
+                    playmaking: updatedPlayer.playmaking,
+                    stamina: updatedPlayer.stamina,
+                    physicality: updatedPlayer.physicality,
+                    xfactor: updatedPlayer.xfactor,
+                    submissions: existingSubmissions, // Preserve the existing submissions
+                    rating: (
+                        updatedPlayer.scoring +
+                        updatedPlayer.defense +
+                        updatedPlayer.rebounding +
+                        updatedPlayer.playmaking +
+                        updatedPlayer.stamina +
+                        updatedPlayer.physicality +
+                        updatedPlayer.xfactor
+                    ) / 7
                 };
+
                 await firestoreSetDoc(docRef, { ...data, players: updatedPlayers });
                 setPlayers(updatedPlayers);
-                setToastMessage("✅ Rating submitted!");
+                setToastMessage("✅ Player completely updated!");
                 setTimeout(() => setToastMessage(""), 3000);
             }
         }
     };
-
     // Modified to use league structure
     useEffect(() => {
         if (!currentLeagueId) return;
@@ -942,7 +969,7 @@ export default function App() {
     };
 
     // Modified to use league structure
-    const handlePlayerSaveFromModal = async (playerData) => {
+    const handlePlayerSaveFromModal = async (playerData, originalName = "") => {
         if (!user) {
             setToastMessage("⚠️ Please sign in to submit a rating.");
             setTimeout(() => setToastMessage(""), 3000);
@@ -958,16 +985,41 @@ export default function App() {
         const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
         const docSnap = await getDoc(docRef);
         const data = docSnap.exists() ? docSnap.data() : { players: [] };
-
         const updatedPlayers = [...data.players];
+
+        // Use the original name as lookup if provided, otherwise use the current name
+        const nameToFind = originalName || playerData.name;
+
         const index = updatedPlayers.findIndex(
-            (p) => p.name.toLowerCase() === playerData.name.toLowerCase()
+            (p) => p.name.toLowerCase() === nameToFind.toLowerCase()
         );
 
+    // Rest of your function...
+
         if (index > -1) {
+            // For existing players
+            const existingSubmissions = updatedPlayers[index].submissions || [];
+
             updatedPlayers[index] = {
-                ...updatedPlayers[index],
-                ...playerData,
+                name: playerData.name, // This can be different from originalName
+                active: playerData.active !== undefined ? playerData.active : true,
+                scoring: playerData.scoring,
+                defense: playerData.defense,
+                rebounding: playerData.rebounding,
+                playmaking: playerData.playmaking,
+                stamina: playerData.stamina,
+                physicality: playerData.physicality,
+                xfactor: playerData.xfactor,
+                submissions: existingSubmissions,
+                rating: (
+                    playerData.scoring +
+                    playerData.defense +
+                    playerData.rebounding +
+                    playerData.playmaking +
+                    playerData.stamina +
+                    playerData.physicality +
+                    playerData.xfactor
+                ) / 7,
             };
         } else {
             updatedPlayers.push({
