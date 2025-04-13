@@ -151,7 +151,7 @@ export default function App() {
         return totalScore / team.length;
     };
 
-    // Modified to use league structure
+    // Fixed generateBalancedTeams function that prioritizes equal team size
     const generateBalancedTeams = async () => {
         if (!currentLeagueId) return;
 
@@ -163,6 +163,7 @@ export default function App() {
             isBench: false
         }));
 
+        // Shuffle players first for randomness
         const shuffledPlayers = [...cleanedPlayers].sort(() => Math.random() - 0.5);
 
         // Sort players by rating (highest to lowest)
@@ -173,46 +174,136 @@ export default function App() {
         const numTeams = Math.floor(sortedPlayers.length / teamSize);
         // Ensure at least 2 teams for matchups
         const finalNumTeams = Math.max(2, numTeams);
-        const balanced = Array.from({ length: finalNumTeams }, () => []);
-        let benchPlayers = [];
 
-        // If we have players that don't divide evenly
-        if (sortedPlayers.length % teamSize !== 0) {
-            // Take the lowest rated players as bench (extra players)
-            const benchCount = sortedPlayers.length % teamSize;
-            benchPlayers = sortedPlayers.slice(-benchCount);
+        // Initialize teams array
+        const teams = Array.from({ length: finalNumTeams }, () => []);
 
-            // Distribute the remaining players evenly
-            sortedPlayers.slice(0, sortedPlayers.length - benchCount).forEach((player, index) => {
-                const teamIndex = index % finalNumTeams;
-                balanced[teamIndex].push(player);
+        // First, identify how many regular players per team and how many extras
+        const playersPerTeam = Math.floor(sortedPlayers.length / finalNumTeams);
+        const extraPlayers = sortedPlayers.length % finalNumTeams;
+
+        // Create a balanced snake draft order:
+        // For example, with 4 teams: [0,1,2,3,3,2,1,0,0,1,2,3,...]
+        let draftOrder = [];
+        for (let round = 0; round < Math.ceil(playersPerTeam / 2); round++) {
+            // Forward
+            for (let i = 0; i < finalNumTeams; i++) {
+                draftOrder.push(i);
+            }
+            // Backward
+            for (let i = finalNumTeams - 1; i >= 0; i--) {
+                draftOrder.push(i);
+            }
+        }
+
+        // Trim to the exact number of regular players
+        draftOrder = draftOrder.slice(0, sortedPlayers.length - extraPlayers);
+
+        // Distribute regular players using snake draft order
+        const regularPlayers = sortedPlayers.slice(0, sortedPlayers.length - extraPlayers);
+        regularPlayers.forEach((player, index) => {
+            const teamIndex = draftOrder[index];
+            teams[teamIndex].push(player);
+        });
+
+        // Mark remaining players as bench and distribute them evenly
+        if (extraPlayers > 0) {
+            const benchPlayers = sortedPlayers.slice(-extraPlayers);
+            benchPlayers.forEach(player => {
+                player.isBench = true;
             });
-        } else {
-            // If players divide evenly, distribute normally
-            sortedPlayers.forEach((player, index) => {
-                const teamIndex = index % finalNumTeams;
-                balanced[teamIndex].push(player);
+
+            // Distribute bench players to teams with fewest players first
+            benchPlayers.forEach(player => {
+                const teamSizes = teams.map(team => team.length);
+                const minSize = Math.min(...teamSizes);
+                const teamIndex = teamSizes.indexOf(minSize);
+                teams[teamIndex].push(player);
             });
         }
 
-        // Add bench players to teams with fewest players
-        benchPlayers.forEach(player => {
-            // Find team with fewest players
-            const teamWithFewestPlayers = balanced
-                .map((team, idx) => ({ count: team.length, idx }))
-                .sort((a, b) => a.count - b.count)[0];
+        // After distribution, perform a rebalancing step to improve team strength balance
+        // We'll do this by swapping players between teams if it improves overall balance
+        const getTeamStrengths = () => teams.map(team => calculateTeamStrength(team));
 
-            // Add bench player with designation
-            player.isBench = true;
-            balanced[teamWithFewestPlayers.idx].push(player);
-        });
+        // Perform a few iterations of improvement
+        for (let iteration = 0; iteration < 10; iteration++) {
+            const teamStrengths = getTeamStrengths();
+            const avgStrength = teamStrengths.reduce((sum, str) => sum + str, 0) / teamStrengths.length;
 
-        setTeams(balanced);
+            // Calculate standard deviation as a measure of imbalance
+            const variance = teamStrengths.reduce((sum, str) => sum + Math.pow(str - avgStrength, 2), 0) / teamStrengths.length;
+            const stdDev = Math.sqrt(variance);
+
+            // If teams are already well-balanced, stop optimizing
+            if (stdDev < 0.2) break;
+
+            // Try to swap players between the strongest and weakest teams
+            const strongestTeamIdx = teamStrengths.indexOf(Math.max(...teamStrengths));
+            const weakestTeamIdx = teamStrengths.indexOf(Math.min(...teamStrengths));
+
+            // Only swap non-bench players of similar position
+            const strongTeamRegulars = teams[strongestTeamIdx].filter(p => !p.isBench);
+            const weakTeamRegulars = teams[weakestTeamIdx].filter(p => !p.isBench);
+
+            // Find the best swap that improves balance
+            let bestSwap = null;
+            let bestImprovement = 0;
+
+            for (let i = 0; i < strongTeamRegulars.length; i++) {
+                for (let j = 0; j < weakTeamRegulars.length; j++) {
+                    // Temporarily swap players
+                    const playerA = strongTeamRegulars[i];
+                    const playerB = weakTeamRegulars[j];
+
+                    // Find actual indices in the teams array
+                    const idxA = teams[strongestTeamIdx].indexOf(playerA);
+                    const idxB = teams[weakestTeamIdx].indexOf(playerB);
+
+                    // Perform the swap
+                    teams[strongestTeamIdx][idxA] = playerB;
+                    teams[weakestTeamIdx][idxB] = playerA;
+
+                    // Calculate new strengths
+                    const newStrengths = getTeamStrengths();
+                    const newAvg = newStrengths.reduce((sum, str) => sum + str, 0) / newStrengths.length;
+                    const newVariance = newStrengths.reduce((sum, str) => sum + Math.pow(str - newAvg, 2), 0) / newStrengths.length;
+                    const newStdDev = Math.sqrt(newVariance);
+
+                    // Check if this swap improved balance
+                    const improvement = stdDev - newStdDev;
+
+                    if (improvement > bestImprovement) {
+                        bestImprovement = improvement;
+                        bestSwap = { idxA, idxB };
+                    }
+
+                    // Undo the swap for now
+                    teams[strongestTeamIdx][idxA] = playerA;
+                    teams[weakestTeamIdx][idxB] = playerB;
+                }
+            }
+
+            // If we found a beneficial swap, apply it permanently
+            if (bestSwap && bestImprovement > 0) {
+                const { idxA, idxB } = bestSwap;
+                const playerA = teams[strongestTeamIdx][idxA];
+                const playerB = teams[weakestTeamIdx][idxB];
+
+                teams[strongestTeamIdx][idxA] = playerB;
+                teams[weakestTeamIdx][idxB] = playerA;
+            } else {
+                // If no beneficial swap was found, stop optimizing
+                break;
+            }
+        }
+
+        setTeams(teams);
         setHasGeneratedTeams(true);
 
         const newMatchups = [];
-        for (let i = 0; i < balanced.length - 1; i += 2) {
-            newMatchups.push([balanced[i], balanced[i + 1] || []]);
+        for (let i = 0; i < teams.length - 1; i += 2) {
+            newMatchups.push([teams[i], teams[i + 1] || []]);
         }
 
         // Update the path to include league ID
@@ -232,7 +323,7 @@ export default function App() {
 
             const firestoreData = prepareDataForFirestore({
                 ...data,
-                teams: balanced,
+                teams: teams,
                 matchups: newMatchups,
                 mvpVotes: newMvpVotes,
                 scores: newScores,
@@ -241,7 +332,6 @@ export default function App() {
             await firestoreSetDoc(docRef, firestoreData);
         }
     };
-
     // Modified to use league structure
     const calculateLeaderboard = async () => {
         if (!currentLeagueId || !matchups || matchups.length === 0) {
@@ -747,6 +837,7 @@ export default function App() {
 
                 await firestoreSetDoc(docRef, { ...data, players: updatedPlayers });
                 setPlayers(updatedPlayers);
+                setLeaderboard(prevLeaderboard => ({ ...prevLeaderboard }));
                 setToastMessage("✅ Player completely updated!");
                 setTimeout(() => setToastMessage(""), 3000);
             }
