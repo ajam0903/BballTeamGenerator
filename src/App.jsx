@@ -1410,6 +1410,27 @@ export default function App() {
         return "text-gray-400";
     };
 
+    const handleManualLeaderboardUpdate = async (updatedLeaderboard) => {
+        if (!currentLeagueId) return;
+
+        const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+
+            await firestoreSetDoc(docRef, {
+                ...data,
+                leaderboard: updatedLeaderboard
+            });
+
+            setLeaderboard(updatedLeaderboard);
+
+            setToastMessage("✅ Player stats updated!");
+            setTimeout(() => setToastMessage(""), 3000);
+        }
+    };
+
     // Modified to use league structure
     const handlePlayerSaveFromModal = async (playerData, originalName = "") => {
         if (!user) {
@@ -1767,6 +1788,7 @@ export default function App() {
                         saveMatchResults={saveMatchResults}
                         archiveCompletedMatches={archiveCompletedMatches}
                         hasGeneratedTeams={hasGeneratedTeams}
+                        setHasGeneratedTeams={setHasGeneratedTeams}
                         isRematch={isRematch}
                         getPreviousResults={getPreviousResults}
                         showRematchPrompt={showRematchPrompt}
@@ -1800,7 +1822,8 @@ export default function App() {
                     isAdmin={isAdmin}
                     matchHistory={matchHistory}
                     players={players}
-                    playerOVRs={playerOVRs}  // Add this line
+                    playerOVRs={playerOVRs}
+                    onUpdateLeaderboard={handleManualLeaderboardUpdate}
                 />
             )}
 

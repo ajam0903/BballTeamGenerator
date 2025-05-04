@@ -1,11 +1,13 @@
 ﻿// Updated LeaderboardTab.jsx with just number values for abilities
 import React, { useState, useEffect } from "react";
-import { StyledButton } from "./UIComponents";
+import { StyledButton, StyledInput } from "./UIComponents";
 
-export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAdmin, matchHistory, players, playerOVRs }) {
+export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAdmin, matchHistory, players, playerOVRs, onUpdateLeaderboard }) {
     const [sortBy, setSortBy] = useState("ovr");
     const [sortDirection, setSortDirection] = useState("desc");
     const [scrollPosition, setScrollPosition] = useState(0);
+    const [editingPlayer, setEditingPlayer] = useState(null);
+    const [editedStats, setEditedStats] = useState({ wins: 0, losses: 0, mvps: 0 });
 
 
     // Calculate streak bonus based on recent form
@@ -195,6 +197,40 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
         }
     };
 
+
+    const startEditing = (player) => {
+        setEditingPlayer(player.name);
+        setEditedStats({
+            wins: player.wins,
+            losses: player.losses,
+            mvps: player.mvps
+        });
+    };
+
+    const cancelEditing = () => {
+        setEditingPlayer(null);
+        setEditedStats({ wins: 0, losses: 0, mvps: 0 });
+    };
+
+    const saveEdits = () => {
+        if (onUpdateLeaderboard) {
+            const updatedLeaderboard = { ...leaderboard };
+
+            if (!updatedLeaderboard[editingPlayer]) {
+                updatedLeaderboard[editingPlayer] = { _w: 0, _l: 0, MVPs: 0 };
+            }
+
+            updatedLeaderboard[editingPlayer]._w = parseInt(editedStats.wins) || 0;
+            updatedLeaderboard[editingPlayer]._l = parseInt(editedStats.losses) || 0;
+            updatedLeaderboard[editingPlayer].MVPs = parseInt(editedStats.mvps) || 0;
+
+            onUpdateLeaderboard(updatedLeaderboard);
+        }
+
+        setEditingPlayer(null);
+        setEditedStats({ wins: 0, losses: 0, mvps: 0 });
+    };
+
     // Handle horizontal scrolling
     const handleScroll = (direction) => {
         const scrollContainer = document.getElementById('stats-table-container');
@@ -331,14 +367,21 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                                     >
                                         Physicality {sortBy === "physicality" && (sortDirection === "asc" ? "▲" : "▼")}
                                     </th>
-                                    <th
-                                        className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                        onClick={() => handleSort("xfactor")}
-                                    >
-                                        X-Factor {sortBy === "xfactor" && (sortDirection === "asc" ? "▲" : "▼")}
-                                    </th>
-                                </tr>
-                            </thead>
+                                        <th
+                                            className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                            onClick={() => handleSort("xfactor")}
+                                        >
+                                            X-Factor {sortBy === "xfactor" && (sortDirection === "asc" ? "▲" : "▼")}
+                                        </th>
+
+                                        {/* Admin actions column - This should be the LAST column INSIDE the tr */}
+                                        {isAdmin && (
+                                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                                Actions
+                                            </th>
+                                        )}
+                                    </tr>
+                                </thead>
                             <tbody className="divide-y divide-gray-700 bg-gray-900">
                                 {sortedData.map((player, index) => (
                                     <tr key={player.name} className={index % 2 === 0 ? "bg-gray-900" : "bg-gray-800"}>
@@ -360,21 +403,52 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                                             </span>
                                         </td>
 
-                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-green-400">
-                                            {player.wins}
-                                        </td>
-
-                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-red-400">
-                                            {player.losses}
-                                        </td>
-
-                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-blue-400">
-                                            {player.pct}%
-                                        </td>
-
-                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-yellow-400">
-                                            {player.mvps}
-                                        </td>
+                                        {editingPlayer === player.name ? (
+                                            <>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm">
+                                                    <StyledInput
+                                                        type="number"
+                                                        value={editedStats.wins}
+                                                        onChange={(e) => setEditedStats({ ...editedStats, wins: e.target.value })}
+                                                        className="w-16 bg-gray-700 border-gray-600"
+                                                    />
+                                                </td>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm">
+                                                    <StyledInput
+                                                        type="number"
+                                                        value={editedStats.losses}
+                                                        onChange={(e) => setEditedStats({ ...editedStats, losses: e.target.value })}
+                                                        className="w-16 bg-gray-700 border-gray-600"
+                                                    />
+                                                </td>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm text-blue-400">
+                                                    {((parseInt(editedStats.wins) / (parseInt(editedStats.wins) + parseInt(editedStats.losses))) * 100 || 0).toFixed(1)}%
+                                                </td>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm">
+                                                    <StyledInput
+                                                        type="number"
+                                                        value={editedStats.mvps}
+                                                        onChange={(e) => setEditedStats({ ...editedStats, mvps: e.target.value })}
+                                                        className="w-16 bg-gray-700 border-gray-600"
+                                                    />
+                                                </td>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm text-green-400">
+                                                    {player.wins}
+                                                </td>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm text-red-400">
+                                                    {player.losses}
+                                                </td>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm text-blue-400">
+                                                    {player.pct}%
+                                                </td>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm text-yellow-400">
+                                                    {player.mvps}
+                                                </td>
+                                            </>
+                                        )}
 
                                         {/* Player abilities - just number values, each in its own column */}
                                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
@@ -398,6 +472,33 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
                                             {player.xfactor}
                                         </td>
+                                        {isAdmin && (
+                                            <td className="px-3 py-3 whitespace-nowrap text-sm">
+                                                {editingPlayer === player.name ? (
+                                                    <div className="flex gap-2">
+                                                        <StyledButton
+                                                            onClick={saveEdits}
+                                                            className="bg-green-600 hover:bg-green-700 py-1 px-2 text-xs"
+                                                        >
+                                                            Save
+                                                        </StyledButton>
+                                                        <StyledButton
+                                                            onClick={cancelEditing}
+                                                            className="bg-gray-600 hover:bg-gray-700 py-1 px-2 text-xs"
+                                                        >
+                                                            Cancel
+                                                        </StyledButton>
+                                                    </div>
+                                                ) : (
+                                                    <StyledButton
+                                                        onClick={() => startEditing(player)}
+                                                        className="bg-blue-600 hover:bg-blue-700 py-1 px-2 text-xs"
+                                                    >
+                                                        Edit
+                                                    </StyledButton>
+                                                )}
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>

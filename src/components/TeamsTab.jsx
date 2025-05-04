@@ -23,6 +23,7 @@ export default function TeamsTab({
     saveMatchResults,
     archiveCompletedMatches,
     hasGeneratedTeams,
+    setHasGeneratedTeams,
     isRematch = () => false,
     getPreviousResults = () => [],
     hasPendingMatchups = false,
@@ -356,6 +357,7 @@ export default function TeamsTab({
         setMvpVotes(Array(newMatchups.length).fill(""));
         setScores(Array(newMatchups.length).fill({ a: "", b: "" }));
         setShowTeamSelector(false);
+        setHasGeneratedTeams(true);
     };
 
     // Check if an active player is not assigned to any team
