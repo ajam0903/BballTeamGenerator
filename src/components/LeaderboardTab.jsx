@@ -2,62 +2,71 @@
 import React, { useState, useEffect } from "react";
 import { StyledButton } from "./UIComponents";
 
-export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAdmin, matchHistory, players }) {
+export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAdmin, matchHistory, players, playerOVRs }) {
     const [sortBy, setSortBy] = useState("ovr");
     const [sortDirection, setSortDirection] = useState("desc");
     const [scrollPosition, setScrollPosition] = useState(0);
 
-    // Calculate OVR based on player stats and recent performance
-    const calculateOVR = (player, playerName) => {
-        // Find player in players array to get their abilities
-        const playerData = players.find(p => p.name === playerName) || {};
 
-        // Base stats from player abilities
-        const baseStats = {
-            scoring: playerData.scoring || 5,
-            defense: playerData.defense || 5,
-            rebounding: playerData.rebounding || 5,
-            playmaking: playerData.playmaking || 5,
-            stamina: playerData.stamina || 5,
-            physicality: playerData.physicality || 5,
-            xfactor: playerData.xfactor || 5
-        };
+    // Calculate streak bonus based on recent form
+    const getStreakBonus = (recentForm) => {
+        if (recentForm.length === 0) return 0;
 
-        // Performance metrics
-        const wins = player._w || 0;
-        const losses = player._l || 0;
-        const totalGames = wins + losses;
-        const winPct = totalGames > 0 ? wins / totalGames : 0;
-        const mvps = player.MVPs || 0;
-        const mvpPerGame = totalGames > 0 ? mvps / totalGames : 0;
+        // Get different game ranges
+        const last3Games = recentForm.slice(0, 3);
+        const last5Games = recentForm.slice(0, 5);
+        const last10Games = recentForm.slice(0, 10);
 
-        // Recent form (last 5 games)
-        const recentForm = getRecentForm(playerName);
-        const streakBonus = getStreakBonus(recentForm);
+        // Calculate wins and MVPs for different ranges
+        const winsInLast3 = last3Games.filter(game => game.won).length;
+        const winsInLast5 = last5Games.filter(game => game.won).length;
+        const winsInLast10 = last10Games.filter(game => game.won).length;
 
-        // Calculate OVR (NBA 2K style)
-        // Base calculation using player attributes
-        const baseOVR = (
-            baseStats.scoring * 0.25 +
-            baseStats.defense * 0.2 +
-            baseStats.rebounding * 0.15 +
-            baseStats.playmaking * 0.15 +
-            baseStats.stamina * 0.1 +
-            baseStats.physicality * 0.1 +
-            baseStats.xfactor * 0.05
-        ) * 10; // Scale to 50-99 range
+        const mvpsInLast3 = last3Games.filter(game => game.isMVP).length;
+        const mvpsInLast5 = last5Games.filter(game => game.isMVP).length;
+        const mvpsInLast10 = last10Games.filter(game => game.isMVP).length;
 
-        // Performance boost (max +5 for 100% win rate, max +5 for MVPs)
-        const performanceBoost = (winPct * 5) + (mvpPerGame * 15);
+        // Maximum bonus: +5 for exceptional performance
+        // Hot streak: perfect last 5 games
+        if (winsInLast5 === 5 && last5Games.length === 5) return 5;
 
-        // Streak adjustment (+2 for hot streak, -1 for cold streak)
-        const finalOVR = Math.round(baseOVR + performanceBoost + streakBonus);
+        // Elite form: 9+ wins in last 10 games
+        if (winsInLast10 >= 9 && last10Games.length >= 9) return 4;
 
-        // Clamp to realistic range (50-99)
-        return Math.min(Math.max(finalOVR, 50), 99);
+        // Hot streak: 3 wins in last 3 games
+        if (winsInLast3 === 3 && last3Games.length === 3) return 3;
+
+        // Great form: 8 wins in last 10 games OR 4 wins in last 5
+        if ((winsInLast10 >= 8 && last10Games.length >= 8) || (winsInLast5 >= 4 && last5Games.length >= 4)) return 2;
+
+        // MVP streak: 3+ MVPs in last 5 games
+        if (mvpsInLast5 >= 3 && last5Games.length >= 3) return 2;
+
+        // Good form: 7 wins in last 10 games OR 3 wins in last 5
+        if ((winsInLast10 >= 7 && last10Games.length >= 7) || (winsInLast5 >= 3 && last5Games.length >= 3)) return 1;
+
+        // MVP presence: 2+ MVPs in last 10 games
+        if (mvpsInLast10 >= 2 && last10Games.length >= 5) return 1;
+
+        // Neutral performance: 5-6 wins in last 10 games
+        if (winsInLast10 >= 5 && winsInLast10 <= 6 && last10Games.length >= 8) return 0;
+
+        // Poor form: 3-4 wins in last 10 games
+        if (winsInLast10 >= 3 && winsInLast10 <= 4 && last10Games.length >= 8) return -1;
+
+        // Cold streak: 0 wins in last 3 games
+        if (winsInLast3 === 0 && last3Games.length === 3) return -2;
+
+        // Very poor form: 2 or fewer wins in last 10 games
+        if (winsInLast10 <= 2 && last10Games.length >= 5) return -3;
+
+        // Terrible form: 0-1 wins in last 5 games
+        if (winsInLast5 <= 1 && last5Games.length >= 4) return -3;
+
+        return 0;
     };
 
-    // Get recent performance over the last 5 games
+    // Update getRecentForm to get last 10 games instead of 5
     const getRecentForm = (playerName) => {
         if (!matchHistory || matchHistory.length === 0) return [];
 
@@ -66,12 +75,27 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             new Date(b.date) - new Date(a.date)
         );
 
-        // Get last 5 games where this player participated
+        // Get last 10 games where this player participated
         const playerGames = [];
 
         for (const match of sortedHistory) {
-            const teamA = match.teams[0].map(p => p.name);
-            const teamB = match.teams[1].map(p => p.name);
+            // Check if match has teams data in either format
+            let teamA = [];
+            let teamB = [];
+
+            if (match.teams && Array.isArray(match.teams) && match.teams.length >= 2) {
+                // App format: teams[0] and teams[1]
+                teamA = match.teams[0].map(p => p.name);
+                teamB = match.teams[1].map(p => p.name);
+            } else if (match.teamA && match.teamB) {
+                // Firestore format: teamA and teamB
+                teamA = match.teamA.map(p => p.name);
+                teamB = match.teamB.map(p => p.name);
+            } else {
+                // Skip if no valid team data
+                continue;
+            }
+
             const playerTeam = teamA.includes(playerName) ? 'A' :
                 teamB.includes(playerName) ? 'B' : null;
 
@@ -84,26 +108,11 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
 
                 playerGames.push({ won, isMVP });
 
-                if (playerGames.length >= 5) break;
+                if (playerGames.length >= 10) break; // Changed from 5 to 10
             }
         }
 
         return playerGames;
-    };
-
-    // Calculate streak bonus based on recent form
-    const getStreakBonus = (recentForm) => {
-        if (recentForm.length < 3) return 0;
-
-        // Check for a winning or losing streak in the last 3 games
-        const last3Games = recentForm.slice(0, 3);
-        const allWins = last3Games.every(game => game.won);
-        const allLosses = last3Games.every(game => !game.won);
-
-        if (allWins) return 2; // Hot streak bonus
-        if (allLosses) return -1; // Cold streak penalty
-
-        return 0;
     };
 
     // Get trend (+1, -1, 0) based on recent games
@@ -140,7 +149,7 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
 
         return {
             name,
-            ovr: calculateOVR(stats, name),
+            ovr: playerOVRs[name] || 5,  // Use pre-calculated OVR
             trend: getTrend(name),
             wins: stats._w || 0,
             losses: stats._l || 0,
@@ -399,12 +408,15 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
 
             <div className="mt-6 p-4 bg-gray-800 rounded text-sm text-gray-300">
                 <h3 className="font-bold text-white mb-2">OVR Rating Explanation</h3>
-                <p>The Overall Rating (OVR) is calculated similar to NBA 2K:</p>
+                <p>The Overall Rating (OVR) is the weighted average of player attributes (1-10 scale):</p>
                 <ul className="list-disc ml-6 mt-2 space-y-1">
-                    <li>Base attributes (scoring, defense, playmaking, etc.)</li>
-                    <li>Win/Loss performance (up to +5 for 100% win rate)</li>
-                    <li>MVP recognition (significant boost for consistent MVPs)</li>
-                    <li>Hot/Cold streak adjustments (+2 for 3 wins in a row, -1 for 3 losses)</li>
+                    <li>Scoring: 25%</li>
+                    <li>Defense: 20%</li>
+                    <li>Rebounding: 15%</li>
+                    <li>Playmaking: 15%</li>
+                    <li>Stamina: 10%</li>
+                    <li>Physicality: 10%</li>
+                    <li>X-Factor: 5%</li>
                 </ul>
                 <p className="mt-2">Performance trend (+/-) reflects improvement or decline in recent games.</p>
             </div>

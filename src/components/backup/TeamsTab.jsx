@@ -29,6 +29,39 @@ export default function TeamsTab({
     const [showTeamSelector, setShowTeamSelector] = useState(false);
     const [manualTeams, setManualTeams] = useState([[], []]);
     const dropdownRef = useRef(null);
+
+    // Check for unsaved changes
+    useEffect(() => {
+        if (matchups.length > 0) {
+            const hasIncompleteScores = scores.some(score =>
+                !score.processed && (!score.a || !score.b || score.a === "" || score.b === "")
+            );
+            setUnsavedChanges(hasIncompleteScores);
+        } else {
+            setUnsavedChanges(false);
+        }
+    }, [matchups, scores]);
+
+    // Input handlers that mark changes as unsaved
+    const handleScoreChange = (index, team, value) => {
+        const updated = [...scores];
+        if (!updated[index]) {
+            updated[index] = { a: "", b: "" };
+        }
+        updated[index] = {
+            ...updated[index],
+            [team]: value,
+            processed: false // Mark as unprocessed when changed
+        };
+        setScores(updated);
+    };
+
+    const handleMvpChange = (index, value) => {
+        const updated = [...mvpVotes];
+        updated[index] = value;
+        setMvpVotes(updated);
+    };
+
     // Rematch indicator component
     const RematchIndicator = ({ teamA, teamB, previousMatches }) => {
         if (!previousMatches || previousMatches.length === 0) return null;
@@ -329,7 +362,7 @@ export default function TeamsTab({
                 </div>
             </div>
 
-            {/* Team Selector UI */}
+            {/* Team Selector UI - COMPLETELY REWRITTEN SECTION */}
             {showTeamSelector && (
                 <div className="space-y-4 border border-gray-700 rounded p-4">
                     <div className="flex justify-between items-center">
@@ -344,65 +377,71 @@ export default function TeamsTab({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Team containers */}
-                        {manualTeams.map((team, teamIndex) => (
-                            <div key={teamIndex} className="border border-gray-700 rounded p-3">
-                                <div className="text-sm font-medium text-gray-300 mb-2">Team {teamIndex + 1}</div>
+                        {manualTeams.map((team, teamIndex) => {
+                            // Convert index to letter (0 -> A, 1 -> B, etc.)
+                            const teamLetter = String.fromCharCode(65 + teamIndex); // 65 is ASCII for 'A'
 
-                                {/* Selected players */}
-                                <div className="space-y-2 min-h-20 mb-3">
-                                    {/* Regular players (non-bench) */}
-                                    {team.filter(p => !p.isBench).map((player, idx) => (
-                                        <div key={idx} className="flex justify-between items-center bg-gray-700 rounded px-2 py-1">
-                                            <span className="text-sm text-white">{player.name}</span>
-                                            <button
-                                                onClick={() => {
-                                                    const updatedTeams = [...manualTeams];
-                                                    updatedTeams[teamIndex] = team.filter((_, i) => i !== team.indexOf(player));
-                                                    setManualTeams(updatedTeams);
-                                                }}
-                                                className="text-red-400 hover:text-red-300 text-xs"
-                                            >
-                                                Remove
-                                            </button>
-                                        </div>
-                                    ))}
+                            return (
+                                <div key={teamIndex} className="border border-gray-700 rounded p-3">
+                                    <div className="text-sm font-medium text-gray-300 mb-2">Team {teamLetter}</div>
 
-                                    {/* Bench players */}
-                                    {team.filter(p => p.isBench).map((player, idx) => (
-                                        <div key={idx} className="flex justify-between items-center bg-gray-600 rounded px-2 py-1 border-l-2 border-yellow-500">
-                                            <span className="text-sm text-gray-300">
-                                                <span className="text-yellow-500 text-xs mr-1">Bench:</span>
-                                                {player.name}
+                                    {/* Selected players */}
+                                    <div className="space-y-2 min-h-20 mb-3">
+                                        {/* Regular players (non-bench) */}
+                                        {team.filter(p => !p.isBench).map((player, idx) => (
+                                            <div key={idx} className="flex justify-between items-center bg-gray-700 rounded px-2 py-1">
+                                                <span className="text-sm text-white">{player.name}</span>
+                                                <button
+                                                    onClick={() => {
+                                                        const updatedTeams = [...manualTeams];
+                                                        updatedTeams[teamIndex] = team.filter((_, i) => i !== team.indexOf(player));
+                                                        setManualTeams(updatedTeams);
+                                                    }}
+                                                    className="text-red-400 hover:text-red-300 text-xs"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        ))}
+
+                                        {/* Bench players */}
+                                        {team.filter(p => p.isBench).map((player, idx) => (
+                                            <div key={idx} className="flex justify-between items-center bg-gray-600 rounded px-2 py-1 border-l-2 border-yellow-500">
+                                                <span className="text-sm text-gray-300">
+                                                    <span className="text-yellow-500 text-xs mr-1">Bench:</span>
+                                                    {player.name}
+                                                </span>
+                                                <button
+                                                    onClick={() => {
+                                                        const updatedTeams = [...manualTeams];
+                                                        updatedTeams[teamIndex] = team.filter((_, i) => i !== team.indexOf(player));
+                                                        setManualTeams(updatedTeams);
+                                                    }}
+                                                    className="text-red-400 hover:text-red-300 text-xs"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        ))}
+
+                                        {/* No players message */}
+                                        {team.length === 0 && (
+                                            <div className="text-sm text-gray-500 italic">No players selected</div>
+                                        )}
+                                    </div>
+
+                                    {/* Player count indicator */}
+                                    <div className="text-xs text-gray-400 mb-2">
+                                        {team.filter(p => !p.isBench).length}/{teamSize} players
+                                        {team.filter(p => p.isBench).length > 0 && (
+                                            <span className="ml-2 text-yellow-500">
+                                                +{team.filter(p => p.isBench).length} bench
                                             </span>
-                                            <button
-                                                onClick={() => {
-                                                    const updatedTeams = [...manualTeams];
-                                                    updatedTeams[teamIndex] = team.filter((_, i) => i !== team.indexOf(player));
-                                                    setManualTeams(updatedTeams);
-                                                }}
-                                                className="text-red-400 hover:text-red-300 text-xs"
-                                            >
-                                                Remove
-                                            </button>
-                                        </div>
-                                    ))}
-
-                                    {team.length === 0 && (
-                                        <div className="text-sm text-gray-500 italic">No players selected</div>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
-
-                                {/* Player count indicator - show bench players separately */}
-                                <div className="text-xs text-gray-400 mb-2">
-                                    {team.filter(p => !p.isBench).length}/{teamSize} players
-                                    {team.filter(p => p.isBench).length > 0 && (
-                                        <span className="ml-2 text-yellow-500">
-                                            +{team.filter(p => p.isBench).length} bench
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
 
                     {/* Available players */}
@@ -413,21 +452,26 @@ export default function TeamsTab({
                                 <div key={player.name} className="bg-gray-800 rounded p-2">
                                     <div className="text-sm text-white mb-1">{player.name}</div>
                                     <div className="flex flex-wrap gap-1">
-                                        {manualTeams.map((_, teamIndex) => (
-                                            <button
-                                                key={teamIndex}
-                                                onClick={() => addPlayerToTeam(player, teamIndex)}
-                                                className={`text-xs px-2 py-1 rounded ${manualTeams[teamIndex].filter(p => !p.isBench).length >= teamSize
+                                        {manualTeams.map((_, teamIndex) => {
+                                            // Convert index to letter (0 -> A, 1 -> B, etc.)
+                                            const teamLetter = String.fromCharCode(65 + teamIndex); // 65 is ASCII for 'A'
+
+                                            return (
+                                                <button
+                                                    key={teamIndex}
+                                                    onClick={() => addPlayerToTeam(player, teamIndex)}
+                                                    className={`text-xs px-2 py-1 rounded ${manualTeams[teamIndex].filter(p => !p.isBench).length >= teamSize
                                                         ? 'bg-yellow-600 hover:bg-yellow-500'  // Bench styling
                                                         : 'bg-blue-600 hover:bg-blue-500'      // Regular styling
-                                                    }`}
-                                            >
-                                                {manualTeams[teamIndex].filter(p => !p.isBench).length >= teamSize
-                                                    ? `Bench Team ${teamIndex + 1}`
-                                                    : `Team ${teamIndex + 1}`
-                                                }
-                                            </button>
-                                        ))}
+                                                        }`}
+                                                >
+                                                    {manualTeams[teamIndex].filter(p => !p.isBench).length >= teamSize
+                                                        ? `Bench Team ${teamLetter}`
+                                                        : `Team ${teamLetter}`
+                                                    }
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             ))}
@@ -465,7 +509,7 @@ export default function TeamsTab({
                 </div>
             )}
 
-            {/* Teams List */}
+            {/* Teams List - UPDATED TO USE LETTER NAMING */}
             {hasGeneratedTeams && teams.length > 0 && !showTeamSelector && (
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
@@ -474,10 +518,11 @@ export default function TeamsTab({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {teams.map((team, i) => {
                             const teamStrength = calculateTeamStrength(team).toFixed(1);
+                            const teamLetter = String.fromCharCode(65 + i); // 65 is ASCII for 'A'
                             return (
                                 <div key={i} className="border border-gray-800 p-3 rounded">
                                     <div className="flex justify-between items-center">
-                                        <span className="text-xs text-gray-400">Team {i + 1}</span>
+                                        <span className="text-xs text-gray-400">Team {teamLetter}</span>
                                         <div className="flex flex-col items-end">
                                             <span className="text-xs text-blue-400">
                                                 Strength: {teamStrength}
@@ -485,15 +530,29 @@ export default function TeamsTab({
                                         </div>
                                     </div>
 
-                                    <div className="text-sm mt-1">
-                                        {team.filter(p => !p.isBench).map((p) => p.name).join(", ")}
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                        {team.filter(p => !p.isBench).map((p) => (
+                                            <div
+                                                key={p.name}
+                                                className="bg-gray-800 text-gray-100 px-3 py-1 rounded-md text-xs font-medium border border-gray-600"
+                                            >
+                                                {p.name}
+                                            </div>
+                                        ))}
                                     </div>
                                     {team.some(p => p.isBench) && (
                                         <div className="mt-1">
-                                            <span className="text-xs text-yellow-500">Bench: </span>
-                                            <span className="text-xs text-gray-400">
-                                                {team.filter(p => p.isBench).map(p => p.name).join(", ")}
-                                            </span>
+                                            <span className="text-xs text-yellow-500 mb-1">Bench: </span>
+                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                {team.filter(p => p.isBench).map(p => (
+                                                    <div
+                                                        key={p.name}
+                                                        className="bg-gray-800 text-yellow-500 px-3 py-1 rounded-md text-xs font-sm border border-gray-600"
+                                                    >
+                                                        {p.name}
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -503,7 +562,7 @@ export default function TeamsTab({
                 </div>
             )}
 
-            {/* Matchups Section */}
+            {/* Matchups Section - Simplified to just show team letters */}
             {hasGeneratedTeams && matchups.length > 0 && !showTeamSelector && (
                 <div className="space-y-4">
                     <h2 className="text-sm font-medium text-gray-300 uppercase tracking-wider mb-3">Matchups</h2>
@@ -518,60 +577,28 @@ export default function TeamsTab({
                         const teamAStrength = calculateTeamStrength(teamA).toFixed(1);
                         const teamBStrength = calculateTeamStrength(teamB).toFixed(1);
 
-                        // Check if this is a rematch and get previous results
-                        const previousMatches = getPreviousResults(teamA, teamB);
-                        const isRematchGame = previousMatches.length > 0;
+                        // Use letters to identify teams (A, B, C, etc.)
+                        const teamALetter = String.fromCharCode(65 + teamAIndex); // 65 is ASCII for 'A'
+                        const teamBLetter = String.fromCharCode(65 + teamBIndex); // 66 is ASCII for 'B', etc.
 
                         return (
                             <div key={i} className="border border-gray-800 p-3 rounded">
                                 <div className="flex justify-between items-center mb-3">
                                     <span className="text-xs text-gray-400">Match {i + 1}</span>
-                                    <button
-                                        onClick={saveMatchResults}
-                                        className="text-xs text-green-400 hover:text-green-300 transition-colors"
-                                    >
-                                        Save Result
-                                    </button>
                                 </div>
 
-                                {/* Rematch indicator */}
-                                {isRematchGame && (
-                                    <RematchIndicator
-                                        teamA={teamA}
-                                        teamB={teamB}
-                                        previousMatches={previousMatches}
-                                    />
-                                )}
-
+                                {/* Simplified matchup display - just shows teams letters */}
                                 <div className="flex justify-between items-center mb-3">
-                                    <div className="flex-1">
-                                        <div className="flex items-center">
-                                            <span className="text-xs text-blue-400">(Str: {teamAStrength})</span>
-                                        </div>
-                                        <p className="text-sm">
-                                            {teamA.filter(p => !p.isBench).map((p) => p.name).join(", ")}
-                                            {teamA.some(p => p.isBench) && (
-                                                <span className="text-yellow-500 text-xs ml-1">
-                                                    (Bench: {teamA.filter(p => p.isBench).map(p => p.name).join(", ")})
-                                                </span>
-                                            )}
-                                        </p>
+                                    <div className="flex items-center">
+                                        <span className="text-lg font-medium text-white">Team {teamALetter}</span>
+                                        <span className="text-xs text-blue-400 ml-2">(Str: {teamAStrength})</span>
                                     </div>
 
-                                    <span className="mx-2 text-gray-500">vs</span>
+                                    <span className="mx-4 text-gray-500">vs</span>
 
-                                    <div className="flex-1 text-right">
-                                        <div className="flex items-center justify-end">
-                                            <span className="text-xs text-blue-400 mr-1">(Str: {teamBStrength})</span>
-                                        </div>
-                                        <p className="text-sm">
-                                            {teamB.filter(p => !p.isBench).map((p) => p.name).join(", ")}
-                                            {teamB.some(p => p.isBench) && (
-                                                <span className="text-yellow-500 text-xs ml-1">
-                                                    (Bench: {teamB.filter(p => p.isBench).map(p => p.name).join(", ")})
-                                                </span>
-                                            )}
-                                        </p>
+                                    <div className="flex items-center">
+                                        <span className="text-lg font-medium text-white">Team {teamBLetter}</span>
+                                        <span className="text-xs text-blue-400 ml-2">(Str: {teamBStrength})</span>
                                     </div>
                                 </div>
 
@@ -595,31 +622,40 @@ export default function TeamsTab({
                                     </StyledSelect>
                                 </div>
 
-                                <div className="flex items-center space-x-3">
-                                    <label className="text-xs text-gray-400">Score:</label>
-                                    <input
-                                        type="number"
-                                        placeholder="Team A"
-                                        className="border-b border-gray-700 bg-transparent rounded-none px-2 py-1 w-16 text-sm text-white focus:outline-none focus:border-blue-500"
-                                        value={scores[i]?.a || ""}
-                                        onChange={(e) => {
-                                            const updated = [...scores];
-                                            updated[i] = { ...updated[i], a: e.target.value };
-                                            setScores(updated);
-                                        }}
-                                    />
-                                    <span className="text-xs text-gray-400">vs</span>
-                                    <input
-                                        type="number"
-                                        placeholder="Team B"
-                                        className="border-b border-gray-700 bg-transparent rounded-none px-2 py-1 w-16 text-sm text-white focus:outline-none focus:border-blue-500"
-                                        value={scores[i]?.b || ""}
-                                        onChange={(e) => {
-                                            const updated = [...scores];
-                                            updated[i] = { ...updated[i], b: e.target.value };
-                                            setScores(updated);
-                                        }}
-                                    />
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-3">
+                                        <label className="text-xs text-gray-400">Score:</label>
+                                        <input
+                                            type="number"
+                                            placeholder={`Team ${teamALetter}`}
+                                            className="border-b border-gray-700 bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500"
+                                            value={scores[i]?.a || ""}
+                                            onChange={(e) => {
+                                                const updated = [...scores];
+                                                updated[i] = { ...updated[i], a: e.target.value };
+                                                setScores(updated);
+                                            }}
+                                        />
+                                        <span className="text-xs text-gray-400">vs</span>
+                                        <input
+                                            type="number"
+                                            placeholder={`Team ${teamBLetter}`}
+                                            className="border-b border-gray-700 bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500"
+                                            value={scores[i]?.b || ""}
+                                            onChange={(e) => {
+                                                const updated = [...scores];
+                                                updated[i] = { ...updated[i], b: e.target.value };
+                                                setScores(updated);
+                                            }}
+                                        />
+                                    </div>
+
+                                    <button
+                                        onClick={saveMatchResults}
+                                        className="px-3 py-1.5 text-sm text-white bg-green-600 rounded-md hover:bg-green-500 font-medium transition-colors"
+                                    >
+                                        Save Result
+                                    </button>
                                 </div>
                             </div>
                         )
