@@ -822,7 +822,7 @@ export default function TeamsTab({
                                     }`}
                             >
                                 Name
-                                {playerSortBy === "name" && (
+                                {playerSortBy === "Name" && (
                                     <span className="ml-1">
                                         {playerSortDirection === "asc" ? "↑" : "↓"}
                                     </span>

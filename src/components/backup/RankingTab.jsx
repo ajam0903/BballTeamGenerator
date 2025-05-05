@@ -24,7 +24,6 @@ export default function RankingTab({
     setToastMessage,
 }) {
     const [sortKey, setSortKey] = useState("name");
-    const [sortDirection, setSortDirection] = useState("asc");
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     const [showRatingModal, setShowRatingModal] = useState(false);
     const [activeRatingIndex, setActiveRatingIndex] = useState(null);
@@ -41,19 +40,6 @@ export default function RankingTab({
             setHasUnsavedChanges(false); // Reset the unsaved changes flag after submission
         }, 10);
     };
-
-    // Modify the handleSort function to toggle the sort direction
-    const handleSort = (column) => {
-        if (sortKey === column) {
-            // Toggle sort direction if clicking the same column
-            setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-        } else {
-            // Set new sort column and reset direction to ascending
-            setSortKey(column);
-            setSortDirection("asc");
-        }
-    };
-
     const openRatingModal = (index) => {
         const p = sortedPlayers[index];
         const userSubmission = p.submissions?.find((s) => s.submittedBy === user?.email);
@@ -137,12 +123,6 @@ export default function RankingTab({
             (p.xfactor || 5) * 0.05
         ).toFixed(2);
     };
-
-    const getPercentage = (rating) => {
-        // rating is from 0–10, so rating=5 => 50%
-        return (rating / 10) * 100;
-    };
-
     const [sortedPlayers, setSortedPlayers] = useState([]);
 
     const modalRef = useRef();
@@ -165,6 +145,20 @@ export default function RankingTab({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [showRatingModal, hasUnsavedChanges]);
 
+
+    useEffect(() => {
+        const sorted = [...players].sort((a, b) => {
+            if (sortKey === 'name') {
+                return a.name.localeCompare(b.name);
+            } else if (sortKey === 'rating') {
+                return computeRating(b) - computeRating(a); // Sort by rating descending
+            }
+            return 0;
+        });
+
+        setSortedPlayers(sorted);
+    }, [players, sortKey]);
+
     useEffect(() => {
         if (showRatingModal) {
             // Set hasUnsavedChanges to true if user modifies any rating
@@ -172,153 +166,32 @@ export default function RankingTab({
         }
     }, [newRating]);
 
-    useEffect(() => {
-        const sorted = [...players].sort((a, b) => {
-            if (sortKey === 'name') {
-                // Alphabetical sorting for names
-                const compareResult = a.name.localeCompare(b.name);
-                return sortDirection === "asc" ? compareResult : -compareResult;
-            } else if (sortKey === 'rating') {
-                // Numerical sorting for ratings (highest to lowest or lowest to highest)
-                const ratingA = parseFloat(computeRating(a));
-                const ratingB = parseFloat(computeRating(b));
-                return sortDirection === "asc" ? ratingA - ratingB : ratingB - ratingA;
-            }
-            return 0;
-        });
-
-        setSortedPlayers(sorted);
-    }, [players, sortKey, sortDirection]);
 
 
     return (
-        <div className="space-y-8">
-            {/* Header with Add Player button */}
-            <div className="flex justify-end items-center mb-4">
-                <button
-                    onClick={() => openEditModal({
-                        name: "",
-                        scoring: 5,
-                        defense: 5,
-                        rebounding: 5,
-                        playmaking: 5,
-                        stamina: 5,
-                        physicality: 5,
-                        xfactor: 5,
-                    }, false)}
-                    className="text-sm text-blue-400 hover:text-blue-300 transition-colors flex items-center"
-                >
-                    Add Player
-                    <PlusCircleIcon className="ml-1 w-5 h-5" />
-                </button>
+        <div className="p-6 space-y-8 bg-gray-900 text-gray-100 min-h-screen">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-white">Players</h2>
+                <div className="flex items-center space-x-1">
+                    <span className="text-sm text-gray-300">Add Player</span>
+                    <button
+                        onClick={() => openEditModal({
+                            name: "",
+                            scoring: 5,
+                            defense: 5,
+                            rebounding: 5,
+                            playmaking: 5,
+                            stamina: 5,
+                            physicality: 5,
+                            xfactor: 5,
+                        }, false)} // false means it's not editing existing
+                        title="Add new player"
+                    >
+                        <PlusCircleIcon className="w-6 h-6 text-green-400 hover:text-green-300" />
+                    </button>
+                </div>
             </div>
 
-            {/* Header with column titles */}
-            <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
-                <button
-                    onClick={() => handleSort("name")}
-                    className="text-lg text-white"
-                >
-                    Name
-                </button>
-                <button
-                    onClick={() => handleSort("rating")}
-                    className="text-lg text-white"
-                >
-                    Rating
-                </button>
-            </div>
-
-            {/* Player cards */}
-            {sortedPlayers.map((player, index) => {
-                const rating = computeRating(player);
-                const userSubmission = player.submissions?.find(
-                    (s) => s.submittedBy === user?.email
-                );
-
-                return (
-                    <div key={player.name} className="bg-gray-800 rounded p-3">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-lg text-white">{player.name}</span>
-                            <span className="text-xl font-medium text-blue-400">
-                                {rating}
-                            </span>
-                        </div>
-
-                        <div className="mb-3">
-                            <div className="text-sm text-gray-400">Ratings submitted: {player.submissions?.length || 0}</div>
-                            <div className="mt-1 bg-gray-700 h-1 rounded w-full">
-                                <div
-                                    className="bg-blue-500 h-1 rounded"
-                                    style={{ width: `${getPercentage(parseFloat(rating))}%` }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex items-center">
-                            <button
-                                onClick={() => openRatingModal(index)}
-                                className="px-4 py-2 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 mr-3"
-                            >
-                                Rate
-                            </button>
-
-                            <div className={`flex items-center px-2 py-1 rounded-md text-xs ${userSubmission
-                                    ? "bg-green-900 bg-opacity-30 text-green-400"
-                                    : "bg-yellow-900 bg-opacity-30 text-yellow-400"
-                                }`}>
-                                {userSubmission ? (
-                                    <>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                        </svg>
-                                        <span>Rated</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                                        </svg>
-                                        <span>Not rated</span>
-                                    </>
-                                )}
-                            </div>
-
-                            {isAdmin && (
-                                <div className="flex space-x-2 ml-auto">
-                                    <StyledButton
-                                        onClick={() => {
-                                            const playerToEdit = {
-                                                name: player.name,
-                                                scoring: player.scoring || 5,
-                                                defense: player.defense || 5,
-                                                rebounding: player.rebounding || 5,
-                                                playmaking: player.playmaking || 5,
-                                                stamina: player.stamina || 5,
-                                                physicality: player.physicality || 5,
-                                                xfactor: player.xfactor || 5,
-                                                active: player.active !== undefined ? player.active : true
-                                            };
-                                            openEditModal(playerToEdit, true);
-                                        }}
-                                        className="px-4 py-2 text-sm bg-yellow-600 hover:bg-yellow-700"
-                                    >
-                                        Edit
-                                    </StyledButton>
-                                    <StyledButton
-                                        onClick={() => handleDeletePlayer(player.name)}
-                                        className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700"
-                                    >
-                                        Delete
-                                    </StyledButton>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                );
-            })}
-
-            {/* Rating Modal */}
             {showRatingModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
                     <div ref={modalRef} className="bg-gray-800 p-4 rounded-lg w-full max-w-sm max-h-[90vh] overflow-y-auto shadow-lg relative">
@@ -387,6 +260,93 @@ export default function RankingTab({
                     </div>
                 </div>
             )}
+
+            {/* Sort & Filter Controls */}
+            <div className="flex items-center space-x-4 mb-4">
+                <label className="font-medium">Sort By:</label>
+                <select
+                    className="border border-gray-700 bg-gray-800 rounded px-3 py-2 text-gray-100"
+                    value={sortKey}
+                    onChange={(e) => setSortKey(e.target.value)}
+                >
+                    <option value="name">Name</option>
+                    <option value="rating">Rating</option>
+                </select>
+            </div>
+
+            {/* Player List */}
+            <div className="space-y-2">
+                {sortedPlayers.map((player, index) => {
+                    const rating = computeRating(player);
+                    const userSubmission = player.submissions?.find(
+                        (s) => s.submittedBy === user?.email
+                    );
+                    const isRatedByUser = !!userSubmission;
+                    return (
+                        <div
+                            key={player.name}
+                            className="flex items-center bg-gray-800 shadow p-3 rounded justify-between"
+                        >
+                            <div>
+                                <span className="font-medium text-white">{player.name}</span>
+                                <span className="ml-2 text-sm text-gray-400">(Rating: {rating})</span>
+                                <p className="text-xs text-gray-400">Ratings submitted: {player.submissions?.length || 0}</p>
+                                {user && (
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <button
+                                            onClick={() => openRatingModal(index)}
+                                            className="hover:scale-110 transition"
+                                            title="Rate or update rating"
+                                        >
+                                            📝
+                                        </button>
+                                        {userSubmission ? (
+                                            <span className="text-xs text-green-400">✓ You've rated this player</span>
+                                        ) : (
+                                            <span className="text-xs text-yellow-400">🟡 You haven’t rated this player yet.</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                                {isAdmin && (
+                                    <StyledButton
+                                        onClick={() => {
+                                            // Create a clean player object with all the necessary fields
+                                            const playerToEdit = {
+                                                name: player.name,
+                                                scoring: player.scoring || 5,
+                                                defense: player.defense || 5,
+                                                rebounding: player.rebounding || 5,
+                                                playmaking: player.playmaking || 5,
+                                                stamina: player.stamina || 5,
+                                                physicality: player.physicality || 5,
+                                                xfactor: player.xfactor || 5,
+                                                active: player.active !== undefined ? player.active : true
+                                            };
+                                            // Pass true to indicate this is an edit of an existing player
+                                            openEditModal(playerToEdit, true);
+                                        }}
+                                        className="bg-yellow-600 hover:bg-yellow-700"
+                                    >
+                                        Edit
+                                    </StyledButton>
+                                )}
+                               
+                                {isAdmin && (
+                                    <StyledButton
+                                        onClick={() => handleDeletePlayer(player.name)}
+                                        className="bg-red-600 hover:bg-red-700"
+                                    >
+                                        Delete
+                                    </StyledButton>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }
