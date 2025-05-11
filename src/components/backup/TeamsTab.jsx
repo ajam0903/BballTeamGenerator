@@ -18,17 +18,25 @@ export default function TeamsTab({
     setTeamSize,
     generateBalancedTeams,
     handlePlayerActiveToggle,
+    handleBatchPlayerActiveToggle,
     weightings,
     saveMatchResults,
     archiveCompletedMatches,
     hasGeneratedTeams,
+    setHasGeneratedTeams,
     isRematch = () => false,
-    getPreviousResults = () => []
+    getPreviousResults = () => [],
+    hasPendingMatchups = false,
+    playerOVRs = {}
 }) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [showTeamSelector, setShowTeamSelector] = useState(false);
     const [manualTeams, setManualTeams] = useState([[], []]);
+    const [unsavedChanges, setUnsavedChanges] = useState(false);
     const dropdownRef = useRef(null);
+    const [playerSortBy, setPlayerSortBy] = useState("active");
+    const [playerSortDirection, setPlayerSortDirection] = useState("desc");
+    const [selectAll, setSelectAll] = useState(false);
 
     // Check for unsaved changes
     useEffect(() => {
@@ -60,6 +68,47 @@ export default function TeamsTab({
         const updated = [...mvpVotes];
         updated[index] = value;
         setMvpVotes(updated);
+    };
+
+    const handlePlayerSort = (column) => {
+        if (playerSortBy === column) {
+            setPlayerSortDirection(playerSortDirection === "asc" ? "desc" : "asc");
+        } else {
+            setPlayerSortBy(column);
+            setPlayerSortDirection("desc");
+        }
+    };
+
+    const handleSelectAll = () => {
+        const newSelectAllState = !selectAll;
+        setSelectAll(newSelectAllState);
+
+        // Create updates for all players
+        const updates = players.map(player => ({
+            name: player.name,
+            active: newSelectAllState
+        }));
+
+        // Use batch update if available, otherwise fall back to individual updates
+        if (handleBatchPlayerActiveToggle) {
+            handleBatchPlayerActiveToggle(updates);
+        } else {
+            players.forEach(player => {
+                handlePlayerActiveToggle(player.name, newSelectAllState);
+            });
+        }
+    };
+
+    // Helper function to get player OVR from leaderboard
+    const getPlayerOVR = (playerName) => {
+        // This would be the same calculation as in LeaderboardTab
+        // but we'll fetch it from props
+        const playerStats = leaderboard[playerName];
+        if (!playerStats) return computeRating1to10(players.find(p => p.name === playerName));
+
+        // You'll need to pass the OVR calculation function from LeaderboardTab
+        // or store the OVR in the leaderboard data
+        return playerStats.ovr || computeRating1to10(players.find(p => p.name === playerName));
     };
 
     // Rematch indicator component
@@ -117,15 +166,6 @@ export default function TeamsTab({
         );
     };
 
-    // Sort players so active ones appear on top
-    const sortedPlayers = [...players].sort((a, b) => {
-        if (a.active === b.active) return 0;
-        return a.active ? -1 : 1;
-    });
-
-    // Count active players
-    const activePlayerCount = players.filter(player => player.active).length;
-    const [teamRankings, setTeamRankings] = useState([]);
     // Compute rating 1–10 based on your skill weighting
     const computeRating1to10 = (player) => {
         const {
@@ -151,6 +191,60 @@ export default function TeamsTab({
         const rating = Math.min(raw, 10);
         return rating;
     };
+
+    // Update the sorting logic
+    const sortedPlayers = [...players].sort((a, b) => {
+        if (a.active !== b.active) {
+            return a.active ? -1 : 1;
+        }
+
+        let aValue, bValue;
+
+        switch (playerSortBy) {
+            case "name":
+                aValue = a.name.toLowerCase();
+                bValue = b.name.toLowerCase();
+                break;
+            case "ovr":
+                aValue = playerOVRs[a.name] || computeRating1to10(a);
+                bValue = playerOVRs[b.name] || computeRating1to10(b);
+                break;
+            default:
+                aValue = a.name.toLowerCase();
+                bValue = b.name.toLowerCase();
+        }
+
+        if (typeof aValue === 'string') {
+            return playerSortDirection === "asc"
+                ? aValue.localeCompare(bValue)
+                : bValue.localeCompare(aValue);
+        }
+
+        return playerSortDirection === "asc" ? aValue - bValue : bValue - aValue;
+    });
+
+    // Fix the map function structure
+    {
+        sortedPlayers.map((player) => {
+            const ovrRating = playerOVRs[player.name] || computeRating1to10(player);
+            const userRating = computeRating1to10(player);
+
+            return (
+                // Your player row JSX here
+                <div key={player.name}>
+                    {/* Player row content */}
+                </div>
+            );
+        })
+    }
+
+    
+
+    // Count active players
+    const activePlayerCount = players.filter(player => player.active).length;
+    const [teamRankings, setTeamRankings] = useState([]);
+
+
 
     // For the percentage-based bar
     const getPercentage = (rating) => {
@@ -183,6 +277,17 @@ export default function TeamsTab({
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, []);
+
+    useEffect(() => {
+        const allActive = players.every(p => p.active);
+        const allInactive = players.every(p => !p.active);
+
+        if (allActive) {
+            setSelectAll(true);
+        } else if (allInactive) {
+            setSelectAll(false);
+        }
+    }, [players]);
 
     // Initialize manual teams when team size changes
     useEffect(() => {
@@ -252,6 +357,7 @@ export default function TeamsTab({
         setMvpVotes(Array(newMatchups.length).fill(""));
         setScores(Array(newMatchups.length).fill({ a: "", b: "" }));
         setShowTeamSelector(false);
+        setHasGeneratedTeams(true);
     };
 
     // Check if an active player is not assigned to any team
@@ -362,7 +468,7 @@ export default function TeamsTab({
                 </div>
             </div>
 
-            {/* Team Selector UI - COMPLETELY REWRITTEN SECTION */}
+            {/* Team Selector UI */}
             {showTeamSelector && (
                 <div className="space-y-4 border border-gray-700 rounded p-4">
                     <div className="flex justify-between items-center">
@@ -509,7 +615,7 @@ export default function TeamsTab({
                 </div>
             )}
 
-            {/* Teams List - UPDATED TO USE LETTER NAMING */}
+            {/* Teams List */}
             {hasGeneratedTeams && teams.length > 0 && !showTeamSelector && (
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
@@ -562,10 +668,21 @@ export default function TeamsTab({
                 </div>
             )}
 
-            {/* Matchups Section - Simplified to just show team letters */}
+            {/* Matchups Section */}
             {hasGeneratedTeams && matchups.length > 0 && !showTeamSelector && (
                 <div className="space-y-4">
-                    <h2 className="text-sm font-medium text-gray-300 uppercase tracking-wider mb-3">Matchups</h2>
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-sm font-medium text-gray-300 uppercase tracking-wider mb-3">Matchups</h2>
+                        {unsavedChanges && (
+                            <div className="text-yellow-400 text-xs flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                Unsaved match results
+                            </div>
+                        )}
+                    </div>
+
                     {matchups.map(([teamA, teamB], i) => {
                         const teamAIndex = teams.findIndex(team =>
                             JSON.stringify(team.map(p => p.name)) === JSON.stringify(teamA.map(p => p.name))
@@ -577,17 +694,34 @@ export default function TeamsTab({
                         const teamAStrength = calculateTeamStrength(teamA).toFixed(1);
                         const teamBStrength = calculateTeamStrength(teamB).toFixed(1);
 
-                        // Use letters to identify teams (A, B, C, etc.)
-                        const teamALetter = String.fromCharCode(65 + teamAIndex); // 65 is ASCII for 'A'
-                        const teamBLetter = String.fromCharCode(65 + teamBIndex); // 66 is ASCII for 'B', etc.
+                        const teamALetter = String.fromCharCode(65 + teamAIndex);
+                        const teamBLetter = String.fromCharCode(65 + teamBIndex);
+
+                        // Check if this match has unsaved/incomplete data
+                        const matchIncomplete = !scores[i]?.processed && (!scores[i]?.a || !scores[i]?.b || scores[i]?.a === "" || scores[i]?.b === "");
 
                         return (
-                            <div key={i} className="border border-gray-800 p-3 rounded">
+                            <div
+                                key={i}
+                                className={`border ${matchIncomplete ? 'border-yellow-600' : 'border-gray-800'} p-3 rounded`}
+                            >
                                 <div className="flex justify-between items-center mb-3">
                                     <span className="text-xs text-gray-400">Match {i + 1}</span>
+                                    {matchIncomplete && (
+                                        <span className="text-xs text-yellow-400">Results not saved</span>
+                                    )}
                                 </div>
 
-                                {/* Simplified matchup display - just shows teams letters */}
+                                {/* Previous match history for this specific matchup */}
+                                {isRematch(teamA, teamB) && (
+                                    <RematchIndicator
+                                        teamA={teamA}
+                                        teamB={teamB}
+                                        previousMatches={getPreviousResults(teamA, teamB)}
+                                    />
+                                )}
+
+                                {/* Match content */}
                                 <div className="flex justify-between items-center mb-3">
                                     <div className="flex items-center">
                                         <span className="text-lg font-medium text-white">Team {teamALetter}</span>
@@ -606,11 +740,7 @@ export default function TeamsTab({
                                     <label className="text-xs text-gray-400">MVP:</label>
                                     <StyledSelect
                                         value={mvpVotes[i] || ""}
-                                        onChange={(e) => {
-                                            const updated = [...mvpVotes];
-                                            updated[i] = e.target.value;
-                                            setMvpVotes(updated);
-                                        }}
+                                        onChange={(e) => handleMvpChange(i, e.target.value)}
                                         className="flex-grow"
                                     >
                                         <option value="">-- Select MVP --</option>
@@ -628,53 +758,95 @@ export default function TeamsTab({
                                         <input
                                             type="number"
                                             placeholder={`Team ${teamALetter}`}
-                                            className="border-b border-gray-700 bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500"
+                                            className={`border-b ${matchIncomplete ? 'border-yellow-600' : 'border-gray-700'} bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500`}
                                             value={scores[i]?.a || ""}
-                                            onChange={(e) => {
-                                                const updated = [...scores];
-                                                updated[i] = { ...updated[i], a: e.target.value };
-                                                setScores(updated);
-                                            }}
+                                            onChange={(e) => handleScoreChange(i, 'a', e.target.value)}
                                         />
                                         <span className="text-xs text-gray-400">vs</span>
                                         <input
                                             type="number"
                                             placeholder={`Team ${teamBLetter}`}
-                                            className="border-b border-gray-700 bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500"
+                                            className={`border-b ${matchIncomplete ? 'border-yellow-600' : 'border-gray-700'} bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500`}
                                             value={scores[i]?.b || ""}
-                                            onChange={(e) => {
-                                                const updated = [...scores];
-                                                updated[i] = { ...updated[i], b: e.target.value };
-                                                setScores(updated);
-                                            }}
+                                            onChange={(e) => handleScoreChange(i, 'b', e.target.value)}
                                         />
                                     </div>
-
                                     <button
-                                        onClick={saveMatchResults}
+                                        onClick={() => saveMatchResults(i)}  // Pass the match index here
                                         className="px-3 py-1.5 text-sm text-white bg-green-600 rounded-md hover:bg-green-500 font-medium transition-colors"
                                     >
                                         Save Result
                                     </button>
                                 </div>
                             </div>
-                        )
+                        );
                     })}
+
+                    {unsavedChanges && (
+                        <div className="bg-yellow-800 bg-opacity-20 border border-yellow-700 rounded p-3 mt-2">
+                            <p className="text-yellow-400 text-sm">
+                                Make sure to save match results before leaving this tab or generating new teams.
+                            </p>
+                        </div>
+                    )}
+
+
                 </div>
             )}
 
             {/* Player List */}
             {sortedPlayers.length > 0 && !showTeamSelector && (
                 <div className="space-y-2">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center mb-4">
                         <h2 className="text-sm font-medium text-gray-300 uppercase tracking-wider">Player List</h2>
                         <div className="text-xs text-gray-400">
                             Active Players: <span className="text-gray-400">{activePlayerCount}</span>
                         </div>
                     </div>
+
+                    {/* Column headers with sort controls */}
+                    <div className="flex items-center mb-2 border-b border-gray-800 pb-2">
+                        <div className="w-8 flex-shrink-0">
+                            <input
+                                type="checkbox"
+                                checked={selectAll}
+                                onChange={handleSelectAll}
+                                className="form-checkbox h-4 w-4 text-blue-600"
+                            />
+                        </div>
+
+                        <div className="flex-grow flex justify-between items-center ml-3">
+                            <button
+                                onClick={() => handlePlayerSort("name")}
+                                className={`text-xs font-medium flex items-center ${playerSortBy === "name" ? "text-blue-400" : "text-gray-400 hover:text-gray-200"
+                                    }`}
+                            >
+                                Name
+                                {playerSortBy === "Name" && (
+                                    <span className="ml-1">
+                                        {playerSortDirection === "asc" ? "↑" : "↓"}
+                                    </span>
+                                )}
+                            </button>
+
+                            <button
+                                onClick={() => handlePlayerSort("ovr")}
+                                className={`text-xs font-medium flex items-center ${playerSortBy === "ovr" ? "text-blue-400" : "text-gray-400 hover:text-gray-200"
+                                    }`}
+                            >
+                                OVR
+                                {playerSortBy === "ovr" && (
+                                    <span className="ml-1">
+                                        {playerSortDirection === "asc" ? "↑" : "↓"}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
                     {sortedPlayers.map((player) => {
-                        const rating = computeRating1to10(player);
-                        const ratingPercent = getPercentage(rating);
+                        const ovrRating = playerOVRs[player.name] || computeRating1to10(player);
+                        const ratingPercent = getPercentage(ovrRating);
 
                         return (
                             <div
@@ -682,34 +854,52 @@ export default function TeamsTab({
                                 className="flex items-center border-b border-gray-800 py-2"
                             >
                                 {/* Active checkbox */}
-                                <div className="mr-3">
+                                <div className="w-8 flex-shrink-0">
                                     <input
                                         type="checkbox"
-                                        className="mr-1"
+                                        className="form-checkbox h-4 w-4 text-blue-600"
                                         checked={player.active}
-                                        onChange={(e) =>
-                                            handlePlayerActiveToggle(player.name, e.target.checked)
-                                        }
+                                        onChange={(e) => {
+                                            handlePlayerActiveToggle(player.name, e.target.checked);
+
+                                            // Check if we need to update selectAll
+                                            const updatedPlayers = players.map(p =>
+                                                p.name === player.name ? { ...p, active: e.target.checked } : p
+                                            );
+
+                                            const allActive = updatedPlayers.every(p => p.active);
+                                            const allInactive = updatedPlayers.every(p => !p.active);
+
+                                            if (allActive && !selectAll) {
+                                                setSelectAll(true);
+                                            } else if (allInactive && selectAll) {
+                                                setSelectAll(false);
+                                            } else if (!allActive && !allInactive) {
+                                                setSelectAll(false);
+                                            }
+                                        }}
                                     />
                                 </div>
 
-                                {/* Player name */}
-                                <div className="flex-grow">
-                                    <div className="text-sm">
-                                        {player.name}
+                                {/* Player name and OVR */}
+                                <div className="flex-grow ml-3">
+                                    <div className="flex justify-between items-center">
+                                        <div className="text-sm text-white">
+                                            {player.name}
+                                        </div>
+                                        <div className="text-sm font-medium text-blue-400">
+                                            {ovrRating.toFixed(1)}
+                                        </div>
                                     </div>
 
-                                    {/* Rating bar - more subtle */}
+                                    {/* OVR bar visual */}
                                     <div className="flex items-center mt-1">
                                         <div className="bg-gray-800 h-1 rounded flex-grow">
                                             <div
-                                                className="bg-blue-500 h-1 rounded-l"
+                                                className="bg-blue-500 h-1 rounded"
                                                 style={{ width: `${ratingPercent}%` }}
                                             />
                                         </div>
-                                        <span className="text-xs text-gray-400 ml-2">
-                                            {rating.toFixed(1)}
-                                        </span>
                                     </div>
                                 </div>
                             </div>

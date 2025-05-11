@@ -27,7 +27,9 @@ export default function TeamsTab({
     isRematch = () => false,
     getPreviousResults = () => [],
     hasPendingMatchups = false,
-    playerOVRs = {}
+    playerOVRs = {},
+    calculatePlayerScore,
+
 }) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [showTeamSelector, setShowTeamSelector] = useState(false);
@@ -49,6 +51,90 @@ export default function TeamsTab({
             setUnsavedChanges(false);
         }
     }, [matchups, scores]);
+
+    // Function to get player's first name and last initial
+    const getFormattedPlayerName = (fullName) => {
+        if (!fullName) return "Team";
+
+        // Clean up the name first
+        const cleanedName = fullName.trim().replace(/\s+/g, ' ');
+        const nameParts = cleanedName.split(' ');
+
+        // If only one name (or empty), return it
+        if (nameParts.length <= 1) return cleanedName;
+
+        // Special handling for very short or hyphenated names
+        const firstName = nameParts[0];
+
+        // Get last name - handle hyphenated names properly
+        let lastName = nameParts[nameParts.length - 1];
+        let lastInitial = lastName[0] || '';
+
+        // Add a period to the initial
+        return `${firstName} ${lastInitial}.`;
+    };
+
+    // Function to find the best player on a team based on rating
+    const findBestPlayer = (team, calculatePlayerScore) => {
+        // Check for null or empty team
+        if (!team || !Array.isArray(team) || team.length === 0) return null;
+
+        // Filter out any invalid player objects
+        const validPlayers = team.filter(p => p && typeof p === 'object' && p.name);
+        if (validPlayers.length === 0) return null;
+
+        // Only consider starters (non-bench players) if there are any
+        const starters = validPlayers.filter(p => !p.isBench);
+        const playersToConsider = starters.length > 0 ? starters : validPlayers;
+
+        return playersToConsider.reduce((best, current) => {
+            if (!best) return current;
+
+            // Safely calculate scores, defaulting to computeRating1to10 if calculatePlayerScore is missing
+            let bestScore = 0, currentScore = 0;
+            try {
+                bestScore = calculatePlayerScore ? calculatePlayerScore(best) : computeRating1to10(best);
+                currentScore = calculatePlayerScore ? calculatePlayerScore(current) : computeRating1to10(current);
+            } catch (e) {
+                console.error("Error calculating player score:", e);
+                // Fallback to internal rating
+                bestScore = computeRating1to10(best);
+                currentScore = computeRating1to10(current);
+            }
+
+            return currentScore > bestScore ? current : best;
+        }, playersToConsider[0]);
+    };
+
+    const teamNameCache = new Map();
+
+    const getTeamNameCached = (team, calculatePlayerScore) => {
+        if (!team || team.length === 0) return "Team";
+
+        // Create a unique key for this team (JSON string of player names)
+        const teamKey = JSON.stringify(team.map(p => p.name).sort());
+
+        // Return cached value if exists
+        if (teamNameCache.has(teamKey)) {
+            return teamNameCache.get(teamKey);
+        }
+
+        // Calculate name and cache it
+        const teamName = getTeamName(team, calculatePlayerScore);
+        teamNameCache.set(teamKey, teamName);
+
+        return teamName;
+    };
+
+    // Function to get team name based on best player
+    const getTeamName = (team, calculatePlayerScore) => {
+        if (!team || team.length === 0) return "Team";
+
+        const bestPlayer = findBestPlayer(team, calculatePlayerScore);
+        if (!bestPlayer) return "Team";
+
+        return getFormattedPlayerName(bestPlayer.name);
+    };
 
     // Input handlers that mark changes as unsaved
     const handleScoreChange = (index, team, value) => {
@@ -101,14 +187,16 @@ export default function TeamsTab({
 
     // Helper function to get player OVR from leaderboard
     const getPlayerOVR = (playerName) => {
-        // This would be the same calculation as in LeaderboardTab
-        // but we'll fetch it from props
-        const playerStats = leaderboard[playerName];
-        if (!playerStats) return computeRating1to10(players.find(p => p.name === playerName));
+        // Since leaderboard isn't passed as a prop, we'll just use the playerOVRs prop
+        const playerOVR = playerOVRs[playerName];
 
-        // You'll need to pass the OVR calculation function from LeaderboardTab
-        // or store the OVR in the leaderboard data
-        return playerStats.ovr || computeRating1to10(players.find(p => p.name === playerName));
+        // If we don't have an OVR, compute it
+        if (!playerOVR) {
+            const player = players.find(p => p.name === playerName);
+            return player ? computeRating1to10(player) : 5; // default to 5 if player not found
+        }
+
+        return playerOVR;
     };
 
     // Rematch indicator component
@@ -222,24 +310,7 @@ export default function TeamsTab({
 
         return playerSortDirection === "asc" ? aValue - bValue : bValue - aValue;
     });
-
-    // Fix the map function structure
-    {
-        sortedPlayers.map((player) => {
-            const ovrRating = playerOVRs[player.name] || computeRating1to10(player);
-            const userRating = computeRating1to10(player);
-
-            return (
-                // Your player row JSX here
-                <div key={player.name}>
-                    {/* Player row content */}
-                </div>
-            );
-        })
-    }
-
     
-
     // Count active players
     const activePlayerCount = players.filter(player => player.active).length;
     const [teamRankings, setTeamRankings] = useState([]);
@@ -346,6 +417,15 @@ export default function TeamsTab({
 
     // Generate matchups from manual teams
     const generateMatchupsFromManualTeams = () => {
+        // If there are pending matchups with unsaved results, use browser confirm
+        if (hasPendingMatchups) {
+            if (confirm) {
+                if (!confirm("You have unsaved match results. Creating new teams will discard these results. Continue?")) {
+                    return;
+                }
+            }
+        }
+
         // Create matchups from the manual teams
         const newMatchups = [];
         for (let i = 0; i < manualTeams.length - 1; i += 2) {
@@ -376,6 +456,24 @@ export default function TeamsTab({
         // All active players should be assigned and most teams should have the correct size
         return unassignedCount === 0 && teamsWithCorrectSize >= manualTeams.length - 1;
     };
+
+    const usedTeamNames = new Set();
+
+    // Modified function to ensure unique names
+    const getUniqueTeamName = (team, index, calculatePlayerScore) => {
+        // Get the base name
+        const baseName = getTeamName(team, calculatePlayerScore);
+
+        // If this is the first use, just return the name
+        if (!usedTeamNames.has(baseName)) {
+            usedTeamNames.add(baseName);
+            return baseName;
+        }
+
+        // Otherwise, add a suffix
+        return `${baseName} (${index + 1})`;
+    };
+
 
     // Get team rank string showing position out of total
     const getTeamRankString = (teamIndex) => {
@@ -483,24 +581,23 @@ export default function TeamsTab({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Team containers */}
-                        {manualTeams.map((team, teamIndex) => {
-                            // Convert index to letter (0 -> A, 1 -> B, etc.)
-                            const teamLetter = String.fromCharCode(65 + teamIndex); // 65 is ASCII for 'A'
+                        {manualTeams.map((manualTeam, teamIndex) => {
+                            const teamName = getTeamName(manualTeam, calculatePlayerScore || computeRating1to10);
 
                             return (
                                 <div key={teamIndex} className="border border-gray-700 rounded p-3">
-                                    <div className="text-sm font-medium text-gray-300 mb-2">Team {teamLetter}</div>
+                                    <div className="text-sm font-medium text-gray-300 mb-2">Team {teamName}</div>
 
                                     {/* Selected players */}
                                     <div className="space-y-2 min-h-20 mb-3">
                                         {/* Regular players (non-bench) */}
-                                        {team.filter(p => !p.isBench).map((player, idx) => (
+                                        {manualTeam.filter(p => !p.isBench).map((player, idx) => (
                                             <div key={idx} className="flex justify-between items-center bg-gray-700 rounded px-2 py-1">
                                                 <span className="text-sm text-white">{player.name}</span>
                                                 <button
                                                     onClick={() => {
                                                         const updatedTeams = [...manualTeams];
-                                                        updatedTeams[teamIndex] = team.filter((_, i) => i !== team.indexOf(player));
+                                                        updatedTeams[teamIndex] = manualTeam.filter((_, i) => i !== manualTeam.indexOf(player));
                                                         setManualTeams(updatedTeams);
                                                     }}
                                                     className="text-red-400 hover:text-red-300 text-xs"
@@ -511,7 +608,7 @@ export default function TeamsTab({
                                         ))}
 
                                         {/* Bench players */}
-                                        {team.filter(p => p.isBench).map((player, idx) => (
+                                        {manualTeam.filter(p => p.isBench).map((player, idx) => (
                                             <div key={idx} className="flex justify-between items-center bg-gray-600 rounded px-2 py-1 border-l-2 border-yellow-500">
                                                 <span className="text-sm text-gray-300">
                                                     <span className="text-yellow-500 text-xs mr-1">Bench:</span>
@@ -520,7 +617,7 @@ export default function TeamsTab({
                                                 <button
                                                     onClick={() => {
                                                         const updatedTeams = [...manualTeams];
-                                                        updatedTeams[teamIndex] = team.filter((_, i) => i !== team.indexOf(player));
+                                                        updatedTeams[teamIndex] = manualTeam.filter((_, i) => i !== manualTeam.indexOf(player));
                                                         setManualTeams(updatedTeams);
                                                     }}
                                                     className="text-red-400 hover:text-red-300 text-xs"
@@ -531,17 +628,17 @@ export default function TeamsTab({
                                         ))}
 
                                         {/* No players message */}
-                                        {team.length === 0 && (
+                                        {manualTeam.length === 0 && (
                                             <div className="text-sm text-gray-500 italic">No players selected</div>
                                         )}
                                     </div>
 
                                     {/* Player count indicator */}
                                     <div className="text-xs text-gray-400 mb-2">
-                                        {team.filter(p => !p.isBench).length}/{teamSize} players
-                                        {team.filter(p => p.isBench).length > 0 && (
+                                        {manualTeam.filter(p => !p.isBench).length}/{teamSize} players
+                                        {manualTeam.filter(p => p.isBench).length > 0 && (
                                             <span className="ml-2 text-yellow-500">
-                                                +{team.filter(p => p.isBench).length} bench
+                                                +{manualTeam.filter(p => p.isBench).length} bench
                                             </span>
                                         )}
                                     </div>
@@ -558,9 +655,9 @@ export default function TeamsTab({
                                 <div key={player.name} className="bg-gray-800 rounded p-2">
                                     <div className="text-sm text-white mb-1">{player.name}</div>
                                     <div className="flex flex-wrap gap-1">
-                                        {manualTeams.map((_, teamIndex) => {
-                                            // Convert index to letter (0 -> A, 1 -> B, etc.)
-                                            const teamLetter = String.fromCharCode(65 + teamIndex); // 65 is ASCII for 'A'
+                                        {manualTeams.map((manualTeam, teamIndex) => {
+                                            // Fix: Use manualTeam instead of undefined 'team'
+                                            const teamName = getTeamName(manualTeam, calculatePlayerScore || computeRating1to10);
 
                                             return (
                                                 <button
@@ -572,8 +669,8 @@ export default function TeamsTab({
                                                         }`}
                                                 >
                                                     {manualTeams[teamIndex].filter(p => !p.isBench).length >= teamSize
-                                                        ? `Bench Team ${teamLetter}`
-                                                        : `Team ${teamLetter}`
+                                                        ? `Bench Team ${teamName}`
+                                                        : `Team ${teamName}`
                                                     }
                                                 </button>
                                             );
@@ -624,11 +721,11 @@ export default function TeamsTab({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {teams.map((team, i) => {
                             const teamStrength = calculateTeamStrength(team).toFixed(1);
-                            const teamLetter = String.fromCharCode(65 + i); // 65 is ASCII for 'A'
+                            const teamName = getTeamName(team, calculatePlayerScore || computeRating1to10);
                             return (
                                 <div key={i} className="border border-gray-800 p-3 rounded">
                                     <div className="flex justify-between items-center">
-                                        <span className="text-xs text-gray-400">Team {teamLetter}</span>
+                                        <span className="text-xs text-gray-400">Team {teamName}</span>
                                         <div className="flex flex-col items-end">
                                             <span className="text-xs text-blue-400">
                                                 Strength: {teamStrength}
@@ -662,7 +759,7 @@ export default function TeamsTab({
                                         </div>
                                     )}
                                 </div>
-                            )
+                            );
                         })}
                     </div>
                 </div>
@@ -684,18 +781,11 @@ export default function TeamsTab({
                     </div>
 
                     {matchups.map(([teamA, teamB], i) => {
-                        const teamAIndex = teams.findIndex(team =>
-                            JSON.stringify(team.map(p => p.name)) === JSON.stringify(teamA.map(p => p.name))
-                        );
-                        const teamBIndex = teams.findIndex(team =>
-                            JSON.stringify(team.map(p => p.name)) === JSON.stringify(teamB.map(p => p.name))
-                        );
+                        const teamAName = getTeamName(teamA, calculatePlayerScore || computeRating1to10);
+                        const teamBName = getTeamName(teamB, calculatePlayerScore || computeRating1to10);
 
                         const teamAStrength = calculateTeamStrength(teamA).toFixed(1);
                         const teamBStrength = calculateTeamStrength(teamB).toFixed(1);
-
-                        const teamALetter = String.fromCharCode(65 + teamAIndex);
-                        const teamBLetter = String.fromCharCode(65 + teamBIndex);
 
                         // Check if this match has unsaved/incomplete data
                         const matchIncomplete = !scores[i]?.processed && (!scores[i]?.a || !scores[i]?.b || scores[i]?.a === "" || scores[i]?.b === "");
@@ -712,26 +802,17 @@ export default function TeamsTab({
                                     )}
                                 </div>
 
-                                {/* Previous match history for this specific matchup */}
-                                {isRematch(teamA, teamB) && (
-                                    <RematchIndicator
-                                        teamA={teamA}
-                                        teamB={teamB}
-                                        previousMatches={getPreviousResults(teamA, teamB)}
-                                    />
-                                )}
-
-                                {/* Match content */}
+                                {/* Display both teams */}
                                 <div className="flex justify-between items-center mb-3">
                                     <div className="flex items-center">
-                                        <span className="text-lg font-medium text-white">Team {teamALetter}</span>
+                                        <span className="text-lg font-medium text-white">Team {teamAName}</span>
                                         <span className="text-xs text-blue-400 ml-2">(Str: {teamAStrength})</span>
                                     </div>
 
                                     <span className="mx-4 text-gray-500">vs</span>
 
                                     <div className="flex items-center">
-                                        <span className="text-lg font-medium text-white">Team {teamBLetter}</span>
+                                        <span className="text-lg font-medium text-white">Team {teamBName}</span>
                                         <span className="text-xs text-blue-400 ml-2">(Str: {teamBStrength})</span>
                                     </div>
                                 </div>
@@ -757,7 +838,7 @@ export default function TeamsTab({
                                         <label className="text-xs text-gray-400">Score:</label>
                                         <input
                                             type="number"
-                                            placeholder={`Team ${teamALetter}`}
+                                            placeholder={`Team ${teamAName}`}
                                             className={`border-b ${matchIncomplete ? 'border-yellow-600' : 'border-gray-700'} bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500`}
                                             value={scores[i]?.a || ""}
                                             onChange={(e) => handleScoreChange(i, 'a', e.target.value)}
@@ -765,14 +846,14 @@ export default function TeamsTab({
                                         <span className="text-xs text-gray-400">vs</span>
                                         <input
                                             type="number"
-                                            placeholder={`Team ${teamBLetter}`}
+                                            placeholder={`Team ${teamBName}`}
                                             className={`border-b ${matchIncomplete ? 'border-yellow-600' : 'border-gray-700'} bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500`}
                                             value={scores[i]?.b || ""}
                                             onChange={(e) => handleScoreChange(i, 'b', e.target.value)}
                                         />
                                     </div>
                                     <button
-                                        onClick={() => saveMatchResults(i)}  // Pass the match index here
+                                        onClick={() => saveMatchResults(i)}
                                         className="px-3 py-1.5 text-sm text-white bg-green-600 rounded-md hover:bg-green-500 font-medium transition-colors"
                                     >
                                         Save Result
@@ -789,8 +870,6 @@ export default function TeamsTab({
                             </p>
                         </div>
                     )}
-
-
                 </div>
             )}
 

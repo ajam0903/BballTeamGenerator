@@ -735,6 +735,12 @@ export default function App() {
             return;
         }
 
+        // Check if this match has already been processed
+        if (scores[matchIndex].processed) {
+            console.log("Match already processed, skipping leaderboard calculation");
+            return;
+        }
+
         const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
         const docSnap = await getDoc(docRef);
 
@@ -742,8 +748,6 @@ export default function App() {
         if (docSnap.exists() && docSnap.data().leaderboard) {
             existingLeaderboard = docSnap.data().leaderboard;
         }
-
-        const currentTally = {};
 
         // Process only the specified match
         const [teamA, teamB] = matchups[matchIndex];
@@ -755,13 +759,6 @@ export default function App() {
         const teamAPlayers = teamA.map((p) => p.name).filter(name => name && name.trim() !== "");
         const teamBPlayers = teamB.map((p) => p.name).filter(name => name && name.trim() !== "");
 
-        // Initialize all players in currentTally first
-        [...teamAPlayers, ...teamBPlayers].forEach(name => {
-            if (name && name.trim() !== "") {
-                currentTally[name] = { _w: 0, _l: 0, MVPs: 0 };
-            }
-        });
-
         const scoreA = parseInt(score?.a);
         const scoreB = parseInt(score?.b);
 
@@ -769,53 +766,46 @@ export default function App() {
             const winnerTeam = scoreA > scoreB ? teamAPlayers : teamBPlayers;
             const loserTeam = scoreA > scoreB ? teamBPlayers : teamAPlayers;
 
+            // Create updated leaderboard
+            const updatedLeaderboard = { ...existingLeaderboard };
+
+            // Initialize players if they don't exist
+            [...teamAPlayers, ...teamBPlayers].forEach(name => {
+                if (name && name.trim() !== "" && !updatedLeaderboard[name]) {
+                    updatedLeaderboard[name] = { _w: 0, _l: 0, MVPs: 0 };
+                }
+            });
+
+            // Update wins for winners
             winnerTeam.forEach((name) => {
                 if (name && name.trim() !== "") {
-                    currentTally[name]._w += 1;
+                    updatedLeaderboard[name]._w = (updatedLeaderboard[name]._w || 0) + 1;
                 }
             });
 
+            // Update losses for losers
             loserTeam.forEach((name) => {
                 if (name && name.trim() !== "") {
-                    currentTally[name]._l += 1;
+                    updatedLeaderboard[name]._l = (updatedLeaderboard[name]._l || 0) + 1;
                 }
             });
-        }
 
-        if (mvp && mvp.trim() !== "") {
-            if (currentTally[mvp]) {
-                currentTally[mvp].MVPs += 1;
-            }
-        }
-
-        // Create updated leaderboard
-        const updatedLeaderboard = { ...existingLeaderboard };
-
-        Object.keys(currentTally).forEach(player => {
-            if (!updatedLeaderboard[player]) {
-                updatedLeaderboard[player] = { _w: 0, _l: 0, MVPs: 0 };
+            // Update MVP
+            if (mvp && mvp.trim() !== "" && updatedLeaderboard[mvp]) {
+                updatedLeaderboard[mvp].MVPs = (updatedLeaderboard[mvp].MVPs || 0) + 1;
             }
 
-            updatedLeaderboard[player]._w += currentTally[player]._w;
-            updatedLeaderboard[player]._l += currentTally[player]._l;
-            updatedLeaderboard[player].MVPs += currentTally[player].MVPs;
-        });
+            console.log("Updated leaderboard after match:", updatedLeaderboard);
+            setLeaderboard(updatedLeaderboard);
 
-        console.log("Updated leaderboard:", updatedLeaderboard);
-        setLeaderboard(updatedLeaderboard);
-
-        // Update the scores to mark this match as processed
-        const updatedScores = [...scores];
-        updatedScores[matchIndex] = { ...updatedScores[matchIndex], processed: true };
-        setScores(updatedScores);
-
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            await firestoreSetDoc(docRef, {
-                ...data,
-                leaderboard: updatedLeaderboard,
-                scores: updatedScores
-            });
+            // Save to Firestore
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                await firestoreSetDoc(docRef, {
+                    ...data,
+                    leaderboard: updatedLeaderboard
+                });
+            }
         }
     };
 
@@ -1247,11 +1237,6 @@ export default function App() {
         }
     }, [currentLeagueId, scores, mvpVotes, matchups]);
 
-    useEffect(() => {
-        if (currentLeagueId) {
-            calculateLeaderboard();
-        }
-    }, [currentLeagueId, matchups, scores, mvpVotes]);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -1425,6 +1410,27 @@ export default function App() {
         return "text-gray-400";
     };
 
+    const handleManualLeaderboardUpdate = async (updatedLeaderboard) => {
+        if (!currentLeagueId) return;
+
+        const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+
+            await firestoreSetDoc(docRef, {
+                ...data,
+                leaderboard: updatedLeaderboard
+            });
+
+            setLeaderboard(updatedLeaderboard);
+
+            setToastMessage("✅ Player stats updated!");
+            setTimeout(() => setToastMessage(""), 3000);
+        }
+    };
+
     // Modified to use league structure
     const handlePlayerSaveFromModal = async (playerData, originalName = "") => {
         if (!user) {
@@ -1533,6 +1539,13 @@ export default function App() {
             return;
         }
 
+        // Check if this match has already been processed
+        if (scores[matchIndex].processed) {
+            setToastMessage("⚠️ This match has already been saved!");
+            setTimeout(() => setToastMessage(""), 3000);
+            return;
+        }
+
         const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
         const docSnap = await getDoc(docRef);
 
@@ -1557,7 +1570,7 @@ export default function App() {
                 setHasPendingMatchups(false);
             }
 
-            // Update Firestore with the updated scores
+            // Update Firestore with the updated scores FIRST
             const firestoreData = prepareDataForFirestore({
                 ...data,
                 mvpVotes: mvpVotes,
@@ -1566,7 +1579,7 @@ export default function App() {
 
             await firestoreSetDoc(docRef, firestoreData);
 
-            // Calculate leaderboard updates from this match only
+            // Calculate leaderboard updates from this match only AFTER saving the processed flag
             await calculateMatchLeaderboard(matchIndex);
 
             // Show toast message
@@ -1581,9 +1594,9 @@ export default function App() {
                 }))
                 .filter(m => m.teams === currentMatchupTeams);
 
-            // If all matches for these teams have been completed, show rematch prompt
+            // USE updatedScores INSTEAD OF scores state
             const allMatchesCompleted = allMatchesForTheseTeams.every(m =>
-                scores[m.index]?.processed
+                updatedScores[m.index]?.processed
             );
 
             if (allMatchesCompleted) {
@@ -1775,6 +1788,7 @@ export default function App() {
                         saveMatchResults={saveMatchResults}
                         archiveCompletedMatches={archiveCompletedMatches}
                         hasGeneratedTeams={hasGeneratedTeams}
+                        setHasGeneratedTeams={setHasGeneratedTeams}
                         isRematch={isRematch}
                         getPreviousResults={getPreviousResults}
                         showRematchPrompt={showRematchPrompt}
@@ -1808,7 +1822,8 @@ export default function App() {
                     isAdmin={isAdmin}
                     matchHistory={matchHistory}
                     players={players}
-                    playerOVRs={playerOVRs}  // Add this line
+                    playerOVRs={playerOVRs}
+                    onUpdateLeaderboard={handleManualLeaderboardUpdate}
                 />
             )}
 

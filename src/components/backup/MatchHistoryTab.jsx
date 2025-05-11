@@ -1,46 +1,5 @@
-// Updated MatchHistoryTab.jsx with team naming changes
-
+// Create a new component: MatchHistoryTab.jsx
 import React, { useState } from "react";
-
-// Add team naming utility functions
-const getFormattedPlayerName = (fullName) => {
-    if (!fullName) return "Team";
-
-    const nameParts = fullName.trim().split(' ');
-
-    // If only one name (or empty), return it
-    if (nameParts.length <= 1) return fullName;
-
-    // Get first name
-    const firstName = nameParts[0];
-
-    // Get last initial (from the last part)
-    const lastInitial = nameParts[nameParts.length - 1][0] || '';
-
-    return `${firstName} ${lastInitial}.`;
-};
-
-const findBestPlayer = (team, calculatePlayerScore) => {
-    if (!team || team.length === 0) return null;
-
-    return team.reduce((best, current) => {
-        if (!best) return current;
-        if (!current) return best;
-
-        const bestScore = calculatePlayerScore ? calculatePlayerScore(best) : 0;
-        const currentScore = calculatePlayerScore ? calculatePlayerScore(current) : 0;
-        return currentScore > bestScore ? current : best;
-    }, team[0]);
-};
-
-const getTeamName = (team, calculatePlayerScore) => {
-    if (!team || team.length === 0) return "Team";
-
-    const bestPlayer = findBestPlayer(team, calculatePlayerScore);
-    if (!bestPlayer || !bestPlayer.name) return "Team";
-
-    return getFormattedPlayerName(bestPlayer.name);
-};
 
 export default function MatchHistoryTab({ matchHistory, calculatePlayerScore, weightings }) {
     const [filter, setFilter] = useState("all");
@@ -78,8 +37,29 @@ export default function MatchHistoryTab({ matchHistory, calculatePlayerScore, we
 
     return (
         <div className="space-y-6">
-            {/* Filter controls - unchanged */}
-            {/* ... */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0">
+                <h2 className="text-xl font-bold text-white">Match History</h2>
+
+                <div className="flex space-x-2">
+                    <input
+                        type="text"
+                        placeholder="Search player name..."
+                        className="px-3 py-1 bg-gray-800 border border-gray-700 rounded text-white text-sm"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+
+                    <select
+                        className="bg-gray-800 border border-gray-700 rounded text-white px-2 py-1 text-sm"
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                    >
+                        <option value="all">All Matches</option>
+                        <option value="recent">Last 10</option>
+                        <option value="thisMonth">This Month</option>
+                    </select>
+                </div>
+            </div>
 
             {filteredHistory.length === 0 ? (
                 <div className="text-center py-10 text-gray-400">
@@ -94,10 +74,6 @@ export default function MatchHistoryTab({ matchHistory, calculatePlayerScore, we
                         const scoreB = parseInt(match.score?.b);
                         const teamAWon = scoreA > scoreB;
                         const matchDate = new Date(match.date);
-
-                        // Get team names based on best players
-                        const teamAName = getTeamName(teamA, calculatePlayerScore);
-                        const teamBName = getTeamName(teamB, calculatePlayerScore);
 
                         return (
                             <div key={index} className="border border-gray-800 rounded-lg overflow-hidden">
@@ -120,10 +96,10 @@ export default function MatchHistoryTab({ matchHistory, calculatePlayerScore, we
                                 {/* Match details */}
                                 <div className="p-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Team A - use team name instead of "Team A" */}
+                                        {/* Team A */}
                                         <div className={`p-3 rounded ${teamAWon ? 'bg-green-900 bg-opacity-20' : 'bg-red-900 bg-opacity-20'}`}>
                                             <div className="flex justify-between items-center mb-2">
-                                                <span className="text-sm font-medium text-gray-300">Team {teamAName}</span>
+                                                <span className="text-sm font-medium text-gray-300">Team A</span>
                                                 <span className={`text-sm font-bold ${teamAWon ? 'text-green-400' : 'text-red-400'}`}>
                                                     {teamAWon ? 'WIN' : 'LOSS'}
                                                 </span>
@@ -146,10 +122,10 @@ export default function MatchHistoryTab({ matchHistory, calculatePlayerScore, we
                                             </div>
                                         </div>
 
-                                        {/* Team B - use team name instead of "Team B" */}
+                                        {/* Team B */}
                                         <div className={`p-3 rounded ${!teamAWon ? 'bg-green-900 bg-opacity-20' : 'bg-red-900 bg-opacity-20'}`}>
                                             <div className="flex justify-between items-center mb-2">
-                                                <span className="text-sm font-medium text-gray-300">Team {teamBName}</span>
+                                                <span className="text-sm font-medium text-gray-300">Team B</span>
                                                 <span className={`text-sm font-bold ${!teamAWon ? 'text-green-400' : 'text-red-400'}`}>
                                                     {!teamAWon ? 'WIN' : 'LOSS'}
                                                 </span>

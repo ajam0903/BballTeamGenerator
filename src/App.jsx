@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import {
     getFirestore,
     collection,
@@ -25,6 +25,7 @@ import {
     GoogleAuthProvider,
     signOut,
 } from "firebase/auth";
+import ErrorBoundary from './components/ErrorBoundary';
 
 const db = getFirestore();
 // This helps hide the default scrollbar while maintaining scroll functionality
@@ -67,6 +68,7 @@ export default function App() {
     const [toastMessage, setToastMessage] = useState("");
     const [teamRankings, setTeamRankings] = useState([]);
     const [currentLeagueId, setCurrentLeagueId] = useState(null);
+    const pendingTabRef = useRef(null);
     const [currentLeague, setCurrentLeague] = useState(null);
     const weightings = {
         scoring: 0.25,
@@ -90,6 +92,7 @@ export default function App() {
         });
     };
     const [showMatchResultsModal, setShowMatchResultsModal] = useState(false);
+    const [forceTabChange, setForceTabChange] = useState(false);
     const [completedMatchResults, setCompletedMatchResults] = useState([]);
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -191,6 +194,10 @@ export default function App() {
         });
     }
 
+    const handleCancelTabChange = () => {
+        setPendingTabChange(null);
+        setShowUnsavedModal(false);
+    };
 
     const calculateTeamStrength = (team) => {
         if (!team || team.length === 0) return 0;
@@ -205,47 +212,74 @@ export default function App() {
 
 
     const generateBalancedTeams = async () => {
-        if (!currentLeagueId) return;
+        console.log("Starting generateBalancedTeams...");
+
+        if (!currentLeagueId) {
+            console.error("No currentLeagueId set");
+            return;
+        }
 
         // If there are pending matchups, show confirmation first
         if (hasPendingMatchups) {
-            if (!confirm("You have unsaved match results. Generating new teams will discard these results. Continue?")) {
-                return;
-            }
+            setPendingTabChange('generate-teams');
+            setShowUnsavedModal(true);
+            return;
         }
 
-        // Use the imported function to generate teams and matchups
-        const result = balanceTeams(players, teamSize, calculatePlayerScore);
-        const generatedTeams = result.teams;
-        const generatedMatchups = result.matchups;
+        await generateBalancedTeamsInternal();
+    };
 
-        setTeams(generatedTeams);
-        setMatchups(generatedMatchups);
-        setHasPendingMatchups(false);
-        setHasGeneratedTeams(true);
+    const generateBalancedTeamsInternal = async () => {
+        if (!currentLeagueId) {
+            console.error("No currentLeagueId set");
+            return;
+        }
 
-        // Create MVP votes and scores arrays based on matchup count
-        const newMvpVotes = Array(generatedMatchups.length).fill("");
-        const newScores = Array(generatedMatchups.length).fill({ a: "", b: "" });
+        try {
+            console.log("Players:", players);
+            console.log("Team size:", teamSize);
 
-        setMvpVotes(newMvpVotes);
-        setScores(newScores);
+            // Use the imported function to generate teams and matchups
+            const result = balanceTeams(players, teamSize, calculatePlayerScore);
+            console.log("Balance teams result:", result);
 
-        // Update Firestore
-        const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
-        const docSnap = await getDoc(docRef);
+            const generatedTeams = result.teams;
+            const generatedMatchups = result.matchups;
 
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            const firestoreData = prepareDataForFirestore({
-                ...data,
-                teams: generatedTeams,
-                matchups: generatedMatchups,
-                mvpVotes: newMvpVotes,
-                scores: newScores,
-                leaderboard: data.leaderboard || {}
-            });
-            await firestoreSetDoc(docRef, firestoreData);
+            console.log("Generated teams:", generatedTeams);
+            console.log("Generated matchups:", generatedMatchups);
+
+            setTeams(generatedTeams);
+            setMatchups(generatedMatchups);
+            setHasPendingMatchups(false);
+            setHasGeneratedTeams(true);
+
+            // Create MVP votes and scores arrays based on matchup count
+            const newMvpVotes = Array(generatedMatchups.length).fill("");
+            const newScores = Array(generatedMatchups.length).fill({ a: "", b: "" });
+
+            setMvpVotes(newMvpVotes);
+            setScores(newScores);
+
+            // Update Firestore
+            const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const firestoreData = prepareDataForFirestore({
+                    ...data,
+                    teams: generatedTeams,
+                    matchups: generatedMatchups,
+                    mvpVotes: newMvpVotes,
+                    scores: newScores,
+                    leaderboard: data.leaderboard || {}
+                });
+                await firestoreSetDoc(docRef, firestoreData);
+            }
+        } catch (error) {
+            console.error("Error in generateBalancedTeams:", error);
+            alert("An error occurred while generating teams. Check the console for details.");
         }
     };
 
@@ -1085,7 +1119,10 @@ export default function App() {
         setSelectedPlayerToEdit(null);
     };
 
-    const isAdmin = user?.email === "ajamali0903@gmail.com";
+    const isAdmin = currentLeague && (
+        currentLeague.createdBy === user?.uid ||
+        (currentLeague.admins && currentLeague.admins.includes(user?.uid))
+    );
 
     // Modified to use league structure
     const saveEditedPlayerFromModal = async (updatedPlayer, originalName) => {
@@ -1129,14 +1166,34 @@ export default function App() {
                     ) / 7
                 };
 
-                await firestoreSetDoc(docRef, { ...data, players: updatedPlayers });
+                // Handle name change in leaderboard
+                let updatedLeaderboard = { ...data.leaderboard };
+                if (originalName !== updatedPlayer.name && updatedLeaderboard[originalName]) {
+                    // Copy the stats to the new name
+                    updatedLeaderboard[updatedPlayer.name] = { ...updatedLeaderboard[originalName] };
+                    // Delete the old name entry
+                    delete updatedLeaderboard[originalName];
+
+                    console.log("Updated leaderboard after name change:", updatedLeaderboard);
+                }
+
+                // Save to Firestore
+                await firestoreSetDoc(docRef, {
+                    ...data,
+                    players: updatedPlayers,
+                    leaderboard: updatedLeaderboard
+                });
+
+                // Update local state
                 setPlayers(updatedPlayers);
-                setLeaderboard(prevLeaderboard => ({ ...prevLeaderboard }));
+                setLeaderboard(updatedLeaderboard);
+
                 setToastMessage("✅ Player completely updated!");
                 setTimeout(() => setToastMessage(""), 3000);
             }
         }
     };
+
     // Modified to use league structure
     useEffect(() => {
         if (!currentLeagueId) return;
@@ -1271,6 +1328,12 @@ export default function App() {
 
     // Effect to detect unsaved matchups
     useEffect(() => {
+        // Don't check for pending matchups if we're forcing a tab change
+        if (forceTabChange) return;
+
+        // Don't check for pending matchups if we're in the process of changing tabs
+        if (pendingTabChange) return;
+
         if (matchups.length > 0) {
             const hasIncompleteScores = scores.some(score =>
                 !score.processed && (!score.a || !score.b || score.a === "" || score.b === "")
@@ -1279,33 +1342,60 @@ export default function App() {
         } else {
             setHasPendingMatchups(false);
         }
-    }, [matchups, scores]);
+    }, [matchups, scores, pendingTabChange, forceTabChange]);
 
     // Modify the tab switching function to check for pending matchups
     const handleTabChange = (newTab) => {
+        console.log("handleTabChange called:", { newTab, activeTab, hasPendingMatchups, forceTabChange });
+
+        // If we're forcing a tab change, just do it
+        if (forceTabChange) {
+            setActiveTab(newTab);
+            setForceTabChange(false);
+            return;
+        }
+
+        // Check if we're leaving the teams tab with unsaved matches
         if (hasPendingMatchups && activeTab === "players" && newTab !== "players") {
-            // Store the pending tab change and show the modal
+            console.log("Showing modal");
             setPendingTabChange(newTab);
             setShowUnsavedModal(true);
         } else {
-            // No pending matchups, switch tabs normally
+            console.log("Direct tab change");
             setActiveTab(newTab);
         }
     };
 
-    // Handle confirmation from modal
-    const handleConfirmTabChange = () => {
-        if (pendingTabChange) {
-            setActiveTab(pendingTabChange);
-            setPendingTabChange(null);
-        }
-        setShowUnsavedModal(false);
-    };
+    // Replace the handleConfirmTabChange function:
+    const handleConfirmTabChange = async () => {
+        console.log("handleConfirmTabChange called:", { pendingTabChange });
 
-    // Handle cancellation from modal
-    const handleCancelTabChange = () => {
-        setPendingTabChange(null);
-        setShowUnsavedModal(false);
+        if (pendingTabChange === 'generate-teams') {
+            // Special case for generating teams
+            setShowUnsavedModal(false);
+            setPendingTabChange(null);
+            setHasPendingMatchups(false);
+            await generateBalancedTeamsInternal();
+        } else if (pendingTabChange) {
+            // Normal tab change - user wants to leave anyway
+            const targetTab = pendingTabChange;
+            console.log("User confirmed tab change to:", targetTab);
+
+            // Clear the modal and states
+            setShowUnsavedModal(false);
+            setPendingTabChange(null);
+            setHasPendingMatchups(false);
+
+            // Force the tab change
+            setForceTabChange(true);
+
+            // Use setTimeout to ensure the force flag is set before changing tabs
+            setTimeout(() => {
+                handleTabChange(targetTab);
+            }, 0);
+        } else {
+            setShowUnsavedModal(false);
+        }
     };
 
     // Modified to use league structure
@@ -1431,7 +1521,6 @@ export default function App() {
         }
     };
 
-    // Modified to use league structure
     const handlePlayerSaveFromModal = async (playerData, originalName = "") => {
         if (!user) {
             setToastMessage("⚠️ Please sign in to submit a rating.");
@@ -1456,8 +1545,6 @@ export default function App() {
         const index = updatedPlayers.findIndex(
             (p) => p.name.toLowerCase() === nameToFind.toLowerCase()
         );
-
-    // Rest of your function...
 
         if (index > -1) {
             // For existing players
@@ -1484,6 +1571,26 @@ export default function App() {
                     playerData.xfactor
                 ) / 7,
             };
+
+            // Handle name change in leaderboard for regular player editing
+            let updatedLeaderboard = { ...data.leaderboard };
+            if (originalName && originalName !== playerData.name && updatedLeaderboard[originalName]) {
+                // Copy the stats to the new name
+                updatedLeaderboard[playerData.name] = { ...updatedLeaderboard[originalName] };
+                // Delete the old name entry
+                delete updatedLeaderboard[originalName];
+
+                console.log("Updated leaderboard after name change:", updatedLeaderboard);
+            }
+
+            await firestoreSetDoc(docRef, {
+                ...data,
+                players: updatedPlayers,
+                leaderboard: updatedLeaderboard
+            });
+
+            setPlayers(updatedPlayers);
+            setLeaderboard(updatedLeaderboard);
         } else {
             updatedPlayers.push({
                 name: playerData.name,
@@ -1503,11 +1610,11 @@ export default function App() {
                         playerData.physicality +
                         playerData.xfactor) / 7,
             });
+
+            await firestoreSetDoc(docRef, { ...data, players: updatedPlayers });
+            setPlayers(updatedPlayers);
         }
 
-        await firestoreSetDoc(docRef, { ...data, players: updatedPlayers });
-
-        setPlayers(updatedPlayers);
         setToastMessage("✅ Player saved!");
         setTimeout(() => setToastMessage(""), 3000);
         closeEditModal();
@@ -1769,34 +1876,34 @@ export default function App() {
 
             {activeTab === "players" && (
                 <div className="mb-6">
-                    <TeamsTab
-                        players={players}
-                        teams={teams}
-                        setTeams={setTeams}
-                        matchups={matchups}
-                        setMatchups={setMatchups}
-                        mvpVotes={mvpVotes}
-                        setMvpVotes={setMvpVotes}
-                        scores={scores}
-                        setScores={setScores}
-                        teamSize={teamSize}
-                        setTeamSize={setTeamSize}
-                        generateBalancedTeams={generateBalancedTeams}
-                        handlePlayerActiveToggle={handlePlayerActiveToggle}
-                        handleBatchPlayerActiveToggle={handleBatchPlayerActiveToggle}
-                        weightings={weightings}
-                        saveMatchResults={saveMatchResults}
-                        archiveCompletedMatches={archiveCompletedMatches}
-                        hasGeneratedTeams={hasGeneratedTeams}
-                        setHasGeneratedTeams={setHasGeneratedTeams}
-                        isRematch={isRematch}
-                        getPreviousResults={getPreviousResults}
-                        showRematchPrompt={showRematchPrompt}
-                        onRematchYes={handleRematchYes}
-                        onRematchNo={handleRematchNo}
-                        hasPendingMatchups={hasPendingMatchups}
-                        playerOVRs={playerOVRs}
-                    />
+                    <ErrorBoundary>
+                        <TeamsTab
+                            players={players}
+                            teams={teams}
+                            setTeams={setTeams}
+                            matchups={matchups}
+                            setMatchups={setMatchups}
+                            mvpVotes={mvpVotes}
+                            setMvpVotes={setMvpVotes}
+                            scores={scores}
+                            setScores={setScores}
+                            teamSize={teamSize}
+                            setTeamSize={setTeamSize}
+                            generateBalancedTeams={generateBalancedTeams}
+                            handlePlayerActiveToggle={handlePlayerActiveToggle}
+                            handleBatchPlayerActiveToggle={handleBatchPlayerActiveToggle}
+                            weightings={weightings}
+                            saveMatchResults={saveMatchResults}
+                            archiveCompletedMatches={archiveCompletedMatches}
+                            hasGeneratedTeams={hasGeneratedTeams}
+                            setHasGeneratedTeams={setHasGeneratedTeams}
+                            isRematch={isRematch}
+                            getPreviousResults={getPreviousResults}
+                            hasPendingMatchups={hasPendingMatchups}
+                            playerOVRs={playerOVRs}
+                            calculatePlayerScore={calculatePlayerScore} 
+                        />
+                    </ErrorBoundary>
                 </div>
             )}
 
