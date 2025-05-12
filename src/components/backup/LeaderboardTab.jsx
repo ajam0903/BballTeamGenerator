@@ -2,8 +2,6 @@
 import React, { useState, useEffect } from "react";
 import { StyledButton, StyledInput } from "./UIComponents";
 
-
-
 export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAdmin, matchHistory, players, playerOVRs, onUpdateLeaderboard }) {
     const [sortBy, setSortBy] = useState("ovr");
     const [sortDirection, setSortDirection] = useState("desc");
@@ -68,46 +66,6 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
         if (winsInLast5 <= 1 && last5Games.length >= 4) return -3;
 
         return 0;
-    };
-
-    const [gameTypeFilter, setGameTypeFilter] = useState("all");
-    const [filteredStats, setFilteredStats] = useState({});
-
-    const getTeamSizeFromMatch = (match) => {
-        // First, check if we have direct team size information
-        if (match.teamSize) {
-            return match.teamSize;
-        }
-
-        // Fallback to counting players if no direct team size is available
-        if (!match || !match.teams) return 0;
-
-        // Handle array format (from app state)
-        if (Array.isArray(match.teams) && match.teams.length >= 1) {
-            // Count non-bench players in first team
-            return match.teams[0].filter(p => !p.isBench).length;
-        }
-
-        // Handle object format (from Firestore)
-        if (match.teamA) {
-            return match.teamA.filter(p => !p.isBench).length;
-        }
-
-        return 0;
-    };
-
-    const filterMatchHistoryByGameType = (history, gameType) => {
-        if (!history || history.length === 0) return [];
-        if (gameType === "all") return history;
-
-        // Convert gameType string to number (e.g., "5v5" -> 5)
-        const teamSize = parseInt(gameType.split('v')[0]);
-        if (isNaN(teamSize)) return history;
-
-        return history.filter(match => {
-            const matchTeamSize = getTeamSizeFromMatch(match);
-            return matchTeamSize === teamSize;
-        });
     };
 
     // Update getRecentForm to get last 10 games instead of 5
@@ -187,7 +145,7 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
     };
 
     // Process leaderboard data for display
-    const processedData = Object.entries(filteredStats || {}).map(([name, stats]) => {
+    const processedData = Object.entries(leaderboard || {}).map(([name, stats]) => {
         // Find player data in players array
         const playerData = players.find(p => p.name === name) || {};
 
@@ -283,78 +241,7 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
         }
     };
 
-    useEffect(() => {
-        if (!matchHistory || matchHistory.length === 0 || !leaderboard) {
-            setFilteredStats(leaderboard || {});
-            return;
-        }
-
-        if (gameTypeFilter === "all") {
-            setFilteredStats(leaderboard);
-            return;
-        }
-
-        const filteredHistory = filterMatchHistoryByGameType(matchHistory, gameTypeFilter);
-
-        // If no filtered matches, show empty stats
-        if (filteredHistory.length === 0) {
-            setFilteredStats({});
-            return;
-        }
-
-        // Create filtered stats based on the filtered match history
-        const newStats = {};
-
-        filteredHistory.forEach(match => {
-            let teamA = [];
-            let teamB = [];
-            let scoreA = 0;
-            let scoreB = 0;
-            let mvp = "";
-
-            // Extract teams and scores depending on the format
-            if (match.teams && Array.isArray(match.teams)) {
-                teamA = match.teams[0].map(p => p.name);
-                teamB = match.teams[1].map(p => p.name);
-            } else if (match.teamA && match.teamB) {
-                teamA = match.teamA.map(p => p.name);
-                teamB = match.teamB.map(p => p.name);
-            }
-
-            if (match.score) {
-                scoreA = parseInt(match.score.a) || 0;
-                scoreB = parseInt(match.score.b) || 0;
-            }
-
-            mvp = match.mvp || "";
-
-            // Determine winners and losers
-            const winnersTeam = scoreA > scoreB ? teamA : teamB;
-            const losersTeam = scoreA > scoreB ? teamB : teamA;
-
-            // Update stats for each player
-            [...teamA, ...teamB].forEach(playerName => {
-                if (!newStats[playerName]) {
-                    newStats[playerName] = { _w: 0, _l: 0, MVPs: 0 };
-                }
-
-                if (winnersTeam.includes(playerName)) {
-                    newStats[playerName]._w += 1;
-                } else if (losersTeam.includes(playerName)) {
-                    newStats[playerName]._l += 1;
-                }
-
-                if (playerName === mvp) {
-                    newStats[playerName].MVPs += 1;
-                }
-            });
-        });
-
-        setFilteredStats(newStats);
-    }, [gameTypeFilter, matchHistory, leaderboard]);
-
     return (
-
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-white">Player Ratings</h2>
@@ -366,102 +253,6 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                         Reset Stats
                     </StyledButton>
                 )}
-            </div>
-
-            <div className="flex items-center mb-4 overflow-x-auto scrollbar-hide pb-2 justify-center">
-                <div className="text-center px-3">
-                    <button
-                        onClick={() => setGameTypeFilter("all")}
-                        className={`transition-colors ${gameTypeFilter === "all"
-                            ? "text-blue-400 font-semibold"
-                            : "text-gray-400 hover:text-gray-300"}`}
-                    >
-                        All
-                    </button>
-                    <div className="text-xs text-gray-500 mt-1">
-                        {matchHistory?.length || 0}
-                    </div>
-                </div>
-
-                <span className="text-gray-600">|</span>
-
-                <div className="text-center px-3">
-                    <button
-                        onClick={() => setGameTypeFilter("5v5")}
-                        className={`transition-colors ${gameTypeFilter === "5v5"
-                            ? "text-blue-400 font-semibold"
-                            : "text-gray-400 hover:text-gray-300"}`}
-                    >
-                        5v5
-                    </button>
-                    <div className="text-xs text-gray-500 mt-1">
-                        {matchHistory?.filter(match => getTeamSizeFromMatch(match) === 5).length || 0}
-                    </div>
-                </div>
-
-                <span className="text-gray-600">|</span>
-
-                <div className="text-center px-3">
-                    <button
-                        onClick={() => setGameTypeFilter("4v4")}
-                        className={`transition-colors ${gameTypeFilter === "4v4"
-                            ? "text-blue-400 font-semibold"
-                            : "text-gray-400 hover:text-gray-300"}`}
-                    >
-                        4v4
-                    </button>
-                    <div className="text-xs text-gray-500 mt-1">
-                        {matchHistory?.filter(match => getTeamSizeFromMatch(match) === 4).length || 0}
-                    </div>
-                </div>
-
-                <span className="text-gray-600">|</span>
-
-                <div className="text-center px-3">
-                    <button
-                        onClick={() => setGameTypeFilter("3v3")}
-                        className={`transition-colors ${gameTypeFilter === "3v3"
-                            ? "text-blue-400 font-semibold"
-                            : "text-gray-400 hover:text-gray-300"}`}
-                    >
-                        3v3
-                    </button>
-                    <div className="text-xs text-gray-500 mt-1">
-                        {matchHistory?.filter(match => getTeamSizeFromMatch(match) === 3).length || 0}
-                    </div>
-                </div>
-
-                <span className="text-gray-600">|</span>
-
-                <div className="text-center px-3">
-                    <button
-                        onClick={() => setGameTypeFilter("2v2")}
-                        className={`transition-colors ${gameTypeFilter === "2v2"
-                            ? "text-blue-400 font-semibold"
-                            : "text-gray-400 hover:text-gray-300"}`}
-                    >
-                        2v2
-                    </button>
-                    <div className="text-xs text-gray-500 mt-1">
-                        {matchHistory?.filter(match => getTeamSizeFromMatch(match) === 2).length || 0}
-                    </div>
-                </div>
-
-                <span className="text-gray-600">|</span>
-
-                <div className="text-center px-3">
-                    <button
-                        onClick={() => setGameTypeFilter("1v1")}
-                        className={`transition-colors ${gameTypeFilter === "1v1"
-                            ? "text-blue-400 font-semibold"
-                            : "text-gray-400 hover:text-gray-300"}`}
-                    >
-                        1v1
-                    </button>
-                    <div className="text-xs text-gray-500 mt-1">
-                        {matchHistory?.filter(match => getTeamSizeFromMatch(match) === 1).length || 0}
-                    </div>
-                </div>
             </div>
 
             {Object.keys(leaderboard || {}).length === 0 ? (

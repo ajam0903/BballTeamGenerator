@@ -649,7 +649,8 @@ export default function App() {
                             })),
                             score: scores[idx],
                             mvp: mvpVotes[idx] || "",
-                            date: new Date().toISOString()
+                            date: new Date().toISOString(),
+                            teamSize: teamSize
                         };
                     });
 
@@ -1036,7 +1037,8 @@ export default function App() {
                         })) : [],
                         score: scores[index],
                         mvp: mvpVotes[index] || "",
-                        date: new Date().toISOString()
+                        date: new Date().toISOString(),
+                        teamSize: teamSize
                     };
                 }
                 return null;
@@ -1663,7 +1665,9 @@ export default function App() {
             const updatedScores = [...scores];
             updatedScores[matchIndex] = {
                 ...updatedScores[matchIndex],
-                processed: true
+                processed: true,
+                // Add team size information
+                teamSize: teamSize
             };
 
             setScores(updatedScores);
