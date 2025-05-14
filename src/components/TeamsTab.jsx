@@ -581,23 +581,43 @@ export default function TeamsTab({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Team containers */}
-                        {manualTeams.map((manualTeam, teamIndex) => {
-                            const teamName = getTeamName(manualTeam, calculatePlayerScore || computeRating1to10);
+                        {manualTeams.map((team, teamIndex) => {
+                            // Define an array of team colors
+                            const teamColors = [
+                                { border: "border-blue-500", text: "text-blue-400", bg: "bg-blue-600", hover: "bg-blue-500" },
+                                { border: "border-green-500", text: "text-green-400", bg: "bg-green-600", hover: "bg-green-500" },
+                                { border: "border-purple-500", text: "text-purple-400", bg: "bg-purple-600", hover: "bg-purple-500" },
+                                { border: "border-yellow-500", text: "text-yellow-400", bg: "bg-yellow-600", hover: "bg-yellow-500" },
+                                { border: "border-red-500", text: "text-red-400", bg: "bg-red-600", hover: "bg-red-500" },
+                                { border: "border-pink-500", text: "text-pink-400", bg: "bg-pink-600", hover: "bg-pink-500" },
+                            ];
+
+                            // Get color for current team (cycle through colors if more teams than colors)
+                            const colorIndex = teamIndex % teamColors.length;
+                            const teamColor = teamColors[colorIndex];
 
                             return (
-                                <div key={teamIndex} className="border border-gray-700 rounded p-3">
-                                    <div className="text-sm font-medium text-gray-300 mb-2">Team {teamName}</div>
+                                <div key={teamIndex} className={`border ${teamColor.border} rounded-lg p-3 bg-gray-800`}>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h3 className={`font-medium ${teamColor.text}`}>Team {teamIndex + 1}</h3>
+                                        <span className={`text-xs px-2 py-1 rounded-full ${team.filter(p => !p.isBench).length === teamSize
+                                                ? "bg-green-900 text-green-400"
+                                                : "bg-yellow-900 text-yellow-400"
+                                            }`}>
+                                            {team.filter(p => !p.isBench).length}/{teamSize} players
+                                        </span>
+                                    </div>
 
                                     {/* Selected players */}
                                     <div className="space-y-2 min-h-20 mb-3">
                                         {/* Regular players (non-bench) */}
-                                        {manualTeam.filter(p => !p.isBench).map((player, idx) => (
+                                        {team.filter(p => !p.isBench).map((player, idx) => (
                                             <div key={idx} className="flex justify-between items-center bg-gray-700 rounded px-2 py-1">
                                                 <span className="text-sm text-white">{player.name}</span>
                                                 <button
                                                     onClick={() => {
                                                         const updatedTeams = [...manualTeams];
-                                                        updatedTeams[teamIndex] = manualTeam.filter((_, i) => i !== manualTeam.indexOf(player));
+                                                        updatedTeams[teamIndex] = team.filter((_, i) => i !== team.indexOf(player));
                                                         setManualTeams(updatedTeams);
                                                     }}
                                                     className="text-red-400 hover:text-red-300 text-xs"
@@ -608,7 +628,7 @@ export default function TeamsTab({
                                         ))}
 
                                         {/* Bench players */}
-                                        {manualTeam.filter(p => p.isBench).map((player, idx) => (
+                                        {team.filter(p => p.isBench).map((player, idx) => (
                                             <div key={idx} className="flex justify-between items-center bg-gray-600 rounded px-2 py-1 border-l-2 border-yellow-500">
                                                 <span className="text-sm text-gray-300">
                                                     <span className="text-yellow-500 text-xs mr-1">Bench:</span>
@@ -617,7 +637,7 @@ export default function TeamsTab({
                                                 <button
                                                     onClick={() => {
                                                         const updatedTeams = [...manualTeams];
-                                                        updatedTeams[teamIndex] = manualTeam.filter((_, i) => i !== manualTeam.indexOf(player));
+                                                        updatedTeams[teamIndex] = team.filter((_, i) => i !== team.indexOf(player));
                                                         setManualTeams(updatedTeams);
                                                     }}
                                                     className="text-red-400 hover:text-red-300 text-xs"
@@ -628,18 +648,8 @@ export default function TeamsTab({
                                         ))}
 
                                         {/* No players message */}
-                                        {manualTeam.length === 0 && (
+                                        {team.length === 0 && (
                                             <div className="text-sm text-gray-500 italic">No players selected</div>
-                                        )}
-                                    </div>
-
-                                    {/* Player count indicator */}
-                                    <div className="text-xs text-gray-400 mb-2">
-                                        {manualTeam.filter(p => !p.isBench).length}/{teamSize} players
-                                        {manualTeam.filter(p => p.isBench).length > 0 && (
-                                            <span className="ml-2 text-yellow-500">
-                                                +{manualTeam.filter(p => p.isBench).length} bench
-                                            </span>
                                         )}
                                     </div>
                                 </div>
@@ -650,39 +660,50 @@ export default function TeamsTab({
                     {/* Available players */}
                     <div className="mt-4">
                         <h4 className="text-sm font-medium text-gray-300 mb-2">Available Players</h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                            {getUnassignedPlayers().map((player) => (
-                                <div key={player.name} className="bg-gray-800 rounded p-2">
-                                    <div className="text-sm text-white mb-1">{player.name}</div>
-                                    <div className="flex flex-wrap gap-1">
-                                        {manualTeams.map((manualTeam, teamIndex) => {
-                                            // Fix: Use manualTeam instead of undefined 'team'
-                                            const teamName = getTeamName(manualTeam, calculatePlayerScore || computeRating1to10);
+                        {getUnassignedPlayers().length === 0 ? (
+                            <div className="text-sm text-gray-500 italic text-center py-4">All active players assigned</div>
+                        ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                {getUnassignedPlayers().map((player) => (
+                                    <div key={player.name} className="bg-gray-800 rounded p-2">
+                                        <div className="text-sm text-white mb-1">{player.name}</div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {manualTeams.map((team, teamIndex) => {
+                                                const wouldBeBench = team.filter(p => !p.isBench).length >= teamSize;
 
-                                            return (
-                                                <button
-                                                    key={teamIndex}
-                                                    onClick={() => addPlayerToTeam(player, teamIndex)}
-                                                    className={`text-xs px-2 py-1 rounded ${manualTeams[teamIndex].filter(p => !p.isBench).length >= teamSize
-                                                        ? 'bg-yellow-600 hover:bg-yellow-500'  // Bench styling
-                                                        : 'bg-blue-600 hover:bg-blue-500'      // Regular styling
-                                                        }`}
-                                                >
-                                                    {manualTeams[teamIndex].filter(p => !p.isBench).length >= teamSize
-                                                        ? `Bench Team ${teamName}`
-                                                        : `Team ${teamName}`
-                                                    }
-                                                </button>
-                                            );
-                                        })}
+                                                // Get color for current team (cycle through colors if more teams than colors)
+                                                const teamColors = [
+                                                    { bg: "bg-blue-600", hover: "bg-blue-500" },
+                                                    { bg: "bg-green-600", hover: "bg-green-500" },
+                                                    { bg: "bg-purple-600", hover: "bg-purple-500" },
+                                                    { bg: "bg-yellow-600", hover: "bg-yellow-500" },
+                                                    { bg: "bg-red-600", hover: "bg-red-500" },
+                                                    { bg: "bg-pink-600", hover: "bg-pink-500" },
+                                                ];
+                                                const colorIndex = teamIndex % teamColors.length;
+                                                const teamColor = teamColors[colorIndex];
+
+                                                return (
+                                                    <button
+                                                        key={teamIndex}
+                                                        onClick={() => addPlayerToTeam(player, teamIndex)}
+                                                        className={`text-xs px-2 py-1 rounded ${wouldBeBench
+                                                                ? 'bg-amber-600 hover:bg-amber-500'  // Bench styling
+                                                                : `${teamColor.bg} hover:${teamColor.hover}`  // Regular styling with team color
+                                                            }`}
+                                                    >
+                                                        {wouldBeBench
+                                                            ? `Bench ${teamIndex + 1}`
+                                                            : `Team ${teamIndex + 1}`
+                                                        }
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-
-                            {getUnassignedPlayers().length === 0 && (
-                                <div className="text-sm text-gray-500 italic col-span-full">All active players assigned</div>
-                            )}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Action buttons */}
@@ -691,10 +712,8 @@ export default function TeamsTab({
                             onClick={() => {
                                 // Calculate required number of teams to fit all active players
                                 const numTeams = Math.floor(activePlayerCount / teamSize);
-
                                 // Always ensure we have at least 2 teams for matchup creation  
                                 const finalNumTeams = Math.max(2, numTeams);
-
                                 setManualTeams(Array.from({ length: finalNumTeams }, () => []));
                             }}
                             className="px-3 py-1 text-sm text-gray-300 hover:text-white border border-gray-700 rounded"
@@ -704,7 +723,10 @@ export default function TeamsTab({
                         <button
                             onClick={generateMatchupsFromManualTeams}
                             disabled={!areTeamsValid()}
-                            className={`px-3 py-1 text-sm text-white bg-blue-600 rounded ${areTeamsValid() ? 'hover:bg-blue-500' : 'opacity-50 cursor-not-allowed'}`}
+                            className={`px-3 py-1 text-sm text-white rounded ${areTeamsValid()
+                                    ? "bg-blue-600 hover:bg-blue-500"
+                                    : "bg-gray-600 cursor-not-allowed opacity-50"
+                                }`}
                         >
                             Create Matchups
                         </button>

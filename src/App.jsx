@@ -26,6 +26,9 @@ import {
     signOut,
 } from "firebase/auth";
 import ErrorBoundary from './components/ErrorBoundary';
+import LogTab from "./components/LogTab";
+import logActivity from "./utils/logActivity";
+import { ensureSchemaExists } from "./utils/schemaMigration";
 
 const db = getFirestore();
 // This helps hide the default scrollbar while maintaining scroll functionality
@@ -243,7 +246,7 @@ export default function App() {
             const result = balanceTeams(players, teamSize, calculatePlayerScore);
             console.log("Balance teams result:", result);
 
-            const generatedTeams = result.teams;
+            const generatedTeams = result.teams;  // Correctly declare the variable here
             const generatedMatchups = result.matchups;
 
             console.log("Generated teams:", generatedTeams);
@@ -281,6 +284,20 @@ export default function App() {
             console.error("Error in generateBalancedTeams:", error);
             alert("An error occurred while generating teams. Check the console for details.");
         }
+
+        // Make sure to reference generatedTeams within this scope
+        await logActivity(
+            db,
+            currentLeagueId,
+            "teams_generated",
+            {
+                teamCount: teams.length,  // Use the state variable instead
+                matchupCount: matchups.length,  // Use the state variable instead
+                teamSize: teamSize
+            },
+            user,
+            false
+        );
     };
 
     const calculateLeaderboard = async () => {
@@ -577,10 +594,29 @@ export default function App() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
             const data = docSnap.data();
+            const playerToDelete = data.players.find(
+                (p) => p.name.toLowerCase() === playerName.toLowerCase()
+            );
+
             const updatedPlayers = data.players.filter(
                 (p) => p.name.toLowerCase() !== playerName.toLowerCase()
             );
+
             await firestoreSetDoc(docRef, { ...data, players: updatedPlayers });
+
+            // Log the player deletion
+            await logActivity(
+                db,
+                currentLeagueId,
+                "player_deleted",
+                {
+                    name: playerName,
+                    playerData: playerToDelete
+                },
+                user,
+                true // Undoable
+            );
+
             setPlayers(updatedPlayers);
             setToastMessage("🗑️ Player deleted!");
             setTimeout(() => setToastMessage(""), 3000);
@@ -653,7 +689,25 @@ export default function App() {
                             teamSize: teamSize
                         };
                     });
-
+                    // Log completing matches
+                    for (const match of completedMatches) {
+                        logActivity(
+                            db,
+                            currentLeagueId,
+                            "match_completed",
+                            {
+                                teamA: match.teamA.map(p => p.name),
+                                teamB: match.teamB.map(p => p.name),
+                                scoreA: match.score.a,
+                                scoreB: match.score.b,
+                                mvp: match.mvp || "",
+                                teamSize: match.teamSize || teamSize,
+                                date: match.date
+                            },
+                            user,
+                            false
+                        ).catch(err => console.warn("Error logging match completion:", err));
+                    }
                     const existingHistory = data.matchHistory || [];
                     const updatedHistory = [...existingHistory, ...completedMatches];
 
@@ -844,7 +898,7 @@ export default function App() {
         }
     };
 
-    const handleRematchYes = () => {
+    const handleRematchYes = async () => {
         // Create a new match with the same teams
         const newMatchup = [matchups[matchups.length - 1]]; // Copy the last matchup
         const newScore = [{ a: "", b: "" }];
@@ -872,13 +926,28 @@ export default function App() {
             }
         });
 
+        // Add this: Log rematch creation
+        await logActivity(
+            db,
+            currentLeagueId,
+            "rematch_created",
+            {
+                teamA: newMatchup[0][0].map(p => p.name),
+                teamB: newMatchup[0][1].map(p => p.name),
+                originalScoreA: scores[scores.length - 1]?.a,
+                originalScoreB: scores[scores.length - 1]?.b,
+                date: new Date().toISOString()
+            },
+            user,
+            false
+        );
+
         // Clear the rematch prompt
         setShowRematchPrompt(false);
         setToastMessage("🔄 Rematch created! Play again with the same teams.");
         setTimeout(() => setToastMessage(""), 3000);
     };
 
-    // Modified to use league structure
     const handleRatingSubmit = async () => {
         if (!user) {
             setToastMessage("⚠️ Please sign in to submit a rating.");
@@ -892,104 +961,238 @@ export default function App() {
             return;
         }
 
-        const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
-        const docSnap = await getDoc(docRef);
-        const data = docSnap.exists() ? docSnap.data() : { players: [] };
-        const updatedPlayers = [...data.players];
-        const index = updatedPlayers.findIndex(
-            (p) => p.name.toLowerCase() === newRating.name.toLowerCase()
-        );
-
-        const submission = {
-            ...newRating,
-            submittedBy: user.email,
-        };
-
-        let message = "✅ Rating submitted!";
-
-        if (index > -1) {
-            const existing = updatedPlayers[index];
-            const updatedSubmissions = (existing.submissions || []).filter(
-                (s) => s.submittedBy !== user.email
+        // MAIN FUNCTIONALITY SECTION - Core rating submission
+        try {
+            const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+            const docSnap = await getDoc(docRef);
+            const data = docSnap.exists() ? docSnap.data() : { players: [] };
+            const updatedPlayers = [...data.players];
+            const index = updatedPlayers.findIndex(
+                (p) => p.name.toLowerCase() === newRating.name.toLowerCase()
             );
 
-            const wasUpdate = updatedSubmissions.length < (existing.submissions?.length || 0);
-
-            updatedSubmissions.push(submission);
-
-            const total = updatedSubmissions.reduce((sum, sub) => {
-                const { name, submittedBy, ...scores } = sub;
-                const avg = Object.values(scores).reduce((a, b) => a + b, 0) / 7;
-                return sum + avg;
-            }, 0);
-            const newAvg = total / updatedSubmissions.length;
-
-            updatedPlayers[index] = {
-                ...existing,
-                submissions: updatedSubmissions,
-                rating: newAvg,
+            const submission = {
+                ...newRating,
+                submittedBy: user.email,
             };
 
-            message = wasUpdate ? "✏️ Rating updated!" : "✅ Rating submitted!";
-        } else {
-            updatedPlayers.push({
-                name: newRating.name,
-                active: true,
-                submissions: [submission],
-                rating:
-                    (submission.scoring +
-                        submission.defense +
-                        submission.rebounding +
-                        submission.playmaking +
-                        submission.stamina +
-                        submission.physicality +
-                        submission.xfactor) /
-                    7,
-            });
-        }
+            let message = "✅ Rating submitted!";
+            let actionType = "player_rating_changed";
+            let isNewRating = false;
 
-        await firestoreSetDoc(docRef, { ...data, players: updatedPlayers });
+            // Store previous rating values for logging (if player exists)
+            let previousRating = null;
+            let previousSubmission = null;
 
-        setPlayers(updatedPlayers.map(player => {
-            // Calculate averages from submissions
-            if (player.submissions && player.submissions.length > 0) {
-                const avgStats = {
-                    name: player.name,
-                    active: player.active !== undefined ? player.active : true,
-                    scoring: 0,
-                    defense: 0,
-                    rebounding: 0,
-                    playmaking: 0,
-                    stamina: 0,
-                    physicality: 0,
-                    xfactor: 0,
+            if (index > -1) {
+                const existing = updatedPlayers[index];
+                // Find user's previous submission if it exists
+                previousSubmission = existing.submissions?.find(s => s.submittedBy === user.email);
+
+                if (previousSubmission) {
+                    // Store previous values for logging
+                    previousRating = {
+                        scoring: previousSubmission.scoring,
+                        defense: previousSubmission.defense,
+                        rebounding: previousSubmission.rebounding,
+                        playmaking: previousSubmission.playmaking,
+                        stamina: previousSubmission.stamina,
+                        physicality: previousSubmission.physicality,
+                        xfactor: previousSubmission.xfactor
+                    };
+                }
+
+                const updatedSubmissions = (existing.submissions || []).filter(
+                    (s) => s.submittedBy !== user.email
+                );
+
+                const wasUpdate = updatedSubmissions.length < (existing.submissions?.length || 0);
+
+                updatedSubmissions.push(submission);
+
+                const total = updatedSubmissions.reduce((sum, sub) => {
+                    const { name, submittedBy, ...scores } = sub;
+                    const avg = Object.values(scores).reduce((a, b) => a + b, 0) / 7;
+                    return sum + avg;
+                }, 0);
+                const newAvg = total / updatedSubmissions.length;
+
+                updatedPlayers[index] = {
+                    ...existing,
+                    submissions: updatedSubmissions,
+                    rating: newAvg,
                 };
 
-                player.submissions.forEach((s) => {
-                    avgStats.scoring += s.scoring || 0;
-                    avgStats.defense += s.defense || 0;
-                    avgStats.rebounding += s.rebounding || 0;
-                    avgStats.playmaking += s.playmaking || 0;
-                    avgStats.stamina += s.stamina || 0;
-                    avgStats.physicality += s.physicality || 0;
-                    avgStats.xfactor += s.xfactor || 0;
+                message = wasUpdate ? "✏️ Rating updated!" : "✅ Rating submitted!";
+                actionType = wasUpdate ? "player_rating_updated" : "player_rating_added";
+            } else {
+                updatedPlayers.push({
+                    name: newRating.name,
+                    active: true,
+                    submissions: [submission],
+                    rating:
+                        (submission.scoring +
+                            submission.defense +
+                            submission.rebounding +
+                            submission.playmaking +
+                            submission.stamina +
+                            submission.physicality +
+                            submission.xfactor) /
+                        7,
                 });
-
-                const len = player.submissions.length;
-                Object.keys(avgStats).forEach((key) => {
-                    if (typeof avgStats[key] === "number") {
-                        avgStats[key] = parseFloat((avgStats[key] / len).toFixed(2));
-                    }
-                });
-
-                avgStats.submissions = player.submissions;
-                return avgStats;
+                isNewRating = true;
+                actionType = "player_rating_added";
             }
-            return player;
-        }));
 
-        setToastMessage(message);
-        setTimeout(() => setToastMessage(""), 3000);
+            // Complete the main functionality first
+            await firestoreSetDoc(docRef, { ...data, players: updatedPlayers });
+
+            // Update local state
+            setPlayers(updatedPlayers.map(player => {
+                // Check if player has valid structure
+                if (!player) return {
+                    name: "Unknown",
+                    active: true,
+                    submissions: [],
+                    scoring: 5,
+                    defense: 5,
+                    rebounding: 5,
+                    playmaking: 5,
+                    stamina: 5,
+                    physicality: 5,
+                    xfactor: 5
+                };
+
+                // If player has submissions, calculate averages
+                if (player.submissions && Array.isArray(player.submissions) && player.submissions.length > 0) {
+                    const avgStats = {
+                        name: player.name || "Unknown",
+                        active: player.active !== undefined ? player.active : true,
+                        scoring: 0,
+                        defense: 0,
+                        rebounding: 0,
+                        playmaking: 0,
+                        stamina: 0,
+                        physicality: 0,
+                        xfactor: 0,
+                        submissions: player.submissions
+                    };
+
+                    // Safely calculate averages
+                    player.submissions.forEach(sub => {
+                        if (sub) {
+                            avgStats.scoring += sub.scoring || 0;
+                            avgStats.defense += sub.defense || 0;
+                            avgStats.rebounding += sub.rebounding || 0;
+                            avgStats.playmaking += sub.playmaking || 0;
+                            avgStats.stamina += sub.stamina || 0;
+                            avgStats.physicality += sub.physicality || 0;
+                            avgStats.xfactor += sub.xfactor || 0;
+                        }
+                    });
+
+                    const len = player.submissions.length;
+                    Object.keys(avgStats).forEach(key => {
+                        if (typeof avgStats[key] === "number") {
+                            avgStats[key] = parseFloat((avgStats[key] / len).toFixed(2));
+                        }
+                    });
+
+                    return avgStats;
+                }
+
+                // Return player with default values if no submissions
+                return {
+                    ...player,
+                    name: player.name || "Unknown",
+                    active: player.active !== undefined ? player.active : true,
+                    scoring: player.scoring || 5,
+                    defense: player.defense || 5,
+                    rebounding: player.rebounding || 5,
+                    playmaking: player.playmaking || 5,
+                    stamina: player.stamina || 5,
+                    physicality: player.physicality || 5,
+                    xfactor: player.xfactor || 5,
+                    submissions: player.submissions || []
+                };
+            }));
+
+            // Show toast
+            setToastMessage(message);
+            setTimeout(() => setToastMessage(""), 3000);
+
+            // Now log the activity with comprehensive information
+            setTimeout(() => {
+                try {
+                    console.log("Logging rating submission for player:", newRating.name);
+
+                    // Current rating data
+                    const ratingData = {
+                        scoring: newRating.scoring,
+                        defense: newRating.defense,
+                        rebounding: newRating.rebounding,
+                        playmaking: newRating.playmaking,
+                        stamina: newRating.stamina,
+                        physicality: newRating.physicality,
+                        xfactor: newRating.xfactor
+                    };
+
+                    // Calculate overall rating
+                    const overallRating = (
+                        Object.values(ratingData).reduce((sum, val) => sum + val, 0) /
+                        Object.values(ratingData).length
+                    ).toFixed(1);
+
+                    // Prepare log details with multiple ways to identify the player
+                    const logDetails = {
+                        playerName: newRating.name, // Primary field
+                        name: newRating.name,       // Secondary field (for compatibility)
+                        player: newRating.name,     // Tertiary field (for compatibility)
+                        isNewSubmission: isNewRating,
+                        ratingData: ratingData,
+                        overallRating: overallRating
+                    };
+
+                    // If this was an update, include previous values
+                    if (previousRating) {
+                        logDetails.previousRating = previousRating;
+
+                        // Also include what specific ratings changed
+                        logDetails.changedValues = {};
+                        Object.keys(ratingData).forEach(key => {
+                            if (ratingData[key] !== previousRating[key]) {
+                                logDetails.changedValues[key] = {
+                                    from: previousRating[key],
+                                    to: ratingData[key]
+                                };
+                            }
+                        });
+                    }
+
+                    // Log the activity with explicit debugging
+                    console.log("About to log activity with player name:", newRating.name);
+                    console.log("Log details:", logDetails);
+
+                    logActivity(
+                        db,
+                        currentLeagueId,
+                        actionType,
+                        logDetails,
+                        user,
+                        true
+                    ).catch(err => {
+                        console.warn("Non-critical logging error:", err);
+                    });
+                } catch (e) {
+                    console.warn("Failed to log activity (non-critical):", e);
+                }
+            }, 100);
+
+        } catch (error) {
+            console.error("Error in handleRatingSubmit:", error);
+            setToastMessage("❌ Error saving rating: " + error.message);
+            setTimeout(() => setToastMessage(""), 3000);
+        }
     };
 
     // Modified to use league structure
@@ -1059,8 +1262,27 @@ export default function App() {
                 teams: []
             });
 
+            // Add this: Log archiving matches
+            for (const match of completedMatches) {
+                await logActivity(
+                    db,
+                    currentLeagueId,
+                    "match_completed",
+                    {
+                        teamA: match.teamA.map(p => p.name),
+                        teamB: match.teamB.map(p => p.name),
+                        scoreA: match.score.a,
+                        scoreB: match.score.b,
+                        mvp: match.mvp || "",
+                        teamSize: match.teamSize || teamSize,
+                        date: match.date
+                    },
+                    user,
+                    false
+                );
+            }
+
             // Update local state with the converted format
-            // (when we retrieve it later, we'll convert it back to app format)
             setMatchHistory(updatedHistory);
             setMatchups([]);
             setScores([]);
@@ -1073,7 +1295,6 @@ export default function App() {
             setTimeout(() => setToastMessage(""), 3000);
         }
     };
-
 
     // Modified to use league structure
     const resetLeaderboardData = async () => {
@@ -1104,6 +1325,14 @@ export default function App() {
                 alert("Leaderboard and match data have been reset.");
             }
         }
+        await logActivity(
+            db,
+            currentLeagueId,
+            "leaderboard_reset",
+            {},
+            user,
+            false
+        );
     };
 
     const openEditModal = (player, isEdit = true) => {
@@ -1114,6 +1343,23 @@ export default function App() {
         setSelectedPlayerToEdit(player);
         setIsEditingExisting(isEdit);
         setEditPlayerModalOpen(true);
+
+        // Log that we're opening the edit modal (optional - uncomment if you want to log openings)
+        /*
+        if (!isEdit) {
+            // This is a new player being added
+            logActivity(
+                db,
+                currentLeagueId,
+                "edit_modal_opened_for_new_player",
+                {
+                    action: "Adding new player"
+                },
+                user,
+                false // Not undoable
+            ).catch(err => console.warn("Non-critical logging error:", err));
+        }
+        */
     };
 
     const closeEditModal = () => {
@@ -1185,7 +1431,18 @@ export default function App() {
                     players: updatedPlayers,
                     leaderboard: updatedLeaderboard
                 });
-
+                await logActivity(
+                    db,
+                    currentLeagueId,
+                    isEditingExisting ? "player_updated" : "player_added",
+                    {
+                        name: updatedPlayer.name,
+                        originalName: originalName,
+                        playerData: updatedPlayer
+                    },
+                    user,
+                    true
+                );
                 // Update local state
                 setPlayers(updatedPlayers);
                 setLeaderboard(updatedLeaderboard);
@@ -1319,6 +1576,7 @@ export default function App() {
                         id: currentLeagueId,
                         ...leagueDoc.data()
                     });
+                    await ensureSchemaExists(db, currentLeagueId);
                 }
             } catch (error) {
                 console.error("Error fetching league details:", error);
@@ -1548,6 +1806,9 @@ export default function App() {
             (p) => p.name.toLowerCase() === nameToFind.toLowerCase()
         );
 
+        // Determine if this is a new player or an update
+        const isNewPlayer = index === -1;
+
         if (index > -1) {
             // For existing players
             const existingSubmissions = updatedPlayers[index].submissions || [];
@@ -1593,8 +1854,31 @@ export default function App() {
 
             setPlayers(updatedPlayers);
             setLeaderboard(updatedLeaderboard);
+
+            // ADD THIS: Log player update
+            await logActivity(
+                db,
+                currentLeagueId,
+                "player_updated",
+                {
+                    playerName: playerData.name,
+                    originalName: originalName || playerData.name,
+                    playerData: {
+                        scoring: playerData.scoring,
+                        defense: playerData.defense,
+                        rebounding: playerData.rebounding,
+                        playmaking: playerData.playmaking,
+                        stamina: playerData.stamina,
+                        physicality: playerData.physicality,
+                        xfactor: playerData.xfactor
+                    }
+                },
+                user,
+                true // Undoable
+            );
         } else {
-            updatedPlayers.push({
+            // New player creation
+            const newPlayer = {
                 name: playerData.name,
                 active: true,
                 submissions: [
@@ -1611,13 +1895,44 @@ export default function App() {
                         playerData.stamina +
                         playerData.physicality +
                         playerData.xfactor) / 7,
-            });
+                scoring: playerData.scoring,
+                defense: playerData.defense,
+                rebounding: playerData.rebounding,
+                playmaking: playerData.playmaking,
+                stamina: playerData.stamina,
+                physicality: playerData.physicality,
+                xfactor: playerData.xfactor
+            };
+
+            updatedPlayers.push(newPlayer);
 
             await firestoreSetDoc(docRef, { ...data, players: updatedPlayers });
             setPlayers(updatedPlayers);
+
+            // ADD THIS: Log player addition
+            await logActivity(
+                db,
+                currentLeagueId,
+                "player_added",
+                {
+                    playerName: playerData.name,
+                    name: playerData.name,
+                    playerData: {
+                        scoring: playerData.scoring,
+                        defense: playerData.defense,
+                        rebounding: playerData.rebounding,
+                        playmaking: playerData.playmaking,
+                        stamina: playerData.stamina,
+                        physicality: playerData.physicality,
+                        xfactor: playerData.xfactor
+                    }
+                },
+                user,
+                true // Undoable
+            );
         }
 
-        setToastMessage("✅ Player saved!");
+        setToastMessage(isNewPlayer ? "✅ Player added!" : "✅ Player updated!");
         setTimeout(() => setToastMessage(""), 3000);
         closeEditModal();
     };
@@ -1715,6 +2030,29 @@ export default function App() {
             } else {
                 setTimeout(() => setToastMessage(""), 3000);
             }
+            await logActivity(
+                db,
+                currentLeagueId,
+                "match_result_saved",
+                {
+                    matchIndex,
+                    scoreA: scores[matchIndex].a,
+                    scoreB: scores[matchIndex].b,
+                    mvp: mvpVotes[matchIndex] || "",
+                    teamSize: teamSize,
+                    // Include full player lists for both teams
+                    teamA: matchups[matchIndex][0].map(player => player.name),
+                    teamB: matchups[matchIndex][1].map(player => player.name),
+                    // Flatten the teams structure to avoid nested arrays
+                    teamsFlat: {
+                        team0: matchups[matchIndex][0].map(player => player.name),
+                        team1: matchups[matchIndex][1].map(player => player.name)
+                    },
+                    date: new Date().toISOString()
+                },
+                user,
+                true
+            );
         }
     };
 
@@ -1868,6 +2206,15 @@ export default function App() {
                     >
                         Leaderboard
                     </button>
+                    <button
+                        onClick={() => handleTabChange("logs")}
+                        className={`text-sm transition-colors ${activeTab === "logs"
+                            ? "text-blue-400 border-b border-blue-400"
+                            : "text-gray-400 hover:text-gray-200"
+                            }`}
+                    >
+                        Logs
+                    </button>
                 </div>
 
             {toastMessage && (
@@ -1951,6 +2298,17 @@ export default function App() {
                     onClose={handleCloseMatchResultsModal}
                     matchResults={completedMatchResults}
                     teams={teams}
+                />
+            )}
+            {activeTab === "logs" && (
+                <LogTab
+                    currentLeagueId={currentLeagueId}
+                    currentSet={currentSet}
+                    isAdmin={isAdmin}
+                    db={db}
+                    user={user}
+                    updatePlayers={setPlayers}  // Pass the setPlayers function from App.jsx
+                    setToastMessage={setToastMessage}  // Pass the toast function
                 />
             )}
         </DarkContainer>

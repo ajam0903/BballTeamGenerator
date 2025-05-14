@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs } from "firebase/firestore";
 import { DarkContainer, StyledButton, StyledInput } from "../components/UIComponents";
 import { auth } from "../firebase";
+import logActivity from "../utils/logActivity";
 
 const db = getFirestore();
 
@@ -233,7 +234,19 @@ export default function LeagueLandingPage({ user, onSelectLeague }) {
                 setLeagues([...leagues, newLeague]);
                 setJoinCode("");
                 setSuccessMessage("Successfully joined the league!");
-
+                await logActivity(
+                    db,
+                    leagueId,
+                    "user_joined_league",
+                    {
+                        userId: user.uid,
+                        userName: user.displayName || user.email,
+                        leagueName: leagueData.name,
+                        inviteCode: leagueData.inviteCode
+                    },
+                    user,
+                    false // Not undoable
+                );
                 // Auto-select the joined league
                 onSelectLeague(leagueId);
                 localStorage.setItem("lastUsedLeagueId", leagueId);
