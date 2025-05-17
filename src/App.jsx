@@ -961,6 +961,31 @@ export default function App() {
             return;
         }
 
+        // Get previous rating if it exists
+        const playerData = players.find(p => p.name === newRating.name);
+        let previousRatingValue = null;
+
+        if (playerData) {
+            // Use default values of 5 for any missing attributes
+            const scoring = playerData.scoring || 5;
+            const defense = playerData.defense || 5;
+            const rebounding = playerData.rebounding || 5;
+            const playmaking = playerData.playmaking || 5;
+            const stamina = playerData.stamina || 5;
+            const physicality = playerData.physicality || 5;
+            const xfactor = playerData.xfactor || 5;
+
+            previousRatingValue = (
+                scoring * weightings.scoring +
+                defense * weightings.defense +
+                rebounding * weightings.rebounding +
+                playmaking * weightings.playmaking +
+                stamina * weightings.stamina +
+                physicality * weightings.physicality +
+                xfactor * weightings.xfactor
+            ).toFixed(2);
+        }
+
         // MAIN FUNCTIONALITY SECTION - Core rating submission
         try {
             const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
@@ -976,9 +1001,8 @@ export default function App() {
                 submittedBy: user.email,
             };
 
-            let message = "✅ Rating submitted!";
-            let actionType = "player_rating_changed";
             let isNewRating = false;
+            let actionType = "player_rating_changed";
 
             // Store previous rating values for logging (if player exists)
             let previousRating = null;
@@ -1021,31 +1045,78 @@ export default function App() {
                     ...existing,
                     submissions: updatedSubmissions,
                     rating: newAvg,
+                    // Ensure individual stat properties are updated too
+                    scoring: submission.scoring,
+                    defense: submission.defense,
+                    rebounding: submission.rebounding,
+                    playmaking: submission.playmaking,
+                    stamina: submission.stamina,
+                    physicality: submission.physicality,
+                    xfactor: submission.xfactor
                 };
 
-                message = wasUpdate ? "✏️ Rating updated!" : "✅ Rating submitted!";
                 actionType = wasUpdate ? "player_rating_updated" : "player_rating_added";
             } else {
                 updatedPlayers.push({
                     name: newRating.name,
                     active: true,
                     submissions: [submission],
-                    rating:
-                        (submission.scoring +
-                            submission.defense +
-                            submission.rebounding +
-                            submission.playmaking +
-                            submission.stamina +
-                            submission.physicality +
-                            submission.xfactor) /
-                        7,
+                    rating: (submission.scoring +
+                        submission.defense +
+                        submission.rebounding +
+                        submission.playmaking +
+                        submission.stamina +
+                        submission.physicality +
+                        submission.xfactor) / 7,
+                    // Add individual stats explicitly
+                    scoring: submission.scoring,
+                    defense: submission.defense,
+                    rebounding: submission.rebounding,
+                    playmaking: submission.playmaking,
+                    stamina: submission.stamina,
+                    physicality: submission.physicality,
+                    xfactor: submission.xfactor
                 });
                 isNewRating = true;
                 actionType = "player_rating_added";
             }
 
-            // Complete the main functionality first
+            // Complete database update first
             await firestoreSetDoc(docRef, { ...data, players: updatedPlayers });
+
+            // Calculate the new rating after submission with safety checks
+            const updatedPlayerData = updatedPlayers.find(p => p.name === newRating.name);
+            let newRatingValue = null;
+
+            if (updatedPlayerData) {
+                // Use default values of 5 for any missing attributes
+                const scoring = updatedPlayerData.scoring || 5;
+                const defense = updatedPlayerData.defense || 5;
+                const rebounding = updatedPlayerData.rebounding || 5;
+                const playmaking = updatedPlayerData.playmaking || 5;
+                const stamina = updatedPlayerData.stamina || 5;
+                const physicality = updatedPlayerData.physicality || 5;
+                const xfactor = updatedPlayerData.xfactor || 5;
+
+                newRatingValue = (
+                    scoring * weightings.scoring +
+                    defense * weightings.defense +
+                    rebounding * weightings.rebounding +
+                    playmaking * weightings.playmaking +
+                    stamina * weightings.stamina +
+                    physicality * weightings.physicality +
+                    xfactor * weightings.xfactor
+                ).toFixed(2);
+            }
+
+            // ONLY SET ONE TOAST MESSAGE - with rating change info if available
+            const messagePrefix = isNewRating ? "✅ Rating submitted!" : "✏️ Rating updated!";
+            if (previousRatingValue && newRatingValue && !isNaN(parseFloat(newRatingValue))) {
+                setToastMessage(`${messagePrefix} ${previousRatingValue} → ${newRatingValue}`);
+            } else {
+                setToastMessage(messagePrefix);
+            }
+            setTimeout(() => setToastMessage(""), 4000);
 
             // Update local state
             setPlayers(updatedPlayers.map(player => {
@@ -1116,10 +1187,6 @@ export default function App() {
                     submissions: player.submissions || []
                 };
             }));
-
-            // Show toast
-            setToastMessage(message);
-            setTimeout(() => setToastMessage(""), 3000);
 
             // Now log the activity with comprehensive information
             setTimeout(() => {
@@ -2082,7 +2149,7 @@ export default function App() {
             <div className="bg-gray-900 min-h-screen">
                 {/* Update this section to include Squad Sync text */}
                 <div className="flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800">
-                    <h1 className="text-2xl font-bold text-white">Squad Sync</h1>
+                    <h1 className="text-2xl font-bold text-white">REC TRACKER</h1>
                     {user ? (
                         <UserMenu user={user} />
                     ) : (
@@ -2155,8 +2222,10 @@ export default function App() {
                     />
 
                     {toastMessage && (
-                        <div className="fixed top-4 right-4 bg-gray-800 text-white px-4 py-2 rounded shadow-lg z-50">
-                            {toastMessage}
+                        <div className="fixed inset-0 flex items-center justify-center z-[9999] pointer-events-none">
+                            <div className="bg-gray-800 text-white px-6 py-3 rounded shadow-lg pointer-events-auto">
+                                {toastMessage}
+                            </div>
                         </div>
                     )}
                 </div>
