@@ -2103,7 +2103,7 @@ export default function App() {
             <div className="mb-8">
                 {/* Top navigation bar */}
                 <div className="mb-8">
-                    {/* Replace the existing top navigation bar with this */}
+                    {/* League name and user menu */}
                     <div className="flex items-center justify-between py-3 mb-6 border-b border-gray-800">
                         {/* Left side: League name */}
                         <div className="flex items-center">
@@ -2116,18 +2116,8 @@ export default function App() {
                             currentLeague={currentLeague}
                             handleBackToLeagues={handleBackToLeagues}
                         />
-                        {/* Add the ConfirmationModal */}
-                        <ConfirmationModal
-                            isOpen={showUnsavedModal}
-                            onClose={handleCancelTabChange}
-                            onConfirm={handleConfirmTabChange}
-                            title="Unsaved Match Results"
-                            message="You have unsaved match results. Leaving this screen will discard your current matchups. Do you want to continue?"
-                            confirmText="Leave Anyway"
-                            cancelText="Stay Here"
-                            isDestructive={true}
-                        />
                     </div>
+
                     {/* Rematch Prompt */}
                     {showRematchPrompt && (
                         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -2151,21 +2141,18 @@ export default function App() {
                             </div>
                         </div>
                     )}
-            {/* Add the ConfirmationModal */}
-            <ConfirmationModal
-                isOpen={showUnsavedModal}
-                onClose={handleCancelTabChange}
-                onConfirm={handleConfirmTabChange}
-                title="Unsaved Match Results"
-                message="You have unsaved match results. Leaving this screen will discard your current matchups. Do you want to continue?"
-                confirmText="Leave Anyway"
-                cancelText="Stay Here"
-                isDestructive={true}
-            />
-                    {/* Navigation tabs - keep as is */}
-                    <div className="flex items-center space-x-6 mb-8">
-                        {/* ... existing tab buttons ... */}
-                    </div>
+
+                    {/* Add the ConfirmationModal */}
+                    <ConfirmationModal
+                        isOpen={showUnsavedModal}
+                        onClose={handleCancelTabChange}
+                        onConfirm={handleConfirmTabChange}
+                        title="Unsaved Match Results"
+                        message="You have unsaved match results. Leaving this screen will discard your current matchups. Do you want to continue?"
+                        confirmText="Leave Anyway"
+                        cancelText="Stay Here"
+                        isDestructive={true}
+                    />
 
                     {toastMessage && (
                         <div className="fixed top-4 right-4 bg-gray-800 text-white px-4 py-2 rounded shadow-lg z-50">
@@ -2174,144 +2161,176 @@ export default function App() {
                     )}
                 </div>
 
-                {/* Navigation tabs - also simplified */}
-                <div className="flex items-center space-x-6 mb-8">
-                    <button
-                        onClick={() => handleTabChange("players")}
-                        className={`text-sm transition-colors ${activeTab === "players"
-                                ? "text-blue-400 border-b border-blue-400"
-                                : "text-gray-400 hover:text-gray-200"
-                            }`}
-                    >
-                        Teams
-                        {hasPendingMatchups && activeTab !== "players" && (
-                            <span className="ml-2 inline-flex h-2 w-2 rounded-full bg-red-500"></span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => handleTabChange("rankings")}
-                        className={`text-sm transition-colors ${activeTab === "rankings"
-                                ? "text-blue-400 border-b border-blue-400"
-                                : "text-gray-400 hover:text-gray-200"
-                            }`}
-                    >
-                        Players
-                    </button>
-                    <button
-                        onClick={() => handleTabChange("leaderboard")}
-                        className={`text-sm transition-colors ${activeTab === "leaderboard"
-                                ? "text-blue-400 border-b border-blue-400"
-                                : "text-gray-400 hover:text-gray-200"
-                            }`}
-                    >
-                        Leaderboard
-                    </button>
-                    <button
-                        onClick={() => handleTabChange("logs")}
-                        className={`text-sm transition-colors ${activeTab === "logs"
-                            ? "text-blue-400 border-b border-blue-400"
-                            : "text-gray-400 hover:text-gray-200"
-                            }`}
-                    >
-                        Logs
-                    </button>
-                </div>
+                {/* Main content area with bottom padding to prevent content being hidden behind nav */}
+                <div className="pb-20">
+                    {activeTab === "players" && (
+                        <div className="mb-6">
+                            <ErrorBoundary>
+                                <TeamsTab
+                                    players={players}
+                                    teams={teams}
+                                    setTeams={setTeams}
+                                    matchups={matchups}
+                                    setMatchups={setMatchups}
+                                    mvpVotes={mvpVotes}
+                                    setMvpVotes={setMvpVotes}
+                                    scores={scores}
+                                    setScores={setScores}
+                                    teamSize={teamSize}
+                                    setTeamSize={setTeamSize}
+                                    generateBalancedTeams={generateBalancedTeams}
+                                    handlePlayerActiveToggle={handlePlayerActiveToggle}
+                                    handleBatchPlayerActiveToggle={handleBatchPlayerActiveToggle}
+                                    weightings={weightings}
+                                    saveMatchResults={saveMatchResults}
+                                    archiveCompletedMatches={archiveCompletedMatches}
+                                    hasGeneratedTeams={hasGeneratedTeams}
+                                    setHasGeneratedTeams={setHasGeneratedTeams}
+                                    isRematch={isRematch}
+                                    getPreviousResults={getPreviousResults}
+                                    hasPendingMatchups={hasPendingMatchups}
+                                    playerOVRs={playerOVRs}
+                                    calculatePlayerScore={calculatePlayerScore}
+                                />
+                            </ErrorBoundary>
+                        </div>
+                    )}
 
-            {toastMessage && (
-                <div className="fixed top-4 right-4 bg-gray-800 text-white px-4 py-2 rounded shadow-lg z-50">
-                    {toastMessage}
-                </div>
-            )}
-            </div>
-
-
-            {activeTab === "players" && (
-                <div className="mb-6">
-                    <ErrorBoundary>
-                        <TeamsTab
+                    {activeTab === "rankings" && (
+                        <RankingTab
                             players={players}
-                            teams={teams}
-                            setTeams={setTeams}
-                            matchups={matchups}
-                            setMatchups={setMatchups}
-                            mvpVotes={mvpVotes}
-                            setMvpVotes={setMvpVotes}
-                            scores={scores}
-                            setScores={setScores}
-                            teamSize={teamSize}
-                            setTeamSize={setTeamSize}
-                            generateBalancedTeams={generateBalancedTeams}
-                            handlePlayerActiveToggle={handlePlayerActiveToggle}
-                            handleBatchPlayerActiveToggle={handleBatchPlayerActiveToggle}
-                            weightings={weightings}
-                            saveMatchResults={saveMatchResults}
-                            archiveCompletedMatches={archiveCompletedMatches}
-                            hasGeneratedTeams={hasGeneratedTeams}
-                            setHasGeneratedTeams={setHasGeneratedTeams}
-                            isRematch={isRematch}
-                            getPreviousResults={getPreviousResults}
-                            hasPendingMatchups={hasPendingMatchups}
-                            playerOVRs={playerOVRs}
-                            calculatePlayerScore={calculatePlayerScore} 
+                            newRating={newRating}
+                            setNewRating={setNewRating}
+                            handleRatingSubmit={handleRatingSubmit}
+                            handleDeletePlayer={handleDeletePlayer}
+                            openEditModal={openEditModal}
+                            isAdmin={isAdmin}
+                            user={user}
+                            toastMessage={toastMessage}
+                            setToastMessage={setToastMessage}
                         />
-                    </ErrorBoundary>
+                    )}
+
+                    {activeTab === "leaderboard" && (
+                        <LeaderboardTab
+                            leaderboard={leaderboard}
+                            resetLeaderboardData={resetLeaderboardData}
+                            isAdmin={isAdmin}
+                            matchHistory={matchHistory}
+                            players={players}
+                            playerOVRs={playerOVRs}
+                            onUpdateLeaderboard={handleManualLeaderboardUpdate}
+                        />
+                    )}
+
+                    {activeTab === "logs" && (
+                        <LogTab
+                            currentLeagueId={currentLeagueId}
+                            currentSet={currentSet}
+                            isAdmin={isAdmin}
+                            db={db}
+                            user={user}
+                            updatePlayers={setPlayers}
+                            setToastMessage={setToastMessage}
+                        />
+                    )}
                 </div>
-            )}
 
-            {activeTab === "rankings" && (
-                <RankingTab
-                    players={players}
-                    newRating={newRating}
-                    setNewRating={setNewRating}
-                    handleRatingSubmit={handleRatingSubmit}
-                    handleDeletePlayer={handleDeletePlayer}
-                    openEditModal={openEditModal}
-                    isAdmin={isAdmin}
-                    user={user}
-                    toastMessage={toastMessage}
-                    setToastMessage={setToastMessage}
-                />
-            )}
+                {editPlayerModalOpen && (
+                    <EditPlayerModal
+                        player={selectedPlayerToEdit}
+                        onSave={handlePlayerSaveFromModal}
+                        onClose={closeEditModal}
+                    />
+                )}
 
-            {activeTab === "leaderboard" && (
-                <LeaderboardTab
-                    leaderboard={leaderboard}
-                    resetLeaderboardData={resetLeaderboardData}
-                    isAdmin={isAdmin}
-                    matchHistory={matchHistory}
-                    players={players}
-                    playerOVRs={playerOVRs}
-                    onUpdateLeaderboard={handleManualLeaderboardUpdate}
-                />
-            )}
+                {showMatchResultsModal && (
+                    <MatchResultsModal
+                        isOpen={showMatchResultsModal}
+                        onClose={handleCloseMatchResultsModal}
+                        matchResults={completedMatchResults}
+                        teams={teams}
+                    />
+                )}
 
-            {editPlayerModalOpen && (
-                <EditPlayerModal
-                    player={selectedPlayerToEdit}
-                    onSave={handlePlayerSaveFromModal}
-                    onClose={closeEditModal}
-                />
-            )}
-            {showMatchResultsModal && (
-                <MatchResultsModal
-                    isOpen={showMatchResultsModal}
-                    onClose={handleCloseMatchResultsModal}
-                    matchResults={completedMatchResults}
-                    teams={teams}
-                />
-            )}
-            {activeTab === "logs" && (
-                <LogTab
-                    currentLeagueId={currentLeagueId}
-                    currentSet={currentSet}
-                    isAdmin={isAdmin}
-                    db={db}
-                    user={user}
-                    updatePlayers={setPlayers}  // Pass the setPlayers function from App.jsx
-                    setToastMessage={setToastMessage}  // Pass the toast function
-                />
-            )}
+                {/* Bottom Navigation */}
+                <div className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 z-10">
+                    <div className="flex justify-between items-center px-4 py-3">
+                        <div
+                            className="flex flex-col items-center cursor-pointer"
+                            onClick={() => handleTabChange("players")}
+                        >
+                            <div className={`text-${activeTab === "players" ? "blue-400" : "gray-400"}`}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M3 6.5V19c0 1 1 2 2 2h14c1 0 2-1 2-2V6.5" />
+                                    <path d="m7.9 4.8 2.5-1.6a4 4 0 0 1 3.2 0l2.5 1.6" />
+                                    <path d="m4.5 10.6 4.8-3" />
+                                    <path d="m14.7 7.6 4.8 3" />
+                                    <path d="M12 22v-8" />
+                                    <path d="M12 14c-1.1 0-2-.9-2-2v-1h4v1c0 1.1-.9 2-2 2z" />
+                                </svg>
+                            </div>
+                            <span className={`text-xs mt-1 text-${activeTab === "players" ? "blue-400" : "gray-400"}`}>
+                                Teams
+                            </span>
+                            {hasPendingMatchups && (
+                                <span className="absolute top-2 right-12 h-2 w-2 rounded-full bg-red-500"></span>
+                            )}
+                        </div>
+
+                        <div
+                            className="flex flex-col items-center cursor-pointer"
+                            onClick={() => handleTabChange("rankings")}
+                        >
+                            <div className={`text-${activeTab === "rankings" ? "blue-400" : "gray-400"}`}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                            </div>
+                            <span className={`text-xs mt-1 text-${activeTab === "rankings" ? "blue-400" : "gray-400"}`}>
+                                Players
+                            </span>
+                        </div>
+
+                        <div
+                            className="flex flex-col items-center cursor-pointer"
+                            onClick={() => handleTabChange("leaderboard")}
+                        >
+                            <div className={`text-${activeTab === "leaderboard" ? "blue-400" : "gray-400"}`}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <path d="M12 18v-6"></path>
+                                    <path d="M8 18v-1"></path>
+                                    <path d="M16 18v-3"></path>
+                                </svg>
+                            </div>
+                            <span className={`text-xs mt-1 text-${activeTab === "leaderboard" ? "blue-400" : "gray-400"}`}>
+                                Stats
+                            </span>
+                        </div>
+
+                        <div
+                            className="flex flex-col items-center cursor-pointer"
+                            onClick={() => handleTabChange("logs")}
+                        >
+                            <div className={`text-${activeTab === "logs" ? "blue-400" : "gray-400"}`}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                                    <path d="M9 12h6"></path>
+                                    <path d="M9 16h6"></path>
+                                    <path d="M9 8h6"></path>
+                                </svg>
+                            </div>
+                            <span className={`text-xs mt-1 text-${activeTab === "logs" ? "blue-400" : "gray-400"}`}>
+                                Logs
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </DarkContainer>
-
     );
 }

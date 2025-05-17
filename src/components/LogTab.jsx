@@ -522,50 +522,48 @@ export default function LogTab({
     };
 
     const renderRatingDetails = (log) => {
-        // Determine which ratings data to use based on the action type
-        let ratings;
+        // Get the current ratings data
+        const currentRatings = log.details?.ratingData || log.details?.playerData || {};
 
-        if (log.action === "player_added" || log.action === "player_updated") {
-            // For player additions and updates, get ratings from playerData
-            ratings = log.details?.playerData;
-        } else {
-            // For rating changes, use ratings or ratingData
-            ratings = log.details?.ratings || log.details?.ratingData;
-        }
+        // Try to get previous rating data from the log
+        const previousRating = log.details?.previousRating || {};
+        const changedValues = log.details?.changedValues || {};
 
-        if (!ratings) return null;
-
-        // Check if we have information about what changed
-        const changedValues = log.details?.changedValues;
+        // Extract only the rating fields (skip metadata fields)
+        const ratingEntries = Object.entries(currentRatings).filter(([key]) =>
+            ["scoring", "defense", "rebounding", "playmaking", "stamina", "physicality", "xfactor"].includes(key)
+        );
 
         return (
             <div className="mt-2 pt-2 border-t border-gray-700">
-                <div className="grid grid-cols-3 gap-2 text-xs mt-2">
-                    {Object.entries(ratings).map(([key, value]) => {
-                        // Skip non-rating properties
-                        if (["name", "player", "playerName", "submittedBy", "active", "rating", "submissions"].includes(key)) {
-                            return null;
+                <div className="flex flex-wrap gap-2 text-xs mt-2">
+                    {ratingEntries.map(([key, currentValue]) => {
+                        // Get shortened key name
+                        const shortKey = key.substring(0, 3);
+
+                        // Get the previous value for this key
+                        let previousValue = null;
+                        if (previousRating && previousRating[key] !== undefined) {
+                            previousValue = previousRating[key];
+                        } else if (changedValues && changedValues[key]) {
+                            previousValue = changedValues[key].from;
                         }
 
-                        // Check if this rating changed (for highlighting)
-                        const didChange = changedValues && changedValues[key];
-                        const changeColor = didChange ? 'bg-blue-900 bg-opacity-30' : 'bg-gray-800';
+                        // Determine color based on change direction
+                        let textColorClass = "text-blue-400"; // Default for unchanged
+
+                        if (previousValue !== null && currentValue !== previousValue) {
+                            if (currentValue > previousValue) {
+                                textColorClass = "text-green-400";
+                            } else if (currentValue < previousValue) {
+                                textColorClass = "text-red-400";
+                            }
+                        }
 
                         return (
-                            <div key={key} className={`p-1 rounded flex justify-between ${changeColor}`}>
-                                <span className="capitalize">{key}:</span>
-                                <span className="font-medium text-blue-400">
-                                    {/* If the value changed, show previous value too */}
-                                    {didChange ? (
-                                        <span>
-                                            <span className="text-gray-400">{changedValues[key].from}</span>
-                                            <span className="mx-1">→</span>
-                                            <span className="text-white">{value}</span>
-                                        </span>
-                                    ) : (
-                                        value
-                                    )}
-                                </span>
+                            <div key={key} className="px-2 py-1 rounded-md bg-gray-800 flex items-center">
+                                <span className="capitalize mr-1">{shortKey}:</span>
+                                <span className={textColorClass}>{currentValue}</span>
                             </div>
                         );
                     })}
@@ -695,8 +693,10 @@ export default function LogTab({
                                             <div className="flex-grow">
                                                 <div className="font-medium">{getActionText(log)}</div>
                                                 <div className="text-xs text-gray-400">{formatTimestamp(log.timestamp)}</div>
-                                                {log.userName && (
-                                                    <div className="text-xs mt-1 text-gray-300">By: {log.userName}</div>
+                                                {log.userName && isAdmin && (
+                                                    <div className="text-xs mt-1 text-gray-300">
+                                                        By: {log.userName}
+                                                    </div>
                                                 )}
 
                                                 {/* This is the key part - render rating details for ALL player-related actions */}
