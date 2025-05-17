@@ -357,7 +357,6 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
 
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-white">Player Ratings</h2>
                 {isAdmin && (
                     <StyledButton
                         onClick={resetLeaderboardData}
@@ -468,24 +467,6 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                 <p className="text-gray-400 text-center py-8">No leaderboard data available yet.</p>
             ) : (
                 <div className="relative">
-                    {/* Scroll buttons */}
-                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10">
-                        <button
-                            onClick={() => handleScroll('left')}
-                            className="bg-gray-800 p-2 rounded-r text-white opacity-80 hover:opacity-100 disabled:opacity-30"
-                            disabled={scrollPosition <= 0}
-                        >
-                            ◀
-                        </button>
-                    </div>
-                    <div className="absolute right-0 top-1/2 transform -translate-y-1/2 z-10">
-                        <button
-                            onClick={() => handleScroll('right')}
-                            className="bg-gray-800 p-2 rounded-l text-white opacity-80 hover:opacity-100"
-                        >
-                            ▶
-                        </button>
-                    </div>
 
                     {/* Scrollable stats table */}
                     <div
@@ -503,15 +484,12 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                                     >
                                         Player {sortBy === "name" && (sortDirection === "asc" ? "▲" : "▼")}
                                     </th>
-                                    <th
-                                        className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                        onClick={() => handleSort("ovr")}
-                                    >
-                                        OVR {sortBy === "ovr" && (sortDirection === "asc" ? "▲" : "▼")}
-                                    </th>
-                                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                                        +/-
-                                    </th>
+                                        <th
+                                            className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                            onClick={() => handleSort("ovr")}
+                                        >
+                                            OVR {sortBy === "ovr" && (sortDirection === "asc" ? "▲" : "▼")}
+                                        </th>
 
                                     {/* Record columns */}
                                     <th
@@ -601,17 +579,14 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
 
                                         <td className="px-3 py-3 whitespace-nowrap text-sm text-white">
                                             {player.ovr}
+                                            {player.trend !== 0 && (
+                                                <span className={`ml-1 text-xs ${player.trend > 0 ? "text-green-400" :
+                                                        player.trend < 0 ? "text-red-400" : ""
+                                                    }`}>
+                                                    {player.trend > 0 ? `+${player.trend}` : player.trend}
+                                                </span>
+                                            )}
                                         </td>
-
-                                        <td className="px-3 py-3 whitespace-nowrap text-sm">
-                                            <span className={
-                                                player.trend > 0 ? "text-green-400" :
-                                                    player.trend < 0 ? "text-red-400" : "text-gray-400"
-                                            }>
-                                                {player.trend > 0 ? `+${player.trend}` : player.trend < 0 ? player.trend : "0"}
-                                            </span>
-                                        </td>
-
                                         {editingPlayer === player.name ? (
                                             <>
                                                 <td className="px-3 py-3 whitespace-nowrap text-sm">
@@ -653,7 +628,7 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                                                 <td className="px-3 py-3 whitespace-nowrap text-sm text-blue-400">
                                                     {player.pct}%
                                                 </td>
-                                                <td className="px-3 py-3 whitespace-nowrap text-sm text-yellow-400">
+                                                    <td className="px-3 py-3 whitespace-nowrap text-sm text-yellow-400 text-center">
                                                     {player.mvps}
                                                 </td>
                                             </>
