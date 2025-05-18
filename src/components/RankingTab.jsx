@@ -192,7 +192,7 @@ export default function RankingTab({
 
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-1">
             {/* Header with Add Player button */}
             <div className="flex justify-end items-center mb-4">
                 <button
@@ -213,70 +213,76 @@ export default function RankingTab({
                 </button>
             </div>
 
-            {/* Header with column titles */}
-            <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+            <div className="flex justify-between items-center mb-2">
                 <button
                     onClick={() => handleSort("name")}
-                    className="text-lg text-white"
+                    className={`text-sm font-medium px-2 py-1 rounded transition-colors ${sortKey === "name"
+                            ? "text-blue-400"
+                            : "text-gray-300 hover:text-gray-100"
+                        }`}
                 >
-                    Name
+                    Name {sortKey === "name" && (sortDirection === "asc" ? "↑" : "↓")}
                 </button>
                 <button
                     onClick={() => handleSort("rating")}
-                    className="text-lg text-white"
+                    className={`text-sm font-medium px-2 py-1 rounded transition-colors ${sortKey === "rating"
+                            ? "text-blue-400"
+                            : "text-gray-300 hover:text-gray-100"
+                        }`}
                 >
-                    Rating
+                    Rating {sortKey === "rating" && (sortDirection === "asc" ? "↑" : "↓")}
                 </button>
             </div>
 
             {/* Player cards */}
-            {sortedPlayers.map((player, index) => {
-                const rating = computeRating(player);
-                const userSubmission = player.submissions?.find(
-                    (s) => s.submittedBy === user?.email
-                );
-
-                return (
-                    <div key={player.name} className="bg-gray-800 rounded p-3">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-lg text-white">{player.name}</span>
-                            <span className="text-xl font-medium text-blue-400">
-                                {rating}
-                            </span>
-                        </div>
-
-                        <div className="mb-3">
-                            <div className="text-sm text-gray-400">Ratings submitted: {player.submissions?.length || 0}</div>
-                            <div className="mt-1 bg-gray-700 h-1 rounded w-full">
-                                <div
-                                    className="bg-blue-500 h-1 rounded"
-                                    style={{ width: `${getPercentage(parseFloat(rating))}%` }}
-                                />
+            <div className="space-y-1">
+                {sortedPlayers.map((player, index) => {
+                    const rating = computeRating(player);
+                    const userSubmission = player.submissions?.find(
+                        (s) => s.submittedBy === user?.email
+                    );
+                    const bgColorClass = index % 2 === 0 ? "bg-gray-800" : "bg-gray-800/50";
+                    return (
+                        <div key={player.name} className={`${bgColorClass} rounded p-2`}>
+                            <div className="flex justify-between items-center mb-0.5">
+                                <span className="text-base text-white">{player.name}</span>
+                                <span className="text-base font-medium text-blue-400">
+                                    {rating}
+                                </span>
                             </div>
-                        </div>
+
+                            <div className="mb-1">
+                                <div className="text-xs text-gray-400">Ratings: {player.submissions?.length || 0}</div>
+                                <div className="mt-0.5 bg-gray-700 h-1 rounded w-full">
+                                    <div
+                                        className="bg-blue-500 h-1 rounded"
+                                        style={{ width: `${getPercentage(parseFloat(rating))}%` }}
+                                    />
+                                </div>
+                            </div>
 
                         <div className="flex items-center">
                             <button
                                 onClick={() => openRatingModal(index)}
-                                className="px-4 py-2 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 mr-3"
+                                className="px-2 py-1 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 mr-2"
                             >
                                 Rate
                             </button>
 
-                            <div className={`flex items-center px-2 py-1 rounded-md text-xs ${userSubmission
-                                    ? "bg-green-900 bg-opacity-30 text-green-400"
-                                    : "bg-yellow-900 bg-opacity-30 text-yellow-400"
+                            <div className={`flex items-center px-2 py-0.5 rounded-md text-xs ${userSubmission
+                                ? "bg-green-900 bg-opacity-30 text-green-400"
+                                : "bg-yellow-900 bg-opacity-30 text-yellow-400"
                                 }`}>
                                 {userSubmission ? (
                                     <>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                         </svg>
                                         <span>Rated</span>
                                     </>
                                 ) : (
                                     <>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                                         </svg>
                                         <span>Not rated</span>
@@ -285,7 +291,7 @@ export default function RankingTab({
                             </div>
 
                             {isAdmin && (
-                                <div className="flex space-x-2 ml-auto">
+                                <div className="flex space-x-1 ml-auto">
                                     <StyledButton
                                         onClick={() => {
                                             const playerToEdit = {
@@ -301,13 +307,13 @@ export default function RankingTab({
                                             };
                                             openEditModal(playerToEdit, true);
                                         }}
-                                        className="px-4 py-2 text-sm bg-yellow-600 hover:bg-yellow-700"
+                                        className="px-2 py-1 text-xs bg-yellow-600 hover:bg-yellow-700"
                                     >
                                         Edit
                                     </StyledButton>
                                     <StyledButton
                                         onClick={() => handleDeletePlayer(player.name)}
-                                        className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700"
+                                        className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700"
                                     >
                                         Delete
                                     </StyledButton>
@@ -316,8 +322,8 @@ export default function RankingTab({
                         </div>
                     </div>
                 );
-            })}
-
+                })}
+            </div>
             {/* Rating Modal */}
             {showRatingModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
