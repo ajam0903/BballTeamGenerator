@@ -1,10 +1,9 @@
 import React from 'react';
-export function DarkContainer({ children }) {
+export function DarkContainer({ children, className = "" }) {
     return (
-        <div className="bg-gray-900 text-gray-100 min-h-screen p-6">
+        <div className={`bg-gray-900 text-gray-100 min-h-screen p-6 ${className}`}>
             {children}
         </div>
-
     );
 }
 

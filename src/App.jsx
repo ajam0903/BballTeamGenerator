@@ -2166,15 +2166,20 @@ export default function App() {
 
     // Otherwise show the team generator app
     return (
-        <DarkContainer>
-            <div className="mb-8">
+        <DarkContainer className="pt-1">
+            <div className="mb-2">
                 {/* Top navigation bar */}
-                <div className="mb-8">
+                <div className="mb-4">
                     {/* League name and user menu */}
-                    <div className="flex items-center justify-between py-3 mb-6 border-b border-gray-800">
+                    <div className="flex items-center justify-between py-1.5 mb-2 border-b border-gray-800">
                         {/* Left side: League name */}
                         <div className="flex items-center">
-                            <span className="text-sm text-white mr-2">{currentLeague?.name}</span>
+                            <div className="relative group">
+                                <span className="text-lg font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">
+                                    {currentLeague?.name}
+                                </span>
+                                <div className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-500 to-white-600 transition-all duration-300 group-hover:w-full"></div>
+                            </div>
                         </div>
 
                         {/* Right side: User menu */}

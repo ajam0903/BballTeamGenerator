@@ -71,45 +71,47 @@ export default function UserMenu({ user, currentLeague, handleBackToLeagues }) {
 
             {/* Dropdown Menu */}
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-60 bg-gray-800 rounded-md shadow-lg z-50 border border-gray-700">
-                    <div className="p-3 border-b border-gray-700">
-                        <p className="text-gray-200 font-medium truncate">{user.displayName}</p>
-                        <p className="text-gray-400 text-sm truncate">{user.email}</p>
+                <div className="absolute right-0 mt-1 w-60 bg-gray-800 rounded-md shadow-lg z-50 border border-gray-700">
+                    <div className="py-1.5 px-2 border-b border-gray-700">
+                        <p className="text-gray-200 font-medium truncate text-sm">{user.displayName}</p>
+                        <p className="text-gray-400 text-xs truncate">{user.email}</p>
                     </div>
 
                     {currentLeague && (
-                        <div className="p-3 border-b border-gray-700">
-                            <p className="text-gray-300 text-sm font-medium mb-1">Current League</p>
-                            <p className="text-white mb-1">{currentLeague.name}</p>
-                            <div className="flex items-center">
-                                <span className="text-gray-400 text-sm mr-2 truncate">
-                                    {currentLeague.inviteCode}
-                                </span>
-                                <button
-                                    onClick={copyInviteCodeToClipboard}
-                                    className="text-blue-400 hover:text-blue-300 text-sm"
-                                    title="Copy invite code"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-4 w-4"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
+                        <div className="py-1.5 px-2 border-b border-gray-700">
+                            <p className="text-gray-300 text-xs font-medium">Current League</p>
+                            <div className="flex items-center justify-between">
+                                <p className="text-white text-sm">{currentLeague.name}</p>
+                                <div className="flex items-center">
+                                    <span className="text-gray-400 text-xs mr-1 truncate">
+                                        {currentLeague.inviteCode}
+                                    </span>
+                                    <button
+                                        onClick={copyInviteCodeToClipboard}
+                                        className="text-blue-400 hover:text-blue-300"
+                                        title="Copy invite code"
                                     >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                        />
-                                    </svg>
-                                </button>
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            className="h-3.5 w-3.5"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                            />
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    <div className="p-1">
+                    <div className="py-0.5">
                         {currentLeague && (
                             <button
                                 onClick={(e) => {
@@ -117,11 +119,11 @@ export default function UserMenu({ user, currentLeague, handleBackToLeagues }) {
                                     handleBackToLeagues();
                                     setIsOpen(false);
                                 }}
-                                className="w-full text-left px-3 py-2 text-gray-300 hover:bg-gray-700 rounded flex items-center"
+                                className="w-full text-left px-2 py-1 text-gray-300 hover:bg-gray-700 rounded flex items-center text-xs"
                             >
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
-                                    className="h-4 w-4 mr-2"
+                                    className="h-3.5 w-3.5 mr-1.5"
                                     fill="none"
                                     viewBox="0 0 24 24"
                                     stroke="currentColor"
@@ -138,11 +140,11 @@ export default function UserMenu({ user, currentLeague, handleBackToLeagues }) {
                         )}
                         <button
                             onClick={handleLogout}
-                            className="w-full text-left px-3 py-2 text-gray-300 hover:bg-gray-700 rounded flex items-center"
+                            className="w-full text-left px-2 py-1 text-gray-300 hover:bg-gray-700 rounded flex items-center text-xs"
                         >
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
-                                className="h-4 w-4 mr-2"
+                                className="h-3.5 w-3.5 mr-1.5"
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
