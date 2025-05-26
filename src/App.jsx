@@ -1210,6 +1210,23 @@ export default function App() {
                         Object.values(ratingData).length
                     ).toFixed(1);
 
+                    // Get previous rating from the player's current data BEFORE the update
+                    let previousRatingForLog = null;
+                    if (!isNewRating && index > -1) {
+                        const existingPlayer = players.find(p => p.name === newRating.name);
+                        if (existingPlayer) {
+                            previousRatingForLog = {
+                                scoring: existingPlayer.scoring || 5,
+                                defense: existingPlayer.defense || 5,
+                                rebounding: existingPlayer.rebounding || 5,
+                                playmaking: existingPlayer.playmaking || 5,
+                                stamina: existingPlayer.stamina || 5,
+                                physicality: existingPlayer.physicality || 5,
+                                xfactor: existingPlayer.xfactor || 5
+                            };
+                        }
+                    }
+
                     // Prepare log details with multiple ways to identify the player
                     const logDetails = {
                         playerName: newRating.name, // Primary field
@@ -1220,16 +1237,16 @@ export default function App() {
                         overallRating: overallRating
                     };
 
-                    // If this was an update, include previous values
-                    if (previousRating) {
-                        logDetails.previousRating = previousRating;
+                    // Add previous rating data if we have it
+                    if (previousRatingForLog) {
+                        logDetails.previousRating = previousRatingForLog;
 
                         // Also include what specific ratings changed
                         logDetails.changedValues = {};
                         Object.keys(ratingData).forEach(key => {
-                            if (ratingData[key] !== previousRating[key]) {
+                            if (ratingData[key] !== previousRatingForLog[key]) {
                                 logDetails.changedValues[key] = {
-                                    from: previousRating[key],
+                                    from: previousRatingForLog[key],
                                     to: ratingData[key]
                                 };
                             }
