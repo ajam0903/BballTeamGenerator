@@ -522,40 +522,42 @@ export default function LogTab({
     };
 
     const renderRatingDetails = (log) => {
-        // Get the current ratings data
-        const currentRatings = log.details?.ratingData || log.details?.playerData || {};
+        // For rating changes, the data is stored in log.details.ratingData
+        const ratings = log.details?.ratingData || log.details?.ratings || log.details?.playerData;
 
-        // Try to get previous rating data from the log
-        const previousRating = log.details?.previousRating || {};
-        const changedValues = log.details?.changedValues || {};
+        if (!ratings) return null;
 
-        // Extract only the rating fields (skip metadata fields)
-        const ratingEntries = Object.entries(currentRatings).filter(([key]) =>
-            ["scoring", "defense", "rebounding", "playmaking", "stamina", "physicality", "xfactor"].includes(key)
-        );
+        // Check if we have information about what changed
+        const changedValues = log.details?.changedValues;
+        const previousRating = log.details?.previousRating;
 
         return (
             <div className="mt-2 pt-2 border-t border-gray-700">
                 <div className="flex flex-wrap gap-2 text-xs mt-2">
-                    {ratingEntries.map(([key, currentValue]) => {
-                        // Get shortened key name
+                    {Object.entries(ratings).map(([key, value]) => {
+                        // Skip non-rating properties
+                        if (["name", "player", "playerName", "submittedBy", "active", "rating", "submissions"].includes(key)) {
+                            return null;
+                        }
+
+                        // Create shortened key name (first 3 chars)
                         const shortKey = key.substring(0, 3);
 
-                        // Get the previous value for this key
+                        // Get previous value from either changedValues or previousRating
                         let previousValue = null;
-                        if (previousRating && previousRating[key] !== undefined) {
-                            previousValue = previousRating[key];
-                        } else if (changedValues && changedValues[key]) {
+                        if (changedValues && changedValues[key]) {
                             previousValue = changedValues[key].from;
+                        } else if (previousRating && previousRating[key] !== undefined) {
+                            previousValue = previousRating[key];
                         }
 
                         // Determine color based on change direction
-                        let textColorClass = "text-blue-400"; // Default for unchanged
+                        let textColorClass = "text-blue-400"; // Default
 
-                        if (previousValue !== null && currentValue !== previousValue) {
-                            if (currentValue > previousValue) {
+                        if (previousValue !== null && value !== previousValue) {
+                            if (value > previousValue) {
                                 textColorClass = "text-green-400";
-                            } else if (currentValue < previousValue) {
+                            } else if (value < previousValue) {
                                 textColorClass = "text-red-400";
                             }
                         }
@@ -563,7 +565,7 @@ export default function LogTab({
                         return (
                             <div key={key} className="px-2 py-1 rounded-md bg-gray-800 flex items-center">
                                 <span className="capitalize mr-1">{shortKey}:</span>
-                                <span className={textColorClass}>{currentValue}</span>
+                                <span className={textColorClass}>{value}</span>
                             </div>
                         );
                     })}
