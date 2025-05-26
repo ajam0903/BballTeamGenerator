@@ -2178,7 +2178,7 @@ export default function App() {
                                 <span className="text-lg font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">
                                     {currentLeague?.name}
                                 </span>
-                                <div className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-500 to-white-600 transition-all duration-300 group-hover:w-full"></div>
+                                <div className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 transition-all duration-300 group-hover:w-full"></div>
                             </div>
                         </div>
 

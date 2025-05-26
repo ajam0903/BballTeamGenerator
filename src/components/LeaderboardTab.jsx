@@ -485,10 +485,14 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                                         Player {sortBy === "name" && (sortDirection === "asc" ? "▲" : "▼")}
                                     </th>
                                         <th
-                                            className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                            className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer min-w-[10px] whitespace-nowrap"
                                             onClick={() => handleSort("ovr")}
                                         >
-                                            OVR {sortBy === "ovr" && (sortDirection === "asc" ? "▲" : "▼")}
+                                            <div className="flex items-center">
+                                                <span>OVR</span>
+                                                <span className="text-[9px] font-normal opacity-70 ml-1">(+/-)</span>
+                                                {sortBy === "ovr" && <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>}
+                                            </div>
                                         </th>
 
                                     {/* Record columns */}
@@ -578,14 +582,15 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                                         </td>
 
                                         <td className="px-3 py-3 whitespace-nowrap text-sm text-white">
-                                            {player.ovr}
-                                            {player.trend !== 0 && (
-                                                <span className={`ml-1 text-xs ${player.trend > 0 ? "text-green-400" :
-                                                        player.trend < 0 ? "text-red-400" : ""
-                                                    }`}>
-                                                    {player.trend > 0 ? `+${player.trend}` : player.trend}
-                                                </span>
-                                            )}
+                                            <div className="flex">
+                                                <span className="w-7">{player.ovr}</span>
+                                                {player.trend !== 0 && (
+                                                    <span className={`text-xs ${player.trend > 0 ? "text-green-400" :
+                                                        player.trend < 0 ? "text-red-400" : ""}`}>
+                                                        {player.trend > 0 ? `+${player.trend}` : player.trend}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         {editingPlayer === player.name ? (
                                             <>
