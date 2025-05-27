@@ -45,6 +45,14 @@ export default function EditPlayerModal({ player, onSave, onClose }) {
             ...prev,
             [field]: field === "name" ? value : Number(value)
         }));
+
+        // Blur the name input when any slider is moved to dismiss keyboard on mobile
+        if (field !== "name") {
+            const nameInput = document.querySelector('input[type="text"]');
+            if (nameInput) {
+                nameInput.blur();
+            }
+        }
     };
 
     const handleSubmit = () => {
