@@ -11,21 +11,6 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
     const [editingPlayer, setEditingPlayer] = useState(null);
     const [editedStats, setEditedStats] = useState({ wins: 0, losses: 0, mvps: 0 });
 
-    // Helper function to format player name with last name initial
-    const formatPlayerName = (fullName) => {
-        if (!fullName) return "Unknown";
-
-        const nameParts = fullName.trim().split(' ');
-
-        // If only one name, return it as is
-        if (nameParts.length <= 1) return fullName;
-
-        // Get first name and last initial
-        const firstName = nameParts[0];
-        const lastInitial = nameParts[nameParts.length - 1][0];
-
-        return `${firstName} ${lastInitial}.`;
-    };
 
     // Calculate streak bonus based on recent form
     const getStreakBonus = (recentForm) => {
@@ -206,12 +191,6 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
         // Find player data in players array
         const playerData = players.find(p => p.name === name) || {};
 
-        // Get last 10 games record
-        const recentForm = getRecentForm(name);
-        const last10Wins = recentForm.filter(game => game.won).length;
-        const last10Losses = recentForm.length - last10Wins;
-        const last10Record = recentForm.length > 0 ? `${last10Wins}-${last10Losses}` : "0-0";
-
         return {
             name,
             ovr: playerOVRs[name] || 5,  // Use pre-calculated OVR
@@ -220,7 +199,6 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             losses: stats._l || 0,
             mvps: stats.MVPs || 0,
             pct: stats._w + stats._l > 0 ? ((stats._w / (stats._w + stats._l)) * 100).toFixed(1) : "0.0",
-            last10Record: last10Record,
             // Player abilities
             scoring: playerData.scoring || 5,
             defense: playerData.defense || 5,
@@ -241,13 +219,6 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             return sortDirection === "asc"
                 ? aValue.localeCompare(bValue)
                 : bValue.localeCompare(aValue);
-        }
-
-        // Special handling for last10Record (format: "X-Y")
-        if (sortBy === "last10Record") {
-            const [aWins] = aValue.split('-').map(Number);
-            const [bWins] = bValue.split('-').map(Number);
-            return sortDirection === "asc" ? aWins - bWins : bWins - aWins;
         }
 
         if (typeof aValue === "string") aValue = parseFloat(aValue);
@@ -504,234 +475,222 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                         style={{ scrollBehavior: 'smooth' }}
                     >
                         <table className="min-w-full divide-y divide-gray-700">
-                                <thead className="bg-gray-800 sticky top-0 z-10">
-                                    <tr>
-                                        {/* Fixed columns */}
+                            <thead className="bg-gray-800 sticky top-0 z-10">
+                                <tr>
+                                    {/* Fixed columns */}
+                                    <th
+                                        className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider sticky left-0 bg-gray-800 cursor-pointer"
+                                        onClick={() => handleSort("name")}
+                                    >
+                                        Player {sortBy === "name" && (sortDirection === "asc" ? "▲" : "▼")}
+                                    </th>
                                         <th
-                                            className="px-2 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider sticky left-0 bg-gray-800 cursor-pointer"
-                                            onClick={() => handleSort("name")}
-                                        >
-                                            Player {sortBy === "name" && (sortDirection === "asc" ? "▲" : "▼")}
-                                        </th>
-                                        <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer min-w-[10px] whitespace-nowrap"
+                                            className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer min-w-[10px] whitespace-nowrap"
                                             onClick={() => handleSort("ovr")}
                                         >
-                                            <div className="flex items-center justify-center">
+                                            <div className="flex items-center">
                                                 <span>OVR</span>
                                                 <span className="text-[9px] font-normal opacity-70 ml-1">(+/-)</span>
                                                 {sortBy === "ovr" && <span className="ml-1">{sortDirection === "asc" ? "▲" : "▼"}</span>}
                                             </div>
                                         </th>
 
-                                        {/* Record columns */}
-                                        <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                            onClick={() => handleSort("wins")}
-                                        >
-                                            W {sortBy === "wins" && (sortDirection === "asc" ? "▲" : "▼")}
-                                        </th>
-                                        <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                            onClick={() => handleSort("losses")}
-                                        >
-                                            L {sortBy === "losses" && (sortDirection === "asc" ? "▲" : "▼")}
-                                        </th>
-                                        <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                            onClick={() => handleSort("pct")}
-                                        >
-                                            W% {sortBy === "pct" && (sortDirection === "asc" ? "▲" : "▼")}
-                                        </th>
-                                        <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                            onClick={() => handleSort("mvps")}
-                                        >
-                                            MVP {sortBy === "mvps" && (sortDirection === "asc" ? "▲" : "▼")}
-                                        </th>
-                                        <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                            onClick={() => handleSort("last10Record")}
-                                        >
-                                            L10 {sortBy === "last10Record" && (sortDirection === "asc" ? "▲" : "▼")}
-                                        </th>
+                                    {/* Record columns */}
+                                    <th
+                                        className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => handleSort("wins")}
+                                    >
+                                        W {sortBy === "wins" && (sortDirection === "asc" ? "▲" : "▼")}
+                                    </th>
+                                    <th
+                                        className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => handleSort("losses")}
+                                    >
+                                        L {sortBy === "losses" && (sortDirection === "asc" ? "▲" : "▼")}
+                                    </th>
+                                    <th
+                                        className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => handleSort("pct")}
+                                    >
+                                        W% {sortBy === "pct" && (sortDirection === "asc" ? "▲" : "▼")}
+                                    </th>
+                                    <th
+                                        className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => handleSort("mvps")}
+                                    >
+                                        MVPs {sortBy === "mvps" && (sortDirection === "asc" ? "▲" : "▼")}
+                                    </th>
 
-                                        {/* Player abilities columns - abbreviated */}
+                                    {/* Player abilities columns - just number values */}
+                                    <th
+                                        className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => handleSort("scoring")}
+                                    >
+                                        Scoring {sortBy === "scoring" && (sortDirection === "asc" ? "▲" : "▼")}
+                                    </th>
+                                    <th
+                                        className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => handleSort("defense")}
+                                    >
+                                        Defense {sortBy === "defense" && (sortDirection === "asc" ? "▲" : "▼")}
+                                    </th>
+                                    <th
+                                        className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => handleSort("rebounding")}
+                                    >
+                                        Rebounding {sortBy === "rebounding" && (sortDirection === "asc" ? "▲" : "▼")}
+                                    </th>
+                                    <th
+                                        className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => handleSort("playmaking")}
+                                    >
+                                        Playmaking {sortBy === "playmaking" && (sortDirection === "asc" ? "▲" : "▼")}
+                                    </th>
+                                    <th
+                                        className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => handleSort("stamina")}
+                                    >
+                                        Stamina {sortBy === "stamina" && (sortDirection === "asc" ? "▲" : "▼")}
+                                    </th>
+                                    <th
+                                        className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                        onClick={() => handleSort("physicality")}
+                                    >
+                                        Physicality {sortBy === "physicality" && (sortDirection === "asc" ? "▲" : "▼")}
+                                    </th>
                                         <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                            onClick={() => handleSort("scoring")}
-                                        >
-                                            SCR {sortBy === "scoring" && (sortDirection === "asc" ? "▲" : "▼")}
-                                        </th>
-                                        <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                            onClick={() => handleSort("defense")}
-                                        >
-                                            DEF {sortBy === "defense" && (sortDirection === "asc" ? "▲" : "▼")}
-                                        </th>
-                                        <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                            onClick={() => handleSort("rebounding")}
-                                        >
-                                            REB {sortBy === "rebounding" && (sortDirection === "asc" ? "▲" : "▼")}
-                                        </th>
-                                        <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                            onClick={() => handleSort("playmaking")}
-                                        >
-                                            PLY {sortBy === "playmaking" && (sortDirection === "asc" ? "▲" : "▼")}
-                                        </th>
-                                        <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                            onClick={() => handleSort("stamina")}
-                                        >
-                                            STM {sortBy === "stamina" && (sortDirection === "asc" ? "▲" : "▼")}
-                                        </th>
-                                        <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
-                                            onClick={() => handleSort("physicality")}
-                                        >
-                                            PHY {sortBy === "physicality" && (sortDirection === "asc" ? "▲" : "▼")}
-                                        </th>
-                                        <th
-                                            className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
+                                            className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer"
                                             onClick={() => handleSort("xfactor")}
                                         >
-                                            X-F {sortBy === "xfactor" && (sortDirection === "asc" ? "▲" : "▼")}
+                                            X-Factor {sortBy === "xfactor" && (sortDirection === "asc" ? "▲" : "▼")}
                                         </th>
 
-                                        {/* Admin actions column */}
+                                        {/* Admin actions column - This should be the LAST column INSIDE the tr */}
                                         {isAdmin && (
-                                            <th className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                                                 Actions
                                             </th>
                                         )}
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-700 bg-gray-900">
-                                    {sortedData.map((player, index) => (
-                                        <tr key={player.name} className={index % 2 === 0 ? "bg-gray-900" : "bg-gray-800"}>
-                                            {/* Fixed column */}
-                                            <td className="px-2 py-3 whitespace-nowrap text-sm font-medium text-white sticky left-0 z-5 bg-inherit text-center">
-                                                {formatPlayerName(player.name)}
-                                            </td>
+                            <tbody className="divide-y divide-gray-700 bg-gray-900">
+                                {sortedData.map((player, index) => (
+                                    <tr key={player.name} className={index % 2 === 0 ? "bg-gray-900" : "bg-gray-800"}>
+                                        {/* Fixed column */}
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-white sticky left-0 z-5 bg-inherit">
+                                            {player.name}
+                                        </td>
 
-                                            <td className="px-1 py-3 whitespace-nowrap text-sm text-white text-center">
-                                                <div className="flex justify-center">
-                                                    <span className="w-7">{player.ovr}</span>
-                                                    {player.trend !== 0 && (
-                                                        <span className={`text-xs ${player.trend > 0 ? "text-green-400" :
-                                                            player.trend < 0 ? "text-red-400" : ""}`}>
-                                                            {player.trend > 0 ? `+${player.trend}` : player.trend}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            {editingPlayer === player.name ? (
-                                                <>
-                                                    <td className="px-1 py-3 whitespace-nowrap text-sm text-center">
-                                                        <StyledInput
-                                                            type="number"
-                                                            value={editedStats.wins}
-                                                            onChange={(e) => setEditedStats({ ...editedStats, wins: e.target.value })}
-                                                            className="w-12 bg-gray-700 border-gray-600 text-center"
-                                                        />
-                                                    </td>
-                                                    <td className="px-1 py-3 whitespace-nowrap text-sm text-center">
-                                                        <StyledInput
-                                                            type="number"
-                                                            value={editedStats.losses}
-                                                            onChange={(e) => setEditedStats({ ...editedStats, losses: e.target.value })}
-                                                            className="w-12 bg-gray-700 border-gray-600 text-center"
-                                                        />
-                                                    </td>
-                                                    <td className="px-1 py-3 whitespace-nowrap text-sm text-blue-400 text-center">
-                                                        {((parseInt(editedStats.wins) / (parseInt(editedStats.wins) + parseInt(editedStats.losses))) * 100 || 0).toFixed(1)}%
-                                                    </td>
-                                                    <td className="px-1 py-3 whitespace-nowrap text-sm text-center">
-                                                        <StyledInput
-                                                            type="number"
-                                                            value={editedStats.mvps}
-                                                            onChange={(e) => setEditedStats({ ...editedStats, mvps: e.target.value })}
-                                                            className="w-12 bg-gray-700 border-gray-600 text-center"
-                                                        />
-                                                    </td>
-                                                    <td className="px-1 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
-                                                        {player.last10Record}
-                                                    </td>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <td className="px-1 py-3 whitespace-nowrap text-sm text-green-400 text-center">
-                                                        {player.wins}
-                                                    </td>
-                                                    <td className="px-1 py-3 whitespace-nowrap text-sm text-red-400 text-center">
-                                                        {player.losses}
-                                                    </td>
-                                                    <td className="px-1 py-3 whitespace-nowrap text-sm text-blue-400 text-center">
-                                                        {player.pct}%
-                                                    </td>
-                                                    <td className="px-1 py-3 whitespace-nowrap text-sm text-yellow-400 text-center">
-                                                        {player.mvps}
-                                                    </td>
-                                                    <td className="px-1 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
-                                                        {player.last10Record}
-                                                    </td>
-                                                </>
-                                            )}
-
-                                            {/* Player abilities - centered */}
-                                            <td className="px-1 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
-                                                {player.scoring}
-                                            </td>
-                                            <td className="px-1 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
-                                                {player.defense}
-                                            </td>
-                                            <td className="px-1 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
-                                                {player.rebounding}
-                                            </td>
-                                            <td className="px-1 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
-                                                {player.playmaking}
-                                            </td>
-                                            <td className="px-1 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
-                                                {player.stamina}
-                                            </td>
-                                            <td className="px-1 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
-                                                {player.physicality}
-                                            </td>
-                                            <td className="px-1 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
-                                                {player.xfactor}
-                                            </td>
-                                            {isAdmin && (
-                                                <td className="px-1 py-3 whitespace-nowrap text-sm text-center">
-                                                    {editingPlayer === player.name ? (
-                                                        <div className="flex gap-1 justify-center">
-                                                            <StyledButton
-                                                                onClick={saveEdits}
-                                                                className="bg-green-600 hover:bg-green-700 py-1 px-1 text-xs"
-                                                            >
-                                                                Save
-                                                            </StyledButton>
-                                                            <StyledButton
-                                                                onClick={cancelEditing}
-                                                                className="bg-gray-600 hover:bg-gray-700 py-1 px-1 text-xs"
-                                                            >
-                                                                Cancel
-                                                            </StyledButton>
-                                                        </div>
-                                                    ) : (
-                                                        <StyledButton
-                                                            onClick={() => startEditing(player)}
-                                                            className="bg-blue-600 hover:bg-blue-700 py-1 px-1 text-xs"
-                                                        >
-                                                            Edit
-                                                        </StyledButton>
-                                                    )}
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-white">
+                                            <div className="flex">
+                                                <span className="w-7">{player.ovr}</span>
+                                                {player.trend !== 0 && (
+                                                    <span className={`text-xs ${player.trend > 0 ? "text-green-400" :
+                                                        player.trend < 0 ? "text-red-400" : ""}`}>
+                                                        {player.trend > 0 ? `+${player.trend}` : player.trend}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        {editingPlayer === player.name ? (
+                                            <>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm">
+                                                    <StyledInput
+                                                        type="number"
+                                                        value={editedStats.wins}
+                                                        onChange={(e) => setEditedStats({ ...editedStats, wins: e.target.value })}
+                                                        className="w-16 bg-gray-700 border-gray-600"
+                                                    />
                                                 </td>
-                                            )}
-                                        </tr>
-                                    ))}
-                                </tbody>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm">
+                                                    <StyledInput
+                                                        type="number"
+                                                        value={editedStats.losses}
+                                                        onChange={(e) => setEditedStats({ ...editedStats, losses: e.target.value })}
+                                                        className="w-16 bg-gray-700 border-gray-600"
+                                                    />
+                                                </td>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm text-blue-400">
+                                                    {((parseInt(editedStats.wins) / (parseInt(editedStats.wins) + parseInt(editedStats.losses))) * 100 || 0).toFixed(1)}%
+                                                </td>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm">
+                                                    <StyledInput
+                                                        type="number"
+                                                        value={editedStats.mvps}
+                                                        onChange={(e) => setEditedStats({ ...editedStats, mvps: e.target.value })}
+                                                        className="w-16 bg-gray-700 border-gray-600"
+                                                    />
+                                                </td>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm text-green-400">
+                                                    {player.wins}
+                                                </td>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm text-red-400">
+                                                    {player.losses}
+                                                </td>
+                                                <td className="px-3 py-3 whitespace-nowrap text-sm text-blue-400">
+                                                    {player.pct}%
+                                                </td>
+                                                    <td className="px-3 py-3 whitespace-nowrap text-sm text-yellow-400 text-center">
+                                                    {player.mvps}
+                                                </td>
+                                            </>
+                                        )}
+
+                                        {/* Player abilities - just number values, each in its own column */}
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
+                                            {player.scoring}
+                                        </td>
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
+                                            {player.defense}
+                                        </td>
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
+                                            {player.rebounding}
+                                        </td>
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
+                                            {player.playmaking}
+                                        </td>
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
+                                            {player.stamina}
+                                        </td>
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
+                                            {player.physicality}
+                                        </td>
+                                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-300 text-center">
+                                            {player.xfactor}
+                                        </td>
+                                        {isAdmin && (
+                                            <td className="px-3 py-3 whitespace-nowrap text-sm">
+                                                {editingPlayer === player.name ? (
+                                                    <div className="flex gap-2">
+                                                        <StyledButton
+                                                            onClick={saveEdits}
+                                                            className="bg-green-600 hover:bg-green-700 py-1 px-2 text-xs"
+                                                        >
+                                                            Save
+                                                        </StyledButton>
+                                                        <StyledButton
+                                                            onClick={cancelEditing}
+                                                            className="bg-gray-600 hover:bg-gray-700 py-1 px-2 text-xs"
+                                                        >
+                                                            Cancel
+                                                        </StyledButton>
+                                                    </div>
+                                                ) : (
+                                                    <StyledButton
+                                                        onClick={() => startEditing(player)}
+                                                        className="bg-blue-600 hover:bg-blue-700 py-1 px-2 text-xs"
+                                                    >
+                                                        Edit
+                                                    </StyledButton>
+                                                )}
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
                         </table>
                     </div>
                 </div>
