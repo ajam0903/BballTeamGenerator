@@ -2092,8 +2092,6 @@ export default function App() {
             // Calculate leaderboard updates from this match only AFTER saving the processed flag
             await calculateMatchLeaderboard(matchIndex);
 
-            // Show toast message
-            setToastMessage(`✅ Match ${matchIndex + 1} results saved!`);
 
             // Check if this is the last match in the current series
             const currentMatchupTeams = JSON.stringify(matchups[matchIndex].map(team => team.map(p => p.name).sort()));

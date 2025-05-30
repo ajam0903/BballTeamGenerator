@@ -171,122 +171,96 @@ export default function MatchResultsModal({
             />
 
             <div
-                className={`w-full max-w-3xl bg-gray-800 rounded-lg shadow-2xl overflow-hidden transform transition-all duration-500 ${animateIn ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+                className={`w-full max-w-sm bg-gray-800 rounded-lg shadow-2xl overflow-hidden transform transition-all duration-500 ${animateIn ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
                     }`}
-                style={{ maxHeight: '90vh', overflowY: 'auto' }}
+                style={{ maxHeight: '85vh' }}
             >
                 {/* Trophy Banner */}
-                <div className="bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-600 p-6 text-center relative overflow-hidden">
-                    <div className="absolute inset-0 opacity-20">
-                        {[...Array(20)].map((_, i) => (
-                            <div
-                                key={i}
-                                className="absolute"
-                                style={{
-                                    top: `${Math.random() * 100}%`,
-                                    left: `${Math.random() * 100}%`,
-                                    fontSize: `${Math.random() * 20 + 10}px`,
-                                    transform: `rotate(${Math.random() * 360}deg)`,
-                                    animation: `pulse ${Math.random() * 3 + 1}s infinite`,
-                                    opacity: Math.random() * 0.5 + 0.5
-                                }}
-                            >
-                                🏆
-                            </div>
-                        ))}
-                    </div>
-
-                    <h2 className="text-4xl font-bold text-white mb-2 drop-shadow-lg relative z-10">
+                <div className="bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-600 p-3 text-center relative overflow-hidden">
+                    <h2 className="text-2xl font-bold text-white mb-1 drop-shadow-lg relative z-10">
                         {isTie ? "It's a Tie!" : "Match Complete!"}
                     </h2>
 
                     {!isTie && (
-                        <div className="text-2xl font-bold text-white mb-4 relative z-10 animate-pulse">
+                        <div className="text-lg font-bold text-white mb-2 relative z-10">
                             Team {teamAOverallWinner ? teamALetter : teamBLetter} Wins!
                         </div>
                     )}
 
-                    <div className="text-lg text-white opacity-80 relative z-10">
-                        {isTie ? "Both teams were evenly matched!" : "Congratulations to the winners!"}
+                    <div className="text-sm text-white opacity-80 relative z-10">
+                        {isTie ? "Evenly matched!" : "Congratulations to the winners!"}
                     </div>
                 </div>
 
-                {/* Match Results */}
-                <div className="p-6">
-                    <div className="bg-gray-700 rounded-lg p-4 mb-6">
-                        <h3 className="text-lg font-semibold text-white mb-3">Match Results</h3>
-
+                {/* Scrollable Content */}
+                <div className="p-3 space-y-3">
+                    {/* Match Results */}
+                    <div className="bg-gray-700 rounded-lg p-2">
+                        <h3 className="text-sm font-semibold text-white mb-2">Match Results</h3>
                         <div className="flex justify-around items-center text-center">
-                            <div className={`p-4 rounded-lg ${teamAOverallWinner ? 'bg-green-900 bg-opacity-40 ring-2 ring-green-500' : 'bg-gray-800'}`}>
-                                <div className="text-lg font-bold text-white mb-1">Team {teamALetter}</div>
-                                <div className="text-3xl font-bold mb-1 text-white">{teamAWins}</div>
-                                <div className="text-sm text-gray-300">Win{teamAWins !== 1 ? 's' : ''}</div>
+                            <div className={`p-2 rounded-lg ${teamAOverallWinner ? 'bg-green-900 bg-opacity-40 ring-1 ring-green-500' : 'bg-gray-800'}`}>
+                                <div className="text-xs font-bold text-white">Team {teamALetter}</div>
+                                <div className="text-xl font-bold text-white">{teamAWins}</div>
+                                <div className="text-xs text-gray-300">Win{teamAWins !== 1 ? 's' : ''}</div>
                             </div>
-
-                            <div className="text-xl font-bold text-gray-500 px-2">VS</div>
-
-                            <div className={`p-4 rounded-lg ${teamBOverallWinner ? 'bg-green-900 bg-opacity-40 ring-2 ring-green-500' : 'bg-gray-800'}`}>
-                                <div className="text-lg font-bold text-white mb-1">Team {teamBLetter}</div>
-                                <div className="text-3xl font-bold mb-1 text-white">{teamBWins}</div>
-                                <div className="text-sm text-gray-300">Win{teamBWins !== 1 ? 's' : ''}</div>
+                            <div className="text-sm font-bold text-gray-500">VS</div>
+                            <div className={`p-2 rounded-lg ${teamBOverallWinner ? 'bg-green-900 bg-opacity-40 ring-1 ring-green-500' : 'bg-gray-800'}`}>
+                                <div className="text-xs font-bold text-white">Team {teamBLetter}</div>
+                                <div className="text-xl font-bold text-white">{teamBWins}</div>
+                                <div className="text-xs text-gray-300">Win{teamBWins !== 1 ? 's' : ''}</div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Game Details */}
-                    <div className="bg-gray-700 rounded-lg p-4 mb-6">
-                        <h3 className="text-lg font-semibold text-white mb-3">Match Details</h3>
-
-                        <div className="space-y-2">
+                    {/* Game Details - Show All Games */}
+                    <div className="bg-gray-700 rounded-lg p-2">
+                        <h3 className="text-sm font-semibold text-white mb-2">Match Details</h3>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
                             {matchResults.map((match, index) => {
                                 const { teamA, teamB } = extractTeamData(match);
-
                                 return (
-                                    <div key={index} className="flex justify-between items-center bg-gray-800 p-3 rounded">
-                                        <div className="text-white">Game {index + 1}:</div>
-                                        <div className="flex items-center">
-                                            <span className={`font-bold ${parseInt(match.score?.a) > parseInt(match.score?.b) ? 'text-green-400' : 'text-white'}`}>
+                                    <div key={index} className="flex justify-between items-center bg-gray-800 p-1 rounded text-xs">
+                                        <span className="text-white">Game {index + 1}:</span>
+                                        <span className="text-white">
+                                            <span className={parseInt(match.score?.a) > parseInt(match.score?.b) ? 'text-green-400' : 'text-white'}>
                                                 {match.score?.a || 0}
                                             </span>
-                                            <span className="text-gray-400 mx-2">-</span>
-                                            <span className={`font-bold ${parseInt(match.score?.b) > parseInt(match.score?.a) ? 'text-green-400' : 'text-white'}`}>
+                                            <span className="text-gray-400 mx-1">-</span>
+                                            <span className={parseInt(match.score?.b) > parseInt(match.score?.a) ? 'text-green-400' : 'text-white'}>
                                                 {match.score?.b || 0}
                                             </span>
-                                        </div>
+                                        </span>
                                         {match.mvp && (
-                                            <div className="text-sm text-yellow-400">
-                                                MVP: {match.mvp}
-                                            </div>
+                                            <span className="text-yellow-400 text-xs">MVP: {match.mvp}</span>
                                         )}
                                     </div>
                                 );
                             })}
                         </div>
-
-                        <div className="mt-4 text-sm text-gray-400">
-                            Total Score: Team {teamALetter} {totalScoreA} - {totalScoreB} Team {teamBLetter}
+                        <div className="mt-1 text-xs text-gray-400">
+                            Total: Team {teamALetter} {totalScoreA} - {totalScoreB} Team {teamBLetter}
                         </div>
                     </div>
 
-                    {/* Awards Section */}
+                    {/* MVPs - Show All */}
                     {topMvps.length > 0 && (
-                        <div className="bg-gray-700 rounded-lg p-4 mb-6">
-                            <h3 className="text-lg font-semibold text-white mb-3">Series MVP{topMvps.length > 1 ? 's' : ''}</h3>
-
-                            <div className="flex flex-wrap justify-center gap-4">
+                        <div className="bg-gray-700 rounded-lg p-2">
+                            <h3 className="text-sm font-semibold text-white mb-2">Series MVP{topMvps.length > 1 ? 's' : ''}</h3>
+                            <div className="flex flex-wrap justify-center gap-1">
                                 {topMvps.map((name, index) => (
-                                    <div key={index} className="bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg p-3 text-center">
-                                        <div className="text-yellow-400 text-xl mb-1">🏅</div>
-                                        <div className="text-white font-medium">{name}</div>
-                                        <div className="text-yellow-400 text-sm">{mvpCounts[name]} MVP Award{mvpCounts[name] > 1 ? 's' : ''}</div>
+                                    <div key={index} className="bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded p-1 text-center">
+                                        <div className="text-yellow-400 text-sm">🏅</div>
+                                        <div className="text-white text-xs">{name}</div>
+                                        <div className="text-yellow-400 text-xs">{mvpCounts[name]} MVP</div>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     )}
 
-                    <div className="flex justify-center mt-6">
-                        <StyledButton onClick={onClose} className="bg-blue-600 hover:bg-blue-700">
+                    {/* Single Continue Button */}
+                    <div className="pt-2">
+                        <StyledButton onClick={onClose} className="w-full bg-blue-600 hover:bg-blue-700 py-2">
                             Continue
                         </StyledButton>
                     </div>
