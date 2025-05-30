@@ -125,12 +125,22 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
         });
     };
 
-    // Update getRecentForm to get last 10 games instead of 5
+    // Update getRecentForm to use consistent data source
     const getRecentForm = (playerName) => {
         if (!matchHistory || matchHistory.length === 0) return [];
 
+        // Use the same filtering logic as the main stats
+        let historyToUse;
+        if (gameTypeFilter === "all") {
+            // When "all" is selected, we should use all match history
+            // but the stats come from leaderboard, so we need to be consistent
+            historyToUse = matchHistory;
+        } else {
+            historyToUse = filterMatchHistoryByGameType(matchHistory, gameTypeFilter);
+        }
+
         // Sort by most recent
-        const sortedHistory = [...matchHistory].sort((a, b) =>
+        const sortedHistory = [...historyToUse].sort((a, b) =>
             new Date(b.date) - new Date(a.date)
         );
 
@@ -167,7 +177,7 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
 
                 playerGames.push({ won, isMVP });
 
-                if (playerGames.length >= 10) break; // Changed from 5 to 10
+                if (playerGames.length >= 10) break;
             }
         }
 
@@ -210,11 +220,40 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
         const recentForm = getRecentForm(name);
         const last10Wins = recentForm.filter(game => game.won).length;
         const last10Losses = recentForm.length - last10Wins;
-        const last10Record = recentForm.length > 0 ? `${last10Wins}-${last10Losses}` : "0-0";
+
+        const totalWins = stats._w || 0;
+        const totalLosses = stats._l || 0;
+        const totalGames = totalWins + totalLosses;
+
+        // For "All" filter, we need to be more careful since leaderboard might have more games than matchHistory
+        let displayWins, displayLosses;
+
+        if (gameTypeFilter === "all") {
+            // When showing "All", if matchHistory has fewer games than leaderboard totals,
+            // it means some games aren't in matchHistory. In this case, show the actual totals.
+            const matchHistoryGamesForPlayer = recentForm.length;
+
+            if (matchHistoryGamesForPlayer < totalGames) {
+                // matchHistory is incomplete, so show total record instead of "last 10"
+                displayWins = totalWins;
+                displayLosses = totalLosses;
+            } else {
+                // matchHistory is complete, show actual last 10
+                displayWins = Math.min(last10Wins, totalWins);
+                displayLosses = Math.min(last10Losses, totalLosses);
+            }
+        } else {
+            // For specific game type filters, the stats are calculated from matchHistory,
+            // so Last 10 should be consistent
+            displayWins = Math.min(last10Wins, totalWins);
+            displayLosses = Math.min(last10Losses, totalLosses);
+        }
+
+        const last10Record = totalGames > 0 ? `${displayWins}-${displayLosses}` : "0-0";
 
         return {
             name,
-            ovr: playerOVRs[name] || 5,  // Use pre-calculated OVR
+            ovr: playerOVRs[name] || 5,
             trend: getTrend(name),
             wins: stats._w || 0,
             losses: stats._l || 0,
@@ -704,7 +743,29 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                                             </td>
                                             {isAdmin && (
                                                 <td className="px-1 py-3 whitespace-nowrap text-sm text-center">
-                                                    {/* Admin content - no border on last column */}
+                                                    {editingPlayer === player.name ? (
+                                                        <div className="flex gap-2">
+                                                            <StyledButton
+                                                                onClick={saveEdits}
+                                                                className="bg-green-600 hover:bg-green-700 py-1 px-2 text-xs"
+                                                            >
+                                                                Save
+                                                            </StyledButton>
+                                                            <StyledButton
+                                                                onClick={cancelEditing}
+                                                                className="bg-gray-600 hover:bg-gray-700 py-1 px-2 text-xs"
+                                                            >
+                                                                Cancel
+                                                            </StyledButton>
+                                                        </div>
+                                                    ) : (
+                                                        <StyledButton
+                                                            onClick={() => startEditing(player)}
+                                                            className="bg-blue-600 hover:bg-blue-700 py-1 px-2 text-xs"
+                                                        >
+                                                            Edit
+                                                        </StyledButton>
+                                                    )}
                                                 </td>
                                             )}
                                         </tr>
