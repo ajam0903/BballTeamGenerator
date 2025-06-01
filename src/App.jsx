@@ -222,8 +222,14 @@ export default function App() {
             return;
         }
 
-        // If there are pending matchups, show confirmation first
-        if (hasPendingMatchups) {
+        // Only show confirmation if there are actual unsaved match results (scores entered)
+        // AND we're not in team selection mode
+        const hasUnsavedScores = scores.some(score =>
+            score && (score.a || score.b) && !score.processed
+        );
+
+        // Don't show modal if we're in team selection mode or if no actual scores exist
+        if (hasUnsavedScores && hasGeneratedTeams) {
             setPendingTabChange('generate-teams');
             setShowUnsavedModal(true);
             return;
@@ -1698,16 +1704,8 @@ export default function App() {
             setForceTabChange(false);
             return;
         }
-
-        // Check if we're leaving the teams tab with unsaved matches
-        if (hasPendingMatchups && activeTab === "players" && newTab !== "players") {
-            console.log("Showing modal");
-            setPendingTabChange(newTab);
-            setShowUnsavedModal(true);
-        } else {
-            console.log("Direct tab change");
-            setActiveTab(newTab);
-        }
+        // Users should be able to switch tabs freely
+        setActiveTab(newTab);
     };
 
     // Replace the handleConfirmTabChange function:

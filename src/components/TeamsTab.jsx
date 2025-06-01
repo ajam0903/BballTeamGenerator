@@ -543,6 +543,7 @@ export default function TeamsTab({
                                         onClick={() => {
                                             generateBalancedTeams();
                                             setDropdownOpen(false);
+                                            setShowTeamSelector(false);
                                         }}
                                         className="block px-4 py-2 text-sm text-white hover:bg-gray-700 w-full text-left"
                                     >
@@ -824,62 +825,100 @@ export default function TeamsTab({
                                     )}
                                 </div>
 
-                                {/* Display both teams */}
-                                <div className="flex justify-between items-center mb-3">
-                                    <div className="flex items-center">
-                                        <span className="text-lg font-medium text-white">Team {teamAName}</span>
-                                        <span className="text-xs text-blue-400 ml-2">(Str: {teamAStrength})</span>
+                                {/* Only show team names and strengths for unsaved matches */}
+                                {!scores[i]?.processed && (
+                                    <div className="flex justify-between items-center mb-3">
+                                        <div className="flex items-center">
+                                            <span className="text-lg font-medium text-white">Team {teamAName}</span>
+                                            <span className="text-xs text-blue-400 ml-2">(Str: {teamAStrength})</span>
+                                        </div>
+
+                                        <span className="mx-4 text-gray-500">vs</span>
+
+                                        <div className="flex items-center">
+                                            <span className="text-lg font-medium text-white">Team {teamBName}</span>
+                                            <span className="text-xs text-blue-400 ml-2">(Str: {teamBStrength})</span>
+                                        </div>
                                     </div>
+                                )}
 
-                                    <span className="mx-4 text-gray-500">vs</span>
-
-                                    <div className="flex items-center">
-                                        <span className="text-lg font-medium text-white">Team {teamBName}</span>
-                                        <span className="text-xs text-blue-400 ml-2">(Str: {teamBStrength})</span>
+                                {/* MVP section - only for unsaved matches */}
+                                {!scores[i]?.processed && (
+                                    <div className="flex items-center space-x-3 mb-3">
+                                        <label className="text-xs text-gray-400">MVP:</label>
+                                        <StyledSelect
+                                            value={mvpVotes[i] || ""}
+                                            onChange={(e) => handleMvpChange(i, e.target.value)}
+                                            className="flex-grow"
+                                        >
+                                            <option value="">-- Select MVP --</option>
+                                            {[...teamA, ...teamB].map((p) => (
+                                                <option key={p.name} value={p.name}>
+                                                    {p.name}
+                                                </option>
+                                            ))}
+                                        </StyledSelect>
                                     </div>
-                                </div>
-
-                                <div className="flex items-center space-x-3 mb-3">
-                                    <label className="text-xs text-gray-400">MVP:</label>
-                                    <StyledSelect
-                                        value={mvpVotes[i] || ""}
-                                        onChange={(e) => handleMvpChange(i, e.target.value)}
-                                        className="flex-grow"
-                                    >
-                                        <option value="">-- Select MVP --</option>
-                                        {[...teamA, ...teamB].map((p) => (
-                                            <option key={p.name} value={p.name}>
-                                                {p.name}
-                                            </option>
-                                        ))}
-                                    </StyledSelect>
-                                </div>
+                                )}
 
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-3">
-                                        <label className="text-xs text-gray-400">Score:</label>
-                                        <input
-                                            type="number"
-                                            placeholder={`Team ${teamAName}`}
-                                            className={`border-b ${matchIncomplete ? 'border-yellow-600' : 'border-gray-700'} bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500`}
-                                            value={scores[i]?.a || ""}
-                                            onChange={(e) => handleScoreChange(i, 'a', e.target.value)}
-                                        />
-                                        <span className="text-xs text-gray-400">vs</span>
-                                        <input
-                                            type="number"
-                                            placeholder={`Team ${teamBName}`}
-                                            className={`border-b ${matchIncomplete ? 'border-yellow-600' : 'border-gray-700'} bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500`}
-                                            value={scores[i]?.b || ""}
-                                            onChange={(e) => handleScoreChange(i, 'b', e.target.value)}
-                                        />
-                                    </div>
-                                    <button
-                                        onClick={() => saveMatchResults(i)}
-                                        className="px-3 py-1.5 text-sm text-white bg-green-600 rounded-md hover:bg-green-500 font-medium transition-colors"
-                                    >
-                                        Save Result
-                                    </button>
+                                    {scores[i]?.processed ? (
+                                        // Read-only view for saved matches
+                                        <div className="bg-gray-700 rounded-lg p-4 w-full">
+                                            <div className="flex items-center justify-between">
+                                                {/* Team A Score */}
+                                                <div className="text-center flex-1">
+                                                    <div className="text-sm text-gray-300 mb-1">Team {teamAName}</div>
+                                                    <div className="text-3xl font-bold text-white">{scores[i]?.a || 0}</div>
+                                                </div>
+
+                                                {/* VS separator */}
+                                                <div className="text-gray-500 font-medium px-4">VS</div>
+
+                                                {/* Team B Score */}
+                                                <div className="text-center flex-1">
+                                                    <div className="text-sm text-gray-300 mb-1">Team {teamBName}</div>
+                                                    <div className="text-3xl font-bold text-white">{scores[i]?.b || 0}</div>
+                                                </div>
+                                            </div>
+
+                                            {/* MVP section */}
+                                            {mvpVotes[i] && (
+                                                <div className="mt-4 pt-3 border-t border-gray-600 text-center">
+                                                    <span className="text-sm text-gray-400">MVP: </span>
+                                                    <span className="text-yellow-400 font-medium">{mvpVotes[i]}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        // Editable view for unsaved matches
+                                        <>
+                                            <div className="flex items-center space-x-3">
+                                                <label className="text-xs text-gray-400">Score:</label>
+                                                <input
+                                                    type="number"
+                                                    placeholder={`Team ${teamAName}`}
+                                                    className={`border-b ${matchIncomplete ? 'border-yellow-600' : 'border-gray-700'} bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500`}
+                                                    value={scores[i]?.a || ""}
+                                                    onChange={(e) => handleScoreChange(i, 'a', e.target.value)}
+                                                />
+                                                <span className="text-xs text-gray-400">vs</span>
+                                                <input
+                                                    type="number"
+                                                    placeholder={`Team ${teamBName}`}
+                                                    className={`border-b ${matchIncomplete ? 'border-yellow-600' : 'border-gray-700'} bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500`}
+                                                    value={scores[i]?.b || ""}
+                                                    onChange={(e) => handleScoreChange(i, 'b', e.target.value)}
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={() => saveMatchResults(i)}
+                                                className="px-3 py-1.5 text-sm text-white bg-green-600 rounded-md hover:bg-green-500 font-medium transition-colors"
+                                            >
+                                                Save Result
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         );

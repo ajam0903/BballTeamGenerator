@@ -632,13 +632,16 @@ export default function LogTab({
             // Even for "all", filter out certain log types
             return logs.filter(log =>
                 log.action !== "match_completed" &&
-                log.action !== "teams_generated"
+                log.action !== "teams_generated" &&
+                log.action !== "rematch_created"  // Add this line
             );
         }
 
         return logs.filter(log => {
             // First filter out the unwanted log types regardless of category
-            if (log.action === "match_completed" || log.action === "teams_generated") {
+            if (log.action === "match_completed" ||
+                log.action === "teams_generated" ||
+                log.action === "rematch_created") {  // Add this condition
                 return false;
             }
 
@@ -648,8 +651,7 @@ export default function LogTab({
                     return ["player_added", "player_updated", "player_deleted", "player_rating_changed", "player_rating_updated", "player_rating_added"].includes(log.action);
                 case "matches":
                     // Only include match_result_saved and not other match-related logs
-                    return log.action === "match_result_saved" ||
-                        (log.action && log.action.includes("rematch"));
+                    return log.action === "match_result_saved";
                 case "admin":
                     return ["leaderboard_reset", "log_deleted", "schema_initialized", "user_joined_league"].includes(log.action);
                 default:
