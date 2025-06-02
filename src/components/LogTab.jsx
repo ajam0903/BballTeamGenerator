@@ -458,9 +458,26 @@ export default function LogTab({
         const scoreB = log.details?.scoreB || 0;
         const mvp = log.details?.mvp || "";
 
-        // Format date if available
-        const matchDate = log.details?.date ? new Date(log.details.date) : null;
-        const dateStr = matchDate ? matchDate.toLocaleDateString() : "";
+        // Helper function to get team display name
+        const getTeamDisplayName = (team, teamLetter) => {
+            if (!team || team.length === 0) return `Team ${teamLetter}`;
+
+            // For 1v1 matches, return the player's name
+            if (team.length === 1) {
+                const playerName = typeof team[0] === 'string' ? team[0] : team[0].name;
+                return playerName || `Team ${teamLetter}`;
+            }
+
+            // For multi-player teams, return "Team [Letter]"
+            return `Team ${teamLetter}`;
+        };
+
+        // Get display names
+        const teamAName = getTeamDisplayName(teamA, "A");
+        const teamBName = getTeamDisplayName(teamB, "B");
+
+        // Check if this is a 1v1 match
+        const is1v1 = teamA.length === 1 && teamB.length === 1;
 
         return (
             <div className="mt-2 pt-2 border-t border-gray-700">
@@ -468,53 +485,71 @@ export default function LogTab({
                     {/* Team A */}
                     <div className={`p-2 rounded ${scoreA > scoreB ? 'bg-green-900 bg-opacity-20' : 'bg-red-900 bg-opacity-20'}`}>
                         <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm font-medium text-gray-300">Team A</span>
-                            <span className="text-sm font-bold text-white">{scoreA}</span>
+                            <span className="text-sm font-medium text-gray-300 flex-1">{teamAName}</span>
+                            <span className="text-sm font-bold text-white ml-2">{scoreA}</span>
                         </div>
-                        <div className="space-y-1">
-                            {Array.isArray(teamA) ? (
-                                teamA.map((player, idx) => {
-                                    const playerName = typeof player === 'string' ? player : player.name;
-                                    const isMVP = mvp === playerName;
-                                    return (
-                                        <div key={idx} className="text-xs flex items-center">
-                                            <span className={`${isMVP ? 'text-yellow-400 font-medium' : 'text-gray-300'}`}>
-                                                {playerName}
-                                                {isMVP && <span className="ml-1">👑</span>}
-                                            </span>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="text-xs text-gray-400">No players listed</div>
-                            )}
-                        </div>
+
+                        {/* Only show player list for multi-player teams */}
+                        {!is1v1 && (
+                            <div className="space-y-1">
+                                {Array.isArray(teamA) ? (
+                                    teamA.map((player, idx) => {
+                                        const playerName = typeof player === 'string' ? player : player.name;
+                                        const isMVP = mvp === playerName;
+                                        return (
+                                            <div key={idx} className="text-xs flex items-center">
+                                                <span className={`${isMVP ? 'text-yellow-400 font-medium' : 'text-gray-300'}`}>
+                                                    {playerName}
+                                                    {isMVP && <span className="ml-1">👑</span>}
+                                                </span>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="text-xs text-gray-400">No players listed</div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Show MVP indicator for 1v1 if this player is MVP */}
+                        {is1v1 && mvp === (typeof teamA[0] === 'string' ? teamA[0] : teamA[0].name) && (
+                            <div className="text-yellow-400 text-xs">👑 MVP</div>
+                        )}
                     </div>
 
                     {/* Team B */}
                     <div className={`p-2 rounded ${scoreB > scoreA ? 'bg-green-900 bg-opacity-20' : 'bg-red-900 bg-opacity-20'}`}>
                         <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm font-medium text-gray-300">Team B</span>
-                            <span className="text-sm font-bold text-white">{scoreB}</span>
+                            <span className="text-sm font-medium text-gray-300 flex-1">{teamBName}</span>
+                            <span className="text-sm font-bold text-white ml-2">{scoreB}</span>
                         </div>
-                        <div className="space-y-1">
-                            {Array.isArray(teamB) ? (
-                                teamB.map((player, idx) => {
-                                    const playerName = typeof player === 'string' ? player : player.name;
-                                    const isMVP = mvp === playerName;
-                                    return (
-                                        <div key={idx} className="text-xs flex items-center">
-                                            <span className={`${isMVP ? 'text-yellow-400 font-medium' : 'text-gray-300'}`}>
-                                                {playerName}
-                                                {isMVP && <span className="ml-1">👑</span>}
-                                            </span>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="text-xs text-gray-400">No players listed</div>
-                            )}
-                        </div>
+
+                        {/* Only show player list for multi-player teams */}
+                        {!is1v1 && (
+                            <div className="space-y-1">
+                                {Array.isArray(teamB) ? (
+                                    teamB.map((player, idx) => {
+                                        const playerName = typeof player === 'string' ? player : player.name;
+                                        const isMVP = mvp === playerName;
+                                        return (
+                                            <div key={idx} className="text-xs flex items-center">
+                                                <span className={`${isMVP ? 'text-yellow-400 font-medium' : 'text-gray-300'}`}>
+                                                    {playerName}
+                                                    {isMVP && <span className="ml-1">👑</span>}
+                                                </span>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="text-xs text-gray-400">No players listed</div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Show MVP indicator for 1v1 if this player is MVP */}
+                        {is1v1 && mvp === (typeof teamB[0] === 'string' ? teamB[0] : teamB[0].name) && (
+                            <div className="text-yellow-400 text-xs">👑 MVP</div>
+                        )}
                     </div>
                 </div>
             </div>

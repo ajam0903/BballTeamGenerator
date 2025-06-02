@@ -31,6 +31,18 @@ export default function MatchResultsModal({
         return { teamA: [], teamB: [] };
     };
 
+    const getTeamDisplayName = (team, teamLetter) => {
+        if (!team || team.length === 0) return `Team ${teamLetter}`;
+
+        // For 1v1 matches, return the player's name
+        if (team.length === 1) {
+            return team[0].name || `Team ${teamLetter}`;
+        }
+
+        // For multi-player teams, return "Team [Letter]"
+        return `Team ${teamLetter}`;
+    };
+
     useEffect(() => {
         // Trigger animation after component mounts
         if (isOpen) {
@@ -143,8 +155,11 @@ export default function MatchResultsModal({
     const isTie = teamAWins === teamBWins;
 
     // Get team names (letters)
-    const teamALetter = "A";
-    const teamBLetter = "B";
+    const firstMatch = matchResults[0];
+    const { teamA: firstTeamA, teamB: firstTeamB } = extractTeamData(firstMatch);
+
+    const teamAName = getTeamDisplayName(firstTeamA, "A");
+    const teamBName = getTeamDisplayName(firstTeamB, "B");
 
     // Calculate total points
     const totalScoreA = matchResults.reduce((total, match) => total + (parseInt(match.score?.a) || 0), 0);
@@ -183,7 +198,7 @@ export default function MatchResultsModal({
 
                     {!isTie && (
                         <div className="text-lg font-bold text-white mb-2 relative z-10">
-                            Team {teamAOverallWinner ? teamALetter : teamBLetter} Wins!
+                            {teamAOverallWinner ? teamAName : teamBName} Wins!
                         </div>
                     )}
 
@@ -199,13 +214,13 @@ export default function MatchResultsModal({
                         <h3 className="text-sm font-semibold text-white mb-2">Match Results</h3>
                         <div className="flex justify-around items-center text-center">
                             <div className={`p-2 rounded-lg ${teamAOverallWinner ? 'bg-green-900 bg-opacity-40 ring-1 ring-green-500' : 'bg-gray-800'}`}>
-                                <div className="text-xs font-bold text-white">Team {teamALetter}</div>
+                                <div className="text-xs font-bold text-white">{teamAName}</div>
                                 <div className="text-xl font-bold text-white">{teamAWins}</div>
                                 <div className="text-xs text-gray-300">Win{teamAWins !== 1 ? 's' : ''}</div>
                             </div>
                             <div className="text-sm font-bold text-gray-500">VS</div>
                             <div className={`p-2 rounded-lg ${teamBOverallWinner ? 'bg-green-900 bg-opacity-40 ring-1 ring-green-500' : 'bg-gray-800'}`}>
-                                <div className="text-xs font-bold text-white">Team {teamBLetter}</div>
+                                <div className="text-xs font-bold text-white">{teamBName}</div>
                                 <div className="text-xl font-bold text-white">{teamBWins}</div>
                                 <div className="text-xs text-gray-300">Win{teamBWins !== 1 ? 's' : ''}</div>
                             </div>
@@ -238,7 +253,7 @@ export default function MatchResultsModal({
                             })}
                         </div>
                         <div className="mt-1 text-xs text-gray-400">
-                            Total: Team {teamALetter} {totalScoreA} - {totalScoreB} Team {teamBLetter}
+                            Total: {teamAName} {totalScoreA} - {totalScoreB} {teamBName}
                         </div>
                     </div>
 

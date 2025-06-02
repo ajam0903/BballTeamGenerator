@@ -126,13 +126,9 @@ export default function TeamsTab({
         return teamName;
     };
 
+    // Function to get team name based on best player
     const getTeamName = (team, calculatePlayerScore) => {
         if (!team || team.length === 0) return "Team";
-
-        // For 1v1 matches, just return the player's name directly
-        if (team.length === 1) {
-            return team[0].name || "Player";
-        }
 
         const bestPlayer = findBestPlayer(team, calculatePlayerScore);
         if (!bestPlayer) return "Team";
@@ -748,15 +744,11 @@ export default function TeamsTab({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {teams.map((team, i) => {
                             const teamStrength = calculateTeamStrength(team).toFixed(1);
-                            // For 1v1, use "Player 1", "Player 2", etc. instead of player name
-                            const teamName = team.length === 1 ? `Player ${i + 1}` : getTeamName(team, calculatePlayerScore || computeRating1to10);
-
+                            const teamName = getTeamName(team, calculatePlayerScore || computeRating1to10);
                             return (
                                 <div key={i} className="border border-gray-800 p-3 rounded">
                                     <div className="flex justify-between items-center">
-                                        <span className="text-xs text-gray-400">
-                                            {team.length === 1 ? teamName : `Team ${teamName}`}
-                                        </span>
+                                        <span className="text-xs text-gray-400">Team {teamName}</span>
                                         <div className="flex flex-col items-end">
                                             <span className="text-xs text-blue-400">
                                                 Strength: {teamStrength}
@@ -812,9 +804,8 @@ export default function TeamsTab({
                     </div>
 
                     {matchups.map(([teamA, teamB], i) => {
-                        // For 1v1, use player names directly, otherwise use team names
-                        const teamAName = teamA.length === 1 ? teamA[0].name : getTeamName(teamA, calculatePlayerScore || computeRating1to10);
-                        const teamBName = teamB.length === 1 ? teamB[0].name : getTeamName(teamB, calculatePlayerScore || computeRating1to10);
+                        const teamAName = getTeamName(teamA, calculatePlayerScore || computeRating1to10);
+                        const teamBName = getTeamName(teamB, calculatePlayerScore || computeRating1to10);
 
                         const teamAStrength = calculateTeamStrength(teamA).toFixed(1);
                         const teamBStrength = calculateTeamStrength(teamB).toFixed(1);
@@ -838,18 +829,14 @@ export default function TeamsTab({
                                 {!scores[i]?.processed && (
                                     <div className="flex justify-between items-center mb-3">
                                         <div className="flex items-center">
-                                            <span className="text-lg font-medium text-white">
-                                                {teamA.length === 1 ? teamAName : `Team ${teamAName}`}
-                                            </span>
+                                            <span className="text-lg font-medium text-white">Team {teamAName}</span>
                                             <span className="text-xs text-blue-400 ml-2">(Str: {teamAStrength})</span>
                                         </div>
 
                                         <span className="mx-4 text-gray-500">vs</span>
 
                                         <div className="flex items-center">
-                                            <span className="text-lg font-medium text-white">
-                                                {teamB.length === 1 ? teamBName : `Team ${teamBName}`}
-                                            </span>
+                                            <span className="text-lg font-medium text-white">Team {teamBName}</span>
                                             <span className="text-xs text-blue-400 ml-2">(Str: {teamBStrength})</span>
                                         </div>
                                     </div>
@@ -881,9 +868,7 @@ export default function TeamsTab({
                                             <div className="flex items-center justify-between">
                                                 {/* Team A Score */}
                                                 <div className="text-center flex-1">
-                                                    <div className="text-sm text-gray-300 mb-1">
-                                                        {teamA.length === 1 ? teamAName : `Team ${teamAName}`}
-                                                    </div>
+                                                    <div className="text-sm text-gray-300 mb-1">Team {teamAName}</div>
                                                     <div className="text-3xl font-bold text-white">{scores[i]?.a || 0}</div>
                                                 </div>
 
@@ -892,9 +877,7 @@ export default function TeamsTab({
 
                                                 {/* Team B Score */}
                                                 <div className="text-center flex-1">
-                                                    <div className="text-sm text-gray-300 mb-1">
-                                                        {teamB.length === 1 ? teamBName : `Team ${teamBName}`}
-                                                    </div>
+                                                    <div className="text-sm text-gray-300 mb-1">Team {teamBName}</div>
                                                     <div className="text-3xl font-bold text-white">{scores[i]?.b || 0}</div>
                                                 </div>
                                             </div>
@@ -910,24 +893,24 @@ export default function TeamsTab({
                                     ) : (
                                         // Editable view for unsaved matches
                                         <>
-                                                <div className="flex items-center space-x-3">
-                                                    <label className="text-xs text-gray-400">Score:</label>
-                                                    <input
-                                                        type="number"
-                                                        placeholder={teamA.length === 1 ? teamAName : `Team ${teamAName}`}
-                                                        className={`border-b ${matchIncomplete ? 'border-yellow-600' : 'border-gray-700'} bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500`}
-                                                        value={scores[i]?.a || ""}
-                                                        onChange={(e) => handleScoreChange(i, 'a', e.target.value)}
-                                                    />
-                                                    <span className="text-xs text-gray-400">vs</span>
-                                                    <input
-                                                        type="number"
-                                                        placeholder={teamB.length === 1 ? teamBName : `Team ${teamBName}`}
-                                                        className={`border-b ${matchIncomplete ? 'border-yellow-600' : 'border-gray-700'} bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500`}
-                                                        value={scores[i]?.b || ""}
-                                                        onChange={(e) => handleScoreChange(i, 'b', e.target.value)}
-                                                    />
-                                                </div>
+                                            <div className="flex items-center space-x-3">
+                                                <label className="text-xs text-gray-400">Score:</label>
+                                                <input
+                                                    type="number"
+                                                    placeholder={`Team ${teamAName}`}
+                                                    className={`border-b ${matchIncomplete ? 'border-yellow-600' : 'border-gray-700'} bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500`}
+                                                    value={scores[i]?.a || ""}
+                                                    onChange={(e) => handleScoreChange(i, 'a', e.target.value)}
+                                                />
+                                                <span className="text-xs text-gray-400">vs</span>
+                                                <input
+                                                    type="number"
+                                                    placeholder={`Team ${teamBName}`}
+                                                    className={`border-b ${matchIncomplete ? 'border-yellow-600' : 'border-gray-700'} bg-transparent rounded-none px-2 py-1 w-20 text-sm text-white focus:outline-none focus:border-blue-500`}
+                                                    value={scores[i]?.b || ""}
+                                                    onChange={(e) => handleScoreChange(i, 'b', e.target.value)}
+                                                />
+                                            </div>
                                             <button
                                                 onClick={() => saveMatchResults(i)}
                                                 className="px-3 py-1.5 text-sm text-white bg-green-600 rounded-md hover:bg-green-500 font-medium transition-colors"
