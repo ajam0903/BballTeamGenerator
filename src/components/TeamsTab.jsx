@@ -859,18 +859,74 @@ export default function TeamsTab({
                                 {!scores[i]?.processed && (
                                     <div className="flex items-center space-x-3 mb-3">
                                         <label className="text-xs text-gray-400">MVP:</label>
-                                        <StyledSelect
-                                            value={mvpVotes[i] || ""}
-                                            onChange={(e) => handleMvpChange(i, e.target.value)}
-                                            className="flex-grow"
-                                        >
-                                            <option value="">-- Select MVP --</option>
-                                            {[...teamA, ...teamB].map((p) => (
-                                                <option key={p.name} value={p.name}>
-                                                    {p.name}
-                                                </option>
-                                            ))}
-                                        </StyledSelect>
+                                        {teamA.length === 1 && teamB.length === 1 ? (
+                                            // 1v1 MVP logic
+                                            (() => {
+                                                const playerA = teamA[0];
+                                                const playerB = teamB[0];
+                                                const ovrA = playerOVRs[playerA.name] || computeRating1to10(playerA);
+                                                const ovrB = playerOVRs[playerB.name] || computeRating1to10(playerB);
+                                                const scoreA = parseInt(scores[i]?.a) || 0;
+                                                const scoreB = parseInt(scores[i]?.b) || 0;
+
+                                                // Determine MVP eligibility based purely on OVR difference
+                                                let eligibleMvp = null;
+                                                let eligibilityMessage = "";
+
+                                                const ovrDifference = Math.abs(ovrA - ovrB);
+
+                                                if (ovrDifference <= 1) {
+                                                    eligibilityMessage = "Neither player eligible for MVP (OVR within 1 point)";
+                                                } else {
+                                                    // The lower-rated player is eligible for MVP if they win
+                                                    if (ovrA < ovrB) {
+                                                        eligibleMvp = playerA.name;
+                                                        eligibilityMessage = `${playerA.name} eligible for MVP if wins (${ovrA.toFixed(1)} vs ${ovrB.toFixed(1)})`;
+                                                    } else {
+                                                        eligibleMvp = playerB.name;
+                                                        eligibilityMessage = `${playerB.name} eligible for MVP if wins (${ovrB.toFixed(1)} vs ${ovrA.toFixed(1)})`;
+                                                    }
+                                                }
+
+                                                // Only auto-set MVP if eligible player actually wins
+                                                if (eligibleMvp && scoreA && scoreB && scoreA !== scoreB) {
+                                                    const eligiblePlayerWon =
+                                                        (eligibleMvp === playerA.name && scoreA > scoreB) ||
+                                                        (eligibleMvp === playerB.name && scoreB > scoreA);
+
+                                                    if (eligiblePlayerWon && mvpVotes[i] !== eligibleMvp) {
+                                                        setTimeout(() => handleMvpChange(i, eligibleMvp), 0);
+                                                    } else if (!eligiblePlayerWon && mvpVotes[i]) {
+                                                        setTimeout(() => handleMvpChange(i, ""), 0);
+                                                    }
+                                                }
+
+                                                return (
+                                                    <div className="flex-grow">
+                                                        <div className={`px-3 py-2 rounded text-sm ${eligibleMvp
+                                                                ? 'bg-blue-900 bg-opacity-30 text-blue-400'
+                                                                : 'bg-gray-700 text-gray-400'
+                                                            }`}>
+                                                            {eligibilityMessage}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()
+                                        ) : (
+                                            // Regular multi-player MVP selection
+                                            <StyledSelect
+                                                value={mvpVotes[i] || ""}
+                                                onChange={(e) => handleMvpChange(i, e.target.value)}
+                                                className="flex-grow"
+                                            >
+                                                <option value="">-- Select MVP --</option>
+                                                {[...teamA, ...teamB].map((p) => (
+                                                    <option key={p.name} value={p.name}>
+                                                        {p.name}
+                                                    </option>
+                                                ))}
+                                            </StyledSelect>
+                                        )}
                                     </div>
                                 )}
 
