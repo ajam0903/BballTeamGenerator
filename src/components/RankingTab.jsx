@@ -10,6 +10,7 @@ import Tooltip from "./Tooltip";
 import { PlusCircleIcon } from "@heroicons/react/24/solid";
 // In RankingTab.jsx
 import { ratingHelp } from "./ratingHelp";
+import PlayerBeltIcons from "./PlayerBeltIcons";
 
 export default function RankingTab({
     players,
@@ -22,6 +23,7 @@ export default function RankingTab({
     user,
     toastMessage,
     setToastMessage,
+    currentBelts = {},
 }) {
     const [sortKey, setSortKey] = useState("name");
     const [sortDirection, setSortDirection] = useState("asc");
@@ -245,7 +247,10 @@ export default function RankingTab({
                     return (
                         <div key={player.name} className={`${bgColorClass} rounded p-2`}>
                             <div className="flex justify-between items-center mb-0.5">
-                                <span className="text-base text-white">{player.name}</span>
+                                <div className="flex items-center">
+                                    <span className="text-base text-white">{player.name}</span>
+                                    <PlayerBeltIcons playerName={player.name} currentBelts={currentBelts} />
+                                </div>
                                 <span className="text-base font-medium text-blue-400">
                                     {rating}
                                 </span>

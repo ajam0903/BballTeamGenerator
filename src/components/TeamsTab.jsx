@@ -3,7 +3,7 @@ import React from "react";
 import { StyledButton } from "./UIComponents";
 import { useEffect, useState, useRef } from "react";
 import { StyledSelect } from "./UIComponents";
-
+import PlayerBeltIcons from "./PlayerBeltIcons";
 export default function TeamsTab({
     players = [],
     teams = [],
@@ -29,6 +29,7 @@ export default function TeamsTab({
     hasPendingMatchups = false,
     playerOVRs = {},
     calculatePlayerScore,
+    currentBelts = {},
 
 }) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -768,12 +769,15 @@ export default function TeamsTab({
                                         {team.filter(p => !p.isBench).map((p) => (
                                             <div
                                                 key={p.name}
-                                                className="bg-gray-800 text-gray-100 px-3 py-1 rounded-md text-xs font-medium border border-gray-600"
+                                                className="bg-gray-800 text-gray-100 px-3 py-1 rounded-md text-xs font-medium border border-gray-600 flex items-center"
                                             >
-                                                {p.name}
+                                                <span>{p.name}</span>
+                                                <PlayerBeltIcons playerName={p.name} currentBelts={currentBelts} size="small" />
                                             </div>
                                         ))}
                                     </div>
+
+                                    {/* For bench players */}
                                     {team.some(p => p.isBench) && (
                                         <div className="mt-1">
                                             <span className="text-xs text-yellow-500 mb-1">Bench: </span>
@@ -781,9 +785,10 @@ export default function TeamsTab({
                                                 {team.filter(p => p.isBench).map(p => (
                                                     <div
                                                         key={p.name}
-                                                        className="bg-gray-800 text-yellow-500 px-3 py-1 rounded-md text-xs font-sm border border-gray-600"
+                                                        className="bg-gray-800 text-yellow-500 px-3 py-1 rounded-md text-xs font-sm border border-gray-600 flex items-center"
                                                     >
-                                                        {p.name}
+                                                        <span>{p.name}</span>
+                                                        <PlayerBeltIcons playerName={p.name} currentBelts={currentBelts} size="small" />
                                                     </div>
                                                 ))}
                                             </div>
@@ -1097,8 +1102,9 @@ export default function TeamsTab({
                                 {/* Player name and OVR */}
                                 <div className="flex-grow ml-3">
                                     <div className="flex justify-between items-center">
-                                        <div className="text-sm text-white">
-                                            {player.name}
+                                        <div className="flex items-center text-sm text-white">
+                                            <span>{player.name}</span>
+                                            <PlayerBeltIcons playerName={player.name} currentBelts={currentBelts} size="small" />
                                         </div>
                                         <div className="text-sm font-medium text-blue-400">
                                             {ovrRating.toFixed(1)}

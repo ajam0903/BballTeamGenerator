@@ -29,6 +29,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 import LogTab from "./components/LogTab";
 import logActivity from "./utils/logActivity";
 import { ensureSchemaExists } from "./utils/schemaMigration";
+import BeltsTab from "./components/BeltsTab";
+import PlayerBeltIcons from "./components/PlayerBeltIcons";
+import { calculateBeltStandings, beltCategories } from "./components/BeltsSystem";
 
 const db = getFirestore();
 // This helps hide the default scrollbar while maintaining scroll functionality
@@ -97,6 +100,10 @@ export default function App() {
     const [showMatchResultsModal, setShowMatchResultsModal] = useState(false);
     const [forceTabChange, setForceTabChange] = useState(false);
     const [completedMatchResults, setCompletedMatchResults] = useState([]);
+    const [beltVotes, setBeltVotes] = useState({});
+    const [currentBelts, setCurrentBelts] = useState({});
+    const [playersSubTab, setPlayersSubTab] = useState("rankings");
+
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
 
@@ -772,7 +779,6 @@ export default function App() {
         setShowRematchPrompt(false);
     };
 
-    // In App.jsx, add this function after calculatePlayerScore
     const calculatePlayerOVR = (playerName) => {
         // Find player in players array to get their abilities
         const playerData = players.find(p => p.name === playerName) || {};
@@ -1550,7 +1556,19 @@ export default function App() {
         const fetchMatchHistory = async () => {
             const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
             const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                // existing code...
 
+                // Load belt votes
+                if (data.beltVotes) {
+                    setBeltVotes(data.beltVotes);
+
+                    // Calculate current belt holders
+                    const calculatedBelts = calculateBeltStandings(data.beltVotes);
+                    setCurrentBelts(calculatedBelts);
+                }
+            }
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 if (data.matchHistory && data.matchHistory.length > 0) {
@@ -1704,6 +1722,12 @@ export default function App() {
             setForceTabChange(false);
             return;
         }
+
+        // Reset sub-tab when switching to rankings/players tab
+        if (newTab === "rankings") {
+            setPlayersSubTab("rankings");
+        }
+
         // Users should be able to switch tabs freely
         setActiveTab(newTab);
     };
@@ -2162,7 +2186,7 @@ export default function App() {
             <div className="bg-gray-900 min-h-screen">
                 {/* Update this section to include Squad Sync text */}
                 <div className="flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800">
-                    <h1 className="text-2xl font-bold text-white">REC TRACKER</h1>
+                    <h1 className="text-2xl font-bold text-white">WEEKEND BALL</h1>
                     {user ? (
                         <UserMenu user={user} />
                     ) : (
@@ -2176,6 +2200,54 @@ export default function App() {
             </div>
         );
     }
+
+    const handleBeltVote = async (beltId, playerName) => {
+        if (!user || !currentLeagueId) {
+            setToastMessage("You must be signed in to vote for belts");
+            setTimeout(() => setToastMessage(""), 3000);
+            return;
+        }
+
+        try {
+            const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const currentVotes = data.beltVotes || {};
+
+                // Update user's vote
+                const updatedVotes = {
+                    ...currentVotes,
+                    [user.uid]: {
+                        ...(currentVotes[user.uid] || {}),
+                        [beltId]: playerName
+                    }
+                };
+
+                // Recalculate belt holders using current holders and new votes
+                const updatedBelts = calculateBeltStandings(updatedVotes, currentBelts);
+
+                // Save both votes and belt holders to Firestore
+                await firestoreSetDoc(docRef, {
+                    ...data,
+                    beltVotes: updatedVotes,
+                    beltHolders: updatedBelts // Store belt holders separately
+                });
+
+                // Update local state
+                setBeltVotes(updatedVotes);
+                setCurrentBelts(updatedBelts);
+
+                setToastMessage(`Vote for ${beltCategories[beltId].name} recorded!`);
+                setTimeout(() => setToastMessage(""), 3000);
+            }
+        } catch (error) {
+            console.error("Error saving belt vote:", error);
+            setToastMessage("Error saving vote");
+            setTimeout(() => setToastMessage(""), 3000);
+        }
+    };
 
     // Otherwise show the team generator app
     return (
@@ -2278,24 +2350,64 @@ export default function App() {
                                     hasPendingMatchups={hasPendingMatchups}
                                     playerOVRs={playerOVRs}
                                     calculatePlayerScore={calculatePlayerScore}
+                                    currentBelts={currentBelts}
                                 />
                             </ErrorBoundary>
                         </div>
                     )}
 
                     {activeTab === "rankings" && (
-                        <RankingTab
-                            players={players}
-                            newRating={newRating}
-                            setNewRating={setNewRating}
-                            handleRatingSubmit={handleRatingSubmit}
-                            handleDeletePlayer={handleDeletePlayer}
-                            openEditModal={openEditModal}
-                            isAdmin={isAdmin}
-                            user={user}
-                            toastMessage={toastMessage}
-                            setToastMessage={setToastMessage}
-                        />
+                        <div className="space-y-4">
+                            {/* Sub-tab navigation */}
+                            <div className="flex border-b border-gray-700">
+                                <button
+                                    onClick={() => setPlayersSubTab("rankings")}
+                                    className={`px-4 py-2 text-sm font-medium ${playersSubTab === "rankings"
+                                            ? "text-blue-400 border-b-2 border-blue-400"
+                                            : "text-gray-400 hover:text-gray-300"
+                                        }`}
+                                >
+                                    Rankings
+                                </button>
+                                <button
+                                    onClick={() => setPlayersSubTab("belts")}
+                                    className={`px-4 py-2 text-sm font-medium ${playersSubTab === "belts"
+                                            ? "text-blue-400 border-b-2 border-blue-400"
+                                            : "text-gray-400 hover:text-gray-300"
+                                        }`}
+                                >
+                                    Belts
+                                </button>
+                            </div>
+
+                            {/* Sub-tab content */}
+                            {playersSubTab === "rankings" && (
+                                <RankingTab
+                                    players={players}
+                                    newRating={newRating}
+                                    setNewRating={setNewRating}
+                                    handleRatingSubmit={handleRatingSubmit}
+                                    handleDeletePlayer={handleDeletePlayer}
+                                    openEditModal={openEditModal}
+                                    isAdmin={isAdmin}
+                                    user={user}
+                                    toastMessage={toastMessage}
+                                    setToastMessage={setToastMessage}
+                                    currentBelts={currentBelts}
+                                />
+                            )}
+
+                            {playersSubTab === "belts" && (
+                                <BeltsTab
+                                    players={players}
+                                    currentBelts={currentBelts}
+                                    userVotes={user ? beltVotes[user.uid] || {} : {}}
+                                    onVote={handleBeltVote}
+                                    user={user}
+                                    beltVotes={beltVotes}
+                                />
+                            )}
+                        </div>
                     )}
 
                     {activeTab === "leaderboard" && (
@@ -2364,7 +2476,6 @@ export default function App() {
                                 <span className="absolute top-2 right-12 h-2 w-2 rounded-full bg-red-500"></span>
                             )}
                         </div>
-
                         <div
                             className="flex flex-col items-center cursor-pointer"
                             onClick={() => handleTabChange("rankings")}

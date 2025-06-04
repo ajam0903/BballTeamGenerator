@@ -15,6 +15,16 @@ export default function BeltVotingModal({ isOpen, onClose, players, onVote, curr
         }
     }, [isOpen]);
 
+    useEffect(() => {
+        if (selectedBelt && hasVotedFor(selectedBelt)) {
+            // Pre-select the player they previously voted for
+            setSelectedPlayer(userVotes[selectedBelt] || "");
+        } else if (selectedBelt) {
+            // Reset player selection when switching belts
+            setSelectedPlayer("");
+        }
+    }, [selectedBelt, userVotes]);
+
     if (!isOpen) return null;
 
     const filteredBelts = Object.entries(beltCategories)
@@ -43,16 +53,16 @@ export default function BeltVotingModal({ isOpen, onClose, players, onVote, curr
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
             <div className="bg-gray-800 p-6 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
                 <h2 className="text-xl font-bold mb-4 text-white">Vote for Championship Belts</h2>
-                
+
                 {/* Tabs for positive/negative belts */}
                 <div className="flex mb-4 border-b border-gray-700">
-                    <button 
+                    <button
                         className={`px-4 py-2 ${activeTab === "positive" ? "text-blue-400 border-b-2 border-blue-400" : "text-gray-400"}`}
                         onClick={() => setActiveTab("positive")}
                     >
                         Positive Belts
                     </button>
-                    <button 
+                    <button
                         className={`px-4 py-2 ${activeTab === "negative" ? "text-blue-400 border-b-2 border-blue-400" : "text-gray-400"}`}
                         onClick={() => setActiveTab("negative")}
                     >
@@ -69,15 +79,16 @@ export default function BeltVotingModal({ isOpen, onClose, players, onVote, curr
                         {filteredBelts.map(belt => {
                             const currentHolder = getCurrentHolder(belt.id);
                             const hasVoted = hasVotedFor(belt.id);
-                            
+                            const userVotedForThis = userVotes?.[belt.id];
+
                             return (
-                                <div 
+                                <div
                                     key={belt.id}
-                                    onClick={() => !hasVoted && setSelectedBelt(belt.id)}
+                                    onClick={() => setSelectedBelt(belt.id)}
                                     className={`
-                                        p-3 rounded border cursor-pointer
+                                        p-3 rounded border cursor-pointer transition-colors
                                         ${selectedBelt === belt.id ? 'border-blue-500 bg-blue-900 bg-opacity-20' : 'border-gray-700 bg-gray-700'}
-                                        ${hasVoted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-600'}
+                                        hover:bg-gray-600
                                     `}
                                 >
                                     <div className="flex items-center">
@@ -85,7 +96,7 @@ export default function BeltVotingModal({ isOpen, onClose, players, onVote, curr
                                         <span className="font-medium">{belt.name}</span>
                                     </div>
                                     <p className="text-xs text-gray-400 mt-1">{belt.description}</p>
-                                    
+
                                     {currentHolder && (
                                         <div className="mt-2 text-xs">
                                             <span className="text-gray-400">Current holder: </span>
@@ -93,10 +104,11 @@ export default function BeltVotingModal({ isOpen, onClose, players, onVote, curr
                                             <span className="text-gray-500 ml-1">({currentHolder.votes} votes)</span>
                                         </div>
                                     )}
-                                    
+
                                     {hasVoted && (
-                                        <div className="mt-1 text-xs text-yellow-400">
-                                            You voted for: {userVotes[belt.id]}
+                                        <div className="mt-1 text-xs">
+                                            <span className="text-yellow-400">Your vote: </span>
+                                            <span className="text-white">{userVotedForThis}</span>
                                         </div>
                                     )}
                                 </div>
@@ -114,7 +126,7 @@ export default function BeltVotingModal({ isOpen, onClose, players, onVote, curr
                         value={selectedPlayer}
                         onChange={(e) => setSelectedPlayer(e.target.value)}
                         className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        disabled={!selectedBelt || hasVotedFor(selectedBelt)}
+                        disabled={!selectedBelt}
                     >
                         <option value="">-- Select a player --</option>
                         {players.map(player => (
@@ -134,14 +146,13 @@ export default function BeltVotingModal({ isOpen, onClose, players, onVote, curr
                     </button>
                     <button
                         onClick={handleVote}
-                        disabled={!selectedBelt || !selectedPlayer || hasVotedFor(selectedBelt)}
-                        className={`px-4 py-2 text-white rounded ${
-                            !selectedBelt || !selectedPlayer || hasVotedFor(selectedBelt)
+                        disabled={!selectedBelt || !selectedPlayer}
+                        className={`px-4 py-2 text-white rounded ${!selectedBelt || !selectedPlayer
                                 ? "bg-gray-600 cursor-not-allowed"
                                 : "bg-blue-600 hover:bg-blue-700"
-                        }`}
+                            }`}
                     >
-                        Vote
+                        {hasVotedFor(selectedBelt) ? "Change Vote" : "Vote"}
                     </button>
                 </div>
             </div>
