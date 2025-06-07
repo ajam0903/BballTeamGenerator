@@ -10,7 +10,7 @@ const BADGE_ICONS = {
 };
 
 // Main Badge component (consolidates CustomBadge)
-export default React.memo(function Badge({
+const Badge = React.memo(function Badge({
     badge,
     categoryId, // Pass the category ID instead of categoryIcon
     size = "normal",
@@ -131,3 +131,5 @@ export function BadgeCollection({ badges, maxDisplay = 3, size = "small" }) {
         </div>
     );
 }
+
+export default Badge;
