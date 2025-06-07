@@ -32,8 +32,8 @@ import { ensureSchemaExists } from "./utils/schemaMigration";
 import BeltsTab from "./components/BeltsTab";
 import PlayerBeltIcons from "./components/PlayerBeltIcons";
 import { calculateBeltStandings, beltCategories } from "./components/BeltsSystem";
-import AwardsTab from "./components/AwardsTab";
-import PlayerDetailModal from "./components/PlayerDetailModal";
+import AwardsTab from "./components/awardsTab";
+import PlayerDetailModal from "./components/playerDetailModal";
 import PlayerBadges from "./components/PlayerBadges";
 
 const db = getFirestore();
