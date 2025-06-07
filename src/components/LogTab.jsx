@@ -17,34 +17,56 @@ export default function LogTab({
     const [showConfirmDelete, setShowConfirmDelete] = useState(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [logToDelete, setLogToDelete] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [logsPerPage] = useState(10);
+    const [totalLogs, setTotalLogs] = useState(0);
+    const [hasMoreLogs, setHasMoreLogs] = useState(true);
+
+    const fetchLogs = async (page = 1, reset = false) => {
+        setLoading(true);
+        try {
+            const logsRef = collection(db, "leagues", currentLeagueId, "logs");
+            const q = query(
+                logsRef,
+                orderBy("timestamp", "desc"),
+                limit(logsPerPage * page)
+            );
+            const querySnapshot = await getDocs(q);
+
+            const logsData = [];
+            querySnapshot.forEach((doc) => {
+                logsData.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+
+            // Check if there are more logs
+            const checkMoreQuery = query(
+                logsRef,
+                orderBy("timestamp", "desc"),
+                limit(logsPerPage * page + 1)
+            );
+            const checkMoreSnapshot = await getDocs(checkMoreQuery);
+            setHasMoreLogs(checkMoreSnapshot.docs.length > logsPerPage * page);
+
+            if (reset) {
+                setCurrentPage(1);
+            }
+
+            setLogs(logsData);
+            setTotalLogs(logsData.length);
+            console.log(`Fetched ${logsData.length} logs for page ${page}`);
+        } catch (error) {
+            console.error("Error fetching logs:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (!currentLeagueId) return;
-
-        const fetchLogs = async () => {
-            setLoading(true);
-            try {
-                const logsRef = collection(db, "leagues", currentLeagueId, "logs");
-                const q = query(logsRef, orderBy("timestamp", "desc"), limit(100));
-                const querySnapshot = await getDocs(q);
-
-                const logsData = [];
-                querySnapshot.forEach((doc) => {
-                    logsData.push({
-                        id: doc.id,
-                        ...doc.data()
-                    });
-                });
-
-                setLogs(logsData);
-                console.log("Fetched logs:", logsData); // Debug log
-            } catch (error) {
-                console.error("Error fetching logs:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchLogs();
+        fetchLogs(1, true);
     }, [currentLeagueId, currentSet]);
 
     const handleDeleteLog = async (logId) => {
@@ -662,38 +684,53 @@ export default function LogTab({
         }
     };
 
+    const handleLoadMore = () => {
+        if (!loading && hasMoreLogs) {
+            const nextPage = currentPage + 1;
+            setCurrentPage(nextPage);
+            fetchLogs(nextPage);
+        }
+    };
+
+    const handleRefresh = () => {
+        fetchLogs(1, true);
+    };
+
     const getFilteredLogs = () => {
-        if (filter === "all") {
-            // Even for "all", filter out certain log types
-            return logs.filter(log =>
+        let filtered = logs;
+
+        if (filter !== "all") {
+            filtered = logs.filter(log => {
+                if (log.action === "match_completed" ||
+                    log.action === "teams_generated" ||
+                    log.action === "rematch_created") {
+                    return false;
+                }
+
+                switch (filter) {
+                    case "players":
+                        return ["player_added", "player_updated", "player_deleted", "player_rating_changed", "player_rating_updated", "player_rating_added"].includes(log.action);
+                    case "matches":
+                        return log.action === "match_result_saved";
+                    case "admin":
+                        return ["leaderboard_reset", "log_deleted", "schema_initialized", "user_joined_league"].includes(log.action);
+                    default:
+                        return true;
+                }
+            });
+        } else {
+            filtered = logs.filter(log =>
                 log.action !== "match_completed" &&
                 log.action !== "teams_generated" &&
-                log.action !== "rematch_created"  // Add this line
+                log.action !== "rematch_created"
             );
         }
 
-        return logs.filter(log => {
-            // First filter out the unwanted log types regardless of category
-            if (log.action === "match_completed" ||
-                log.action === "teams_generated" ||
-                log.action === "rematch_created") {  // Add this condition
-                return false;
-            }
-
-            // Then apply the category filters
-            switch (filter) {
-                case "players":
-                    return ["player_added", "player_updated", "player_deleted", "player_rating_changed", "player_rating_updated", "player_rating_added"].includes(log.action);
-                case "matches":
-                    // Only include match_result_saved and not other match-related logs
-                    return log.action === "match_result_saved";
-                case "admin":
-                    return ["leaderboard_reset", "log_deleted", "schema_initialized", "user_joined_league"].includes(log.action);
-                default:
-                    return true;
-            }
-        });
+        // Show logs based on current page view
+        const endIndex = Math.min(currentPage * logsPerPage, filtered.length);
+        return filtered.slice(0, endIndex);
     };
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -708,154 +745,196 @@ export default function LogTab({
                         <option value="all">All Activities</option>
                         <option value="players">Players</option>
                         <option value="matches">Matches</option>
+                        <option value="system">System Events</option>
                         <option value="admin">Admin Actions</option>
                     </select>
                 </div>
             </div>
 
-            {loading ? (
+            {loading && currentPage === 1 ? (
                 <div className="flex justify-center py-8">
                     <div className="animate-pulse text-gray-400">Loading logs...</div>
                 </div>
             ) : getFilteredLogs().length === 0 ? (
                 <div className="bg-gray-800 rounded p-6 text-center text-gray-400">
-                    No logs found.
+                    {filter !== "all" ? "No logs found for this filter." : "No logs found."}
                 </div>
             ) : (
                 <div className="space-y-3">
-                            {getFilteredLogs().map(log => (
-                                <div key={log.id}
-                                    className={`rounded p-3 border border-gray-800 ${getColorForAction(log.action)}`}>
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex items-start space-x-3">
-                                            <div className="text-xl">{getIconForAction(log.action)}</div>
-                                            <div className="flex-grow">
-                                                <div className="font-medium">{getActionText(log)}</div>
-                                                <div className="text-xs text-gray-400">{formatTimestamp(log.timestamp)}</div>
-                                                {log.userName && isAdmin && (
-                                                    <div className="text-xs mt-1 text-gray-300">
-                                                        By: {log.userName}
-                                                    </div>
-                                                )}
+                            {/* Status and refresh controls */}
+                            <div className="flex justify-between items-center mb-4">
+                                <div className="text-sm text-gray-400">
+                                    Showing {getFilteredLogs().length} of {logs.filter(log =>
+                                        log.action !== "match_completed" &&
+                                        log.action !== "teams_generated" &&
+                                        log.action !== "rematch_created"
+                                    ).length} logs
+                                </div>
+                                <button
+                                    onClick={handleRefresh}
+                                    className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                                    disabled={loading}
+                                >
+                                    🔄 Refresh
+                                </button>
+                            </div>
 
-                                                {/* This is the key part - render rating details for ALL player-related actions */}
-                                                {["player_rating_changed", "player_rating_updated", "player_rating_added",
-                                                    "player_added", "player_updated"].includes(log.action) &&
-                                                    renderRatingDetails(log)
-                                                }
-                                                {["match_result_saved", "match_completed"].includes(log.action) &&
-                                                    renderMatchDetails(log)
-                                                }
+                    {/* Logs display */}
+                    {getFilteredLogs().map(log => (
+                        <div key={log.id}
+                            className={`rounded p-3 border border-gray-800 ${getColorForAction(log.action)}`}>
+                            <div className="flex justify-between items-start">
+                                <div className="flex items-start space-x-3">
+                                    <div className="text-xl">{getIconForAction(log.action)}</div>
+                                    <div className="flex-grow">
+                                        <div className="font-medium">{getActionText(log)}</div>
+                                        <div className="text-xs text-gray-400">{formatTimestamp(log.timestamp)}</div>
+                                        {log.userName && isAdmin && (
+                                            <div className="text-xs mt-1 text-gray-300">
+                                                By: {log.userName}
                                             </div>
-                                        </div>
-                                        {isAdmin && (
+                                        )}
+
+                                        {/* This is the key part - render rating details for ALL player-related actions */}
+                                        {["player_rating_changed", "player_rating_updated", "player_rating_added",
+                                            "player_added", "player_updated"].includes(log.action) &&
+                                            renderRatingDetails(log)
+                                        }
+                                        {["match_result_saved", "match_completed"].includes(log.action) &&
+                                            renderMatchDetails(log)
+                                        }
+                                    </div>
+                                </div>
+                                {isAdmin && (
+                                    <div className="flex items-center space-x-2">
+                                        {showConfirmDelete === log.id ? (
                                             <div className="flex items-center space-x-2">
-                                                {showConfirmDelete === log.id ? (
-                                                    <div className="flex items-center space-x-2">
-                                                        <button
-                                                            onClick={() => {
-                                                                // Show confirmation modal for player and match operations
-                                                                if (["player_rating_changed", "player_rating_updated", "player_rating_added", "player_added",
-                                                                    "match_result_saved", "match_completed"].includes(log.action)) {
-                                                                    setLogToDelete(log);
-                                                                    setShowDeleteModal(true);
-                                                                    setShowConfirmDelete(null);
-                                                                } else {
-                                                                    // For other logs, delete immediately
-                                                                    handleDeleteLog(log.id);
-                                                                }
-                                                            }}
-                                                            className="text-red-500 hover:text-red-400 text-xs font-bold"
-                                                        >
-                                                            Confirm
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setShowConfirmDelete(null)}
-                                                            className="text-gray-400 hover:text-gray-300 text-xs"
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => setShowConfirmDelete(log.id)}
-                                                        className="text-gray-500 hover:text-red-400"
-                                                        title="Delete log entry"
-                                                    >
-                                                        ✕
-                                                    </button>
-                                                )}
+                                                <button
+                                                    onClick={() => {
+                                                        // Show confirmation modal for player and match operations
+                                                        if (["player_rating_changed", "player_rating_updated", "player_rating_added", "player_added",
+                                                            "match_result_saved", "match_completed"].includes(log.action)) {
+                                                            setLogToDelete(log);
+                                                            setShowDeleteModal(true);
+                                                            setShowConfirmDelete(null);
+                                                        } else {
+                                                            // For other logs, delete immediately
+                                                            handleDeleteLog(log.id);
+                                                        }
+                                                    }}
+                                                    className="text-red-500 hover:text-red-400 text-xs font-bold"
+                                                >
+                                                    Confirm
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowConfirmDelete(null)}
+                                                    className="text-gray-400 hover:text-gray-300 text-xs"
+                                                >
+                                                    Cancel
+                                                </button>
                                             </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setShowConfirmDelete(log.id)}
+                                                className="text-gray-500 hover:text-red-400"
+                                                title="Delete log entry"
+                                            >
+                                                ✕
+                                            </button>
                                         )}
                                     </div>
-                                    {showDeleteModal && logToDelete && (
-                                        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-                                            <div className="bg-gray-800 p-4 rounded-lg max-w-md w-full">
-                                                <h3 className="text-lg font-bold text-white mb-2">
-                                                    {logToDelete.action === "player_added"
-                                                        ? "Confirm Player Deletion"
-                                                        : ["match_result_saved", "match_completed"].includes(logToDelete.action)
-                                                            ? "Confirm Match Result Deletion"
-                                                            : "Confirm Rating Reversal"}
-                                                </h3>
-                                                <p className="text-gray-300 mb-4">
-                                                    {logToDelete.action === "player_added"
-                                                        ? `This will delete player ${logToDelete.details?.playerName || logToDelete.details?.name} completely from the league.`
-                                                        : ["match_result_saved", "match_completed"].includes(logToDelete.action)
-                                                            ? `This will remove this match result and update the leaderboard accordingly.`
-                                                            : `This will delete the rating submission for ${logToDelete.details?.playerName || logToDelete.details?.name} by ${logToDelete.userName}.`
-                                                    }
-                                                </p>
-                                                <p className="text-yellow-400 text-sm mb-4">
-                                                    {logToDelete.action === "player_added"
-                                                        ? "All player data and ratings will be permanently removed. This action cannot be undone."
-                                                        : ["match_result_saved", "match_completed"].includes(logToDelete.action)
-                                                            ? "Player win/loss records and MVP counts will be adjusted. This action cannot be undone."
-                                                            : "This will recalculate the player's rating based on other submissions. This action cannot be undone."
-                                                    }
-                                                </p>
-                                                <div className="flex justify-end space-x-3">
-                                                    <button
-                                                        onClick={() => setShowDeleteModal(false)}
-                                                        className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            handleDeleteLog(logToDelete.id);
-                                                            setShowDeleteModal(false);
-                                                        }}
-                                                        className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                                                    >
-                                                        {logToDelete.action === "player_added"
-                                                            ? "Delete Player"
-                                                            : ["match_result_saved", "match_completed"].includes(logToDelete.action)
-                                                                ? "Delete Match Result"
-                                                                : "Delete & Revert Rating"}
-                                                    </button>
-                                                </div>
-                                            </div>
+                                )}
+                            </div>
+                            {showDeleteModal && logToDelete && (
+                                <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+                                    <div className="bg-gray-800 p-4 rounded-lg max-w-md w-full">
+                                        <h3 className="text-lg font-bold text-white mb-2">
+                                            {logToDelete.action === "player_added"
+                                                ? "Confirm Player Deletion"
+                                                : ["match_result_saved", "match_completed"].includes(logToDelete.action)
+                                                    ? "Confirm Match Result Deletion"
+                                                    : "Confirm Rating Reversal"}
+                                        </h3>
+                                        <p className="text-gray-300 mb-4">
+                                            {logToDelete.action === "player_added"
+                                                ? `This will delete player ${logToDelete.details?.playerName || logToDelete.details?.name} completely from the league.`
+                                                : ["match_result_saved", "match_completed"].includes(logToDelete.action)
+                                                    ? `This will remove this match result and update the leaderboard accordingly.`
+                                                    : `This will delete the rating submission for ${logToDelete.details?.playerName || logToDelete.details?.name} by ${logToDelete.userName}.`
+                                            }
+                                        </p>
+                                        <p className="text-yellow-400 text-sm mb-4">
+                                            {logToDelete.action === "player_added"
+                                                ? "All player data and ratings will be permanently removed. This action cannot be undone."
+                                                : ["match_result_saved", "match_completed"].includes(logToDelete.action)
+                                                    ? "Player win/loss records and MVP counts will be adjusted. This action cannot be undone."
+                                                    : "This will recalculate the player's rating based on other submissions. This action cannot be undone."
+                                            }
+                                        </p>
+                                        <div className="flex justify-end space-x-3">
+                                            <button
+                                                onClick={() => setShowDeleteModal(false)}
+                                                className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    handleDeleteLog(logToDelete.id);
+                                                    setShowDeleteModal(false);
+                                                }}
+                                                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                                            >
+                                                {logToDelete.action === "player_added"
+                                                    ? "Delete Player"
+                                                    : ["match_result_saved", "match_completed"].includes(logToDelete.action)
+                                                        ? "Delete Match Result"
+                                                        : "Delete & Revert Rating"}
+                                            </button>
                                         </div>
-                                    )}
-
-                                    {log.details &&
-                                        Object.keys(log.details).length > 0 &&
-                                        !["player_rating_changed", "player_rating_updated", "player_rating_added"].includes(log.action) &&
-                                        !["name", "playerName", "userId", "scoreA", "scoreB", "teamCount"].some(key => key in log.details) && (
-                                            <div className="mt-2 pt-2 border-t border-gray-700 text-xs">
-                                                <details>
-                                                    <summary className="cursor-pointer text-gray-400 hover:text-gray-300">
-                                                        Details
-                                                    </summary>
-                                                    <pre className="mt-2 p-2 bg-gray-900 rounded overflow-x-auto whitespace-pre-wrap">
-                                                        {JSON.stringify(log.details, null, 2)}
-                                                    </pre>
-                                                </details>
-                                            </div>
-                                        )}
+                                    </div>
                                 </div>
-                            ))}
+                            )}
+
+                            {log.details &&
+                                Object.keys(log.details).length > 0 &&
+                                !["player_rating_changed", "player_rating_updated", "player_rating_added"].includes(log.action) &&
+                                !["name", "playerName", "userId", "scoreA", "scoreB", "teamCount"].some(key => key in log.details) && (
+                                    <div className="mt-2 pt-2 border-t border-gray-700 text-xs">
+                                        <details>
+                                            <summary className="cursor-pointer text-gray-400 hover:text-gray-300">
+                                                Details
+                                            </summary>
+                                            <pre className="mt-2 p-2 bg-gray-900 rounded overflow-x-auto whitespace-pre-wrap">
+                                                {JSON.stringify(log.details, null, 2)}
+                                            </pre>
+                                        </details>
+                                    </div>
+                                )}
+                        </div>
+                    ))}
+
+                    {/* Load More button */}
+                    {hasMoreLogs && (
+                        <div className="flex justify-center mt-6">
+                            <button
+                                onClick={handleLoadMore}
+                                disabled={loading}
+                                className={`px-6 py-2 rounded transition-colors ${loading
+                                        ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                                    }`}
+                            >
+                                {loading ? "Loading..." : "Load More"}
+                            </button>
+                        </div>
+                    )}
+
+                    {!hasMoreLogs && logs.length > 0 && (
+                        <div className="text-center text-gray-400 text-sm mt-6">
+                            End of logs
+                        </div>
+                    )}
                 </div>
             )}
         </div>

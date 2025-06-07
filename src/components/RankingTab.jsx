@@ -11,6 +11,8 @@ import { PlusCircleIcon } from "@heroicons/react/24/solid";
 // In RankingTab.jsx
 import { ratingHelp } from "./ratingHelp";
 import PlayerBeltIcons from "./PlayerBeltIcons";
+import { badgeCategories } from "./badgeSystem.jsx";
+import PlayerBadges from "./PlayerBadges";
 
 export default function RankingTab({
     players,
@@ -24,6 +26,9 @@ export default function RankingTab({
     toastMessage,
     setToastMessage,
     currentBelts = {},
+    leaderboard = {},
+    matchHistory = [],
+    onPlayerClick,
 }) {
     const [sortKey, setSortKey] = useState("name");
     const [sortDirection, setSortDirection] = useState("asc");
@@ -245,11 +250,22 @@ export default function RankingTab({
                     );
                     const bgColorClass = index % 2 === 0 ? "bg-gray-800" : "bg-gray-800/50";
                     return (
-                        <div key={player.name} className={`${bgColorClass} rounded p-2`}>
+                        <div
+                            key={player.name}
+                            className={`${bgColorClass} rounded p-2 cursor-pointer hover:bg-gray-700 transition-colors`}
+                            onClick={() => onPlayerClick && onPlayerClick(player)}
+                        >
                             <div className="flex justify-between items-center mb-0.5">
                                 <div className="flex items-center">
                                     <span className="text-base text-white">{player.name}</span>
                                     <PlayerBeltIcons playerName={player.name} currentBelts={currentBelts} />
+                                    <PlayerBadges
+                                        playerName={player.name}
+                                        leaderboard={leaderboard}
+                                        matchHistory={matchHistory}
+                                        size="small"
+                                        maxDisplay={2}
+                                    />
                                 </div>
                                 <span className="text-base font-medium text-blue-400">
                                     {rating}
@@ -267,12 +283,15 @@ export default function RankingTab({
                             </div>
 
                         <div className="flex items-center">
-                            <button
-                                onClick={() => openRatingModal(index)}
-                                className="px-2 py-1 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 mr-2"
-                            >
-                                Rate
-                            </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation(); // Add this line
+                                        openRatingModal(index);
+                                    }}
+                                    className="px-2 py-1 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 mr-2"
+                                >
+                                    Rate
+                                </button>
 
                             <div className={`flex items-center px-2 py-0.5 rounded-md text-xs ${userSubmission
                                 ? "bg-green-900 bg-opacity-30 text-green-400"
@@ -297,31 +316,37 @@ export default function RankingTab({
 
                             {isAdmin && (
                                 <div className="flex space-x-1 ml-auto">
-                                    <StyledButton
-                                        onClick={() => {
-                                            const playerToEdit = {
-                                                name: player.name,
-                                                scoring: player.scoring || 5,
-                                                defense: player.defense || 5,
-                                                rebounding: player.rebounding || 5,
-                                                playmaking: player.playmaking || 5,
-                                                stamina: player.stamina || 5,
-                                                physicality: player.physicality || 5,
-                                                xfactor: player.xfactor || 5,
-                                                active: player.active !== undefined ? player.active : true
-                                            };
-                                            openEditModal(playerToEdit, true);
-                                        }}
-                                        className="px-2 py-1 text-xs bg-yellow-600 hover:bg-yellow-700"
-                                    >
-                                        Edit
-                                    </StyledButton>
-                                    <StyledButton
-                                        onClick={() => handleDeletePlayer(player.name)}
-                                        className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700"
-                                    >
-                                        Delete
-                                    </StyledButton>
+                                        <StyledButton
+                                            onClick={(e) => {
+                                                e.stopPropagation(); // Add this line
+                                                const playerToEdit = {
+                                                    name: player.name,
+                                                    scoring: player.scoring || 5,
+                                                    defense: player.defense || 5,
+                                                    rebounding: player.rebounding || 5,
+                                                    playmaking: player.playmaking || 5,
+                                                    stamina: player.stamina || 5,
+                                                    physicality: player.physicality || 5,
+                                                    xfactor: player.xfactor || 5,
+                                                    active: player.active !== undefined ? player.active : true
+                                                };
+                                                openEditModal(playerToEdit, true);
+                                            }}
+                                            className="px-2 py-1 text-xs bg-yellow-600 hover:bg-yellow-700"
+                                        >
+                                            Edit
+                                        </StyledButton>
+                                        <StyledButton
+                                            onClick={(e) => {
+                                                e.stopPropagation(); // Add this line
+                                                if (confirm(`Are you sure you want to delete ${player.name}? This will permanently remove all player data including ratings, match history, and statistics. This action cannot be undone.`)) {
+                                                    handleDeletePlayer(player.name);
+                                                }
+                                            }}
+                                            className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700"
+                                        >
+                                            Delete
+                                        </StyledButton>
                                 </div>
                             )}
                         </div>

@@ -4,6 +4,9 @@ import { StyledButton } from "./UIComponents";
 import { useEffect, useState, useRef } from "react";
 import { StyledSelect } from "./UIComponents";
 import PlayerBeltIcons from "./PlayerBeltIcons";
+import PlayerBadges from "./PlayerBadges";
+import { badgeCategories } from "./badgeSystem.jsx";
+
 export default function TeamsTab({
     players = [],
     teams = [],
@@ -30,6 +33,8 @@ export default function TeamsTab({
     playerOVRs = {},
     calculatePlayerScore,
     currentBelts = {},
+    leaderboard = {},
+    matchHistory = [],
 
 }) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -772,7 +777,14 @@ export default function TeamsTab({
                                                 className="bg-gray-800 text-gray-100 px-3 py-1 rounded-md text-xs font-medium border border-gray-600 flex items-center"
                                             >
                                                 <span>{p.name}</span>
-                                                <PlayerBeltIcons playerName={p.name} currentBelts={currentBelts} size="small" />
+                                                <PlayerBeltIcons playerName={p.name} currentBelts={currentBelts} size="xs" />
+                                                <PlayerBadges
+                                                    playerName={p.name}
+                                                    leaderboard={leaderboard}
+                                                    matchHistory={matchHistory}
+                                                    size="xs"
+                                                    maxDisplay={1}
+                                                />
                                             </div>
                                         ))}
                                     </div>
@@ -788,7 +800,14 @@ export default function TeamsTab({
                                                         className="bg-gray-800 text-yellow-500 px-3 py-1 rounded-md text-xs font-sm border border-gray-600 flex items-center"
                                                     >
                                                         <span>{p.name}</span>
-                                                        <PlayerBeltIcons playerName={p.name} currentBelts={currentBelts} size="small" />
+                                                        <PlayerBeltIcons playerName={p.name} currentBelts={currentBelts} size="xs" />
+                                                        <PlayerBadges
+                                                            playerName={p.name}
+                                                            leaderboard={leaderboard}
+                                                            matchHistory={matchHistory}
+                                                            size="xs"
+                                                            maxDisplay={1}
+                                                        />
                                                     </div>
                                                 ))}
                                             </div>
@@ -1104,7 +1123,14 @@ export default function TeamsTab({
                                     <div className="flex justify-between items-center">
                                         <div className="flex items-center text-sm text-white">
                                             <span>{player.name}</span>
-                                            <PlayerBeltIcons playerName={player.name} currentBelts={currentBelts} size="small" />
+                                            <PlayerBeltIcons playerName={player.name} currentBelts={currentBelts} size="xs" />
+                                            <PlayerBadges
+                                                playerName={player.name}
+                                                leaderboard={leaderboard}
+                                                matchHistory={matchHistory}
+                                                size="xs"
+                                                maxDisplay={1}
+                                            />
                                         </div>
                                         <div className="text-sm font-medium text-blue-400">
                                             {ovrRating.toFixed(1)}

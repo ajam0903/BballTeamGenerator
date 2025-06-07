@@ -221,35 +221,7 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
         const last10Wins = recentForm.filter(game => game.won).length;
         const last10Losses = recentForm.length - last10Wins;
 
-        const totalWins = stats._w || 0;
-        const totalLosses = stats._l || 0;
-        const totalGames = totalWins + totalLosses;
-
-        // For "All" filter, we need to be more careful since leaderboard might have more games than matchHistory
-        let displayWins, displayLosses;
-
-        if (gameTypeFilter === "all") {
-            // When showing "All", if matchHistory has fewer games than leaderboard totals,
-            // it means some games aren't in matchHistory. In this case, show the actual totals.
-            const matchHistoryGamesForPlayer = recentForm.length;
-
-            if (matchHistoryGamesForPlayer < totalGames) {
-                // matchHistory is incomplete, so show total record instead of "last 10"
-                displayWins = totalWins;
-                displayLosses = totalLosses;
-            } else {
-                // matchHistory is complete, show actual last 10
-                displayWins = Math.min(last10Wins, totalWins);
-                displayLosses = Math.min(last10Losses, totalLosses);
-            }
-        } else {
-            // For specific game type filters, the stats are calculated from matchHistory,
-            // so Last 10 should be consistent
-            displayWins = Math.min(last10Wins, totalWins);
-            displayLosses = Math.min(last10Losses, totalLosses);
-        }
-
-        const last10Record = totalGames > 0 ? `${displayWins}-${displayLosses}` : "0-0";
+        const last10Record = (last10Wins + last10Losses) > 0 ? `${last10Wins}-${last10Losses}` : "0-0";
 
         return {
             name,

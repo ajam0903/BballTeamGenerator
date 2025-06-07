@@ -1,0 +1,289 @@
+﻿
+export const badgeCategories = {
+    gamesPlayed: {
+        name: "Vet",
+        description: "Total Games Played",
+        tiers: {
+            bronze: {
+                threshold: 50,
+                name: "Up-and-Comer",
+                color: "text-amber-600",
+                bgGradient: "from-amber-900 to-amber-700",
+                borderColor: "border-amber-600",
+                glowColor: "shadow-amber-500/50"
+            },
+            silver: {
+                threshold: 100,
+                name: "Seasoned Vet",
+                color: "text-slate-300",
+                bgGradient: "from-slate-700 to-slate-500",
+                borderColor: "border-slate-400",
+                glowColor: "shadow-slate-400/50"
+            },
+            gold: {
+                threshold: 200,
+                name: "Gold Legend",
+                color: "text-yellow-300",
+                bgGradient: "from-yellow-700 to-yellow-500",
+                borderColor: "border-yellow-400",
+                glowColor: "shadow-yellow-400/50"
+            },
+            amethyst: {
+                threshold: 500,
+                name: "Court Master",
+                color: "text-purple-300",
+                bgGradient: "from-purple-800 to-purple-600",
+                borderColor: "border-purple-400",
+                glowColor: "shadow-purple-400/50"
+            }
+        }
+    },
+    wins: {
+        name: "Winner",
+        description: "Total games won",
+        tiers: {
+            bronze: {
+                threshold: 25,
+                name: "Rising Star",
+                color: "text-amber-600",
+                bgGradient: "from-amber-900 to-amber-700",
+                borderColor: "border-amber-600",
+                glowColor: "shadow-amber-500/50"
+            },
+            silver: {
+                threshold: 50,
+                name: "Champion",
+                color: "text-slate-300",
+                bgGradient: "from-slate-700 to-slate-500",
+                borderColor: "border-slate-400",
+                glowColor: "shadow-slate-400/50"
+            },
+            gold: {
+                threshold: 100,
+                name: "Elite Winner",
+                color: "text-yellow-300",
+                bgGradient: "from-yellow-700 to-yellow-500",
+                borderColor: "border-yellow-400",
+                glowColor: "shadow-yellow-400/50"
+            },
+            amethyst: {
+                threshold: 250,
+                name: "Victory Lord",
+                color: "text-purple-300",
+                bgGradient: "from-purple-800 to-purple-600",
+                borderColor: "border-purple-400",
+                glowColor: "shadow-purple-400/50"
+            }
+        }
+    },
+    mvps: {
+        name: "MVP",
+        description: "Most Valuable Player awards",
+        tiers: {
+            bronze: {
+                threshold: 10,
+                name: "Clutch Player",
+                color: "text-amber-600",
+                bgGradient: "from-amber-900 to-amber-700",
+                borderColor: "border-amber-600",
+                glowColor: "shadow-amber-500/50"
+            },
+            silver: {
+                threshold: 25,
+                name: "Team Carry",
+                color: "text-slate-300",
+                bgGradient: "from-slate-700 to-slate-500",
+                borderColor: "border-slate-400",
+                glowColor: "shadow-slate-400/50"
+            },
+            gold: {
+                threshold: 50,
+                name: "MVP Elite",
+                color: "text-yellow-300",
+                bgGradient: "from-yellow-700 to-yellow-500",
+                borderColor: "border-yellow-400",
+                glowColor: "shadow-yellow-400/50"
+            },
+            amethyst: {
+                threshold: 100,
+                name: "GOAT",
+                color: "text-purple-300",
+                bgGradient: "from-purple-800 to-purple-600",
+                borderColor: "border-purple-400",
+                glowColor: "shadow-purple-400/50"
+            }
+        }
+    },
+    winStreaks: {
+        name: "Win Streak",
+        description: "Longest consecutive wins",
+        tiers: {
+            bronze: {
+                threshold: 5,
+                name: "Hot Streak",
+                color: "text-amber-600",
+                bgGradient: "from-amber-900 to-amber-700",
+                borderColor: "border-amber-600",
+                glowColor: "shadow-amber-500/50"
+            },
+            silver: {
+                threshold: 10,
+                name: "On Fire",
+                color: "text-slate-300",
+                bgGradient: "from-slate-700 to-slate-500",
+                borderColor: "border-slate-400",
+                glowColor: "shadow-slate-400/50"
+            },
+            gold: {
+                threshold: 15,
+                name: "Unstoppable",
+                color: "text-yellow-300",
+                bgGradient: "from-yellow-700 to-yellow-500",
+                borderColor: "border-yellow-400",
+                glowColor: "shadow-yellow-400/50"
+            },
+            amethyst: {
+                threshold: 25,
+                name: "Dominator",
+                color: "text-purple-300",
+                bgGradient: "from-purple-800 to-purple-600",
+                borderColor: "border-purple-400",
+                glowColor: "shadow-purple-400/50"
+            }
+        }
+    }
+};
+
+// Calculate player statistics for badges
+export const calculatePlayerStats = (playerName, leaderboard = {}, matchHistory = []) => {
+    const playerStats = leaderboard[playerName] || { _w: 0, _l: 0, MVPs: 0 };
+
+    const stats = {
+        gamesPlayed: (playerStats._w || 0) + (playerStats._l || 0),
+        wins: playerStats._w || 0,
+        mvps: playerStats.MVPs || 0,
+        winStreaks: 0
+    };
+
+    // Calculate win streaks from match history
+    if (matchHistory && matchHistory.length > 0) {
+        stats.winStreaks = calculateLongestWinStreak(playerName, matchHistory);
+    }
+
+    return stats;
+};
+
+// Calculate longest win streak for a player
+export const calculateLongestWinStreak = (playerName, matchHistory) => {
+    if (!matchHistory || matchHistory.length === 0) return 0;
+
+    // Sort matches by date (most recent first)
+    const sortedMatches = [...matchHistory].sort((a, b) =>
+        new Date(b.date) - new Date(a.date)
+    );
+
+    let longestStreak = 0;
+    let currentStreak = 0;
+
+    for (const match of sortedMatches) {
+        let teamA = [];
+        let teamB = [];
+        let scoreA = 0;
+        let scoreB = 0;
+
+        // Handle different match formats
+        if (Array.isArray(match.teams) && match.teams.length >= 2) {
+            teamA = match.teams[0].map(p => p.name);
+            teamB = match.teams[1].map(p => p.name);
+        } else if (match.teamA && match.teamB) {
+            teamA = match.teamA.map(p => p.name);
+            teamB = match.teamB.map(p => p.name);
+        }
+
+        if (match.score) {
+            scoreA = parseInt(match.score.a) || 0;
+            scoreB = parseInt(match.score.b) || 0;
+        }
+
+        // Check if player participated and won
+        const playerInTeamA = teamA.includes(playerName);
+        const playerInTeamB = teamB.includes(playerName);
+
+        if (playerInTeamA || playerInTeamB) {
+            const playerWon = (playerInTeamA && scoreA > scoreB) ||
+                (playerInTeamB && scoreB > scoreA);
+
+            if (playerWon) {
+                currentStreak++;
+                longestStreak = Math.max(longestStreak, currentStreak);
+            } else {
+                currentStreak = 0;
+            }
+        }
+    }
+
+    return longestStreak;
+};
+
+// Get earned badges for a player
+export const getPlayerBadges = (playerName, leaderboard = {}, matchHistory = []) => {
+    const stats = calculatePlayerStats(playerName, leaderboard, matchHistory);
+    const earnedBadges = {};
+
+    Object.entries(badgeCategories).forEach(([categoryId, category]) => {
+        const playerValue = stats[categoryId] || 0;
+        let highestTier = null;
+
+        // Find the highest tier achieved
+        Object.entries(category.tiers).forEach(([tierId, tier]) => {
+            if (playerValue >= tier.threshold) {
+                highestTier = { ...tier, tierId };
+            }
+        });
+
+        if (highestTier) {
+            earnedBadges[categoryId] = {
+                ...highestTier,
+                categoryName: category.name,
+                currentValue: playerValue
+            };
+        }
+    });
+
+    return earnedBadges;
+};
+
+// Get progress towards next badge tier
+export const getBadgeProgress = (playerName, leaderboard = {}, matchHistory = []) => {
+    const stats = calculatePlayerStats(playerName, leaderboard, matchHistory);
+    const progress = {};
+
+    Object.entries(badgeCategories).forEach(([categoryId, category]) => {
+        const playerValue = stats[categoryId] || 0;
+        const tiers = Object.entries(category.tiers);
+
+        // Find next tier to achieve
+        let nextTier = null;
+        let currentTier = null;
+
+        for (const [tierId, tier] of tiers) {
+            if (playerValue >= tier.threshold) {
+                currentTier = { ...tier, tierId };
+            } else if (!nextTier) {
+                nextTier = { ...tier, tierId };
+                break;
+            }
+        }
+
+        progress[categoryId] = {
+            categoryName: category.name,
+            currentValue: playerValue,
+            currentTier,
+            nextTier,
+            progressPercent: nextTier ?
+                Math.min((playerValue / nextTier.threshold) * 100, 100) : 100
+        };
+    });
+
+    return progress;
+};
