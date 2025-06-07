@@ -32,7 +32,7 @@ import { ensureSchemaExists } from "./utils/schemaMigration";
 import BeltsTab from "./components/BeltsTab";
 import PlayerBeltIcons from "./components/PlayerBeltIcons";
 import { calculateBeltStandings, beltCategories } from "./components/BeltsSystem";
-import AwardsTab from "./components/AwardsTab.jsx";
+import AwardsTab from "./components/AwardsTab";
 import PlayerDetailModal from "./components/PlayerDetailModal";
 import PlayerBadges from "./components/PlayerBadges";
 
