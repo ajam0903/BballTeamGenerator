@@ -221,7 +221,18 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
         const last10Wins = recentForm.filter(game => game.won).length;
         const last10Losses = recentForm.length - last10Wins;
 
-        const last10Record = (last10Wins + last10Losses) > 0 ? `${last10Wins}-${last10Losses}` : "0-0";
+        // If match history is incomplete compared to leaderboard, show total record
+        const totalGamesFromLeaderboard = (stats._w || 0) + (stats._l || 0);
+        const totalGamesFromHistory = recentForm.length;
+
+        let last10Record;
+        if (totalGamesFromHistory < totalGamesFromLeaderboard && totalGamesFromLeaderboard <= 10) {
+            // Show total record if we have incomplete match history but ≤10 total games
+            last10Record = `${stats._w || 0}-${stats._l || 0}`;
+        } else {
+            // Show last 10 from match history
+            last10Record = (last10Wins + last10Losses) > 0 ? `${last10Wins}-${last10Losses}` : "0-0";
+        }
 
         return {
             name,
@@ -747,21 +758,6 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                     </div>
                 </div>
             )}
-
-            <div className="mt-6 p-4 bg-gray-800 rounded text-sm text-gray-300">
-                <h3 className="font-bold text-white mb-2">OVR Rating Explanation</h3>
-                <p>The Overall Rating (OVR) is the weighted average of player attributes (1-10 scale):</p>
-                <ul className="list-disc ml-6 mt-2 space-y-1">
-                    <li>Scoring: 25%</li>
-                    <li>Defense: 20%</li>
-                    <li>Rebounding: 15%</li>
-                    <li>Playmaking: 15%</li>
-                    <li>Stamina: 10%</li>
-                    <li>Physicality: 10%</li>
-                    <li>X-Factor: 5%</li>
-                </ul>
-                <p className="mt-2">Performance trend (+/-) reflects improvement or decline in recent games.</p>
-            </div>
         </div>
     );
 }

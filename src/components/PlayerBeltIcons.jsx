@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { beltCategories } from "./BeltsSystem";
 
-export default function PlayerBeltIcons({ playerName, currentBelts = {}, size = "normal" }) {
+export default React.memo(function PlayerBeltIcons({ playerName, currentBelts, size }) {
     const [showTooltip, setShowTooltip] = useState(null);
 
     // Find all belts this player holds
@@ -84,4 +84,8 @@ export default function PlayerBeltIcons({ playerName, currentBelts = {}, size = 
             ))}
         </div>
     );
-}
+}, (prevProps, nextProps) => {
+    return prevProps.playerName === nextProps.playerName &&
+        prevProps.size === nextProps.size &&
+        JSON.stringify(prevProps.currentBelts) === JSON.stringify(nextProps.currentBelts);
+});
