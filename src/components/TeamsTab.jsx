@@ -1,7 +1,5 @@
-﻿// /src/components/TeamsTab.jsx
-import React from "react";
+﻿import React, { useEffect, useState, useRef, useMemo } from "react";
 import { StyledButton } from "./UIComponents";
-import { useEffect, useState, useRef } from "react";
 import { StyledSelect } from "./UIComponents";
 import PlayerBeltIcons from "./PlayerBeltIcons";
 import PlayerBadges from "./PlayerBadges";
@@ -290,36 +288,41 @@ export default function TeamsTab({
         return rating;
     };
 
-    // Update the sorting logic
-    const sortedPlayers = [...players].sort((a, b) => {
-        if (a.active !== b.active) {
-            return a.active ? -1 : 1;
-        }
+    const memoizedTeamStrength = useMemo(() => {
+        return teams.map(team => calculateTeamStrength(team));
+    }, [teams, calculatePlayerScore]);
 
-        let aValue, bValue;
+    const sortedPlayers = useMemo(() => {
+        return [...players].sort((a, b) => {
+            if (a.active !== b.active) {
+                return a.active ? -1 : 1;
+            }
 
-        switch (playerSortBy) {
-            case "name":
-                aValue = a.name.toLowerCase();
-                bValue = b.name.toLowerCase();
-                break;
-            case "ovr":
-                aValue = playerOVRs[a.name] || computeRating1to10(a);
-                bValue = playerOVRs[b.name] || computeRating1to10(b);
-                break;
-            default:
-                aValue = a.name.toLowerCase();
-                bValue = b.name.toLowerCase();
-        }
+            let aValue, bValue;
 
-        if (typeof aValue === 'string') {
-            return playerSortDirection === "asc"
-                ? aValue.localeCompare(bValue)
-                : bValue.localeCompare(aValue);
-        }
+            switch (playerSortBy) {
+                case "name":
+                    aValue = a.name.toLowerCase();
+                    bValue = b.name.toLowerCase();
+                    break;
+                case "ovr":
+                    aValue = playerOVRs[a.name] || computeRating1to10(a);
+                    bValue = playerOVRs[b.name] || computeRating1to10(b);
+                    break;
+                default:
+                    aValue = a.name.toLowerCase();
+                    bValue = b.name.toLowerCase();
+            }
 
-        return playerSortDirection === "asc" ? aValue - bValue : bValue - aValue;
-    });
+            if (typeof aValue === 'string') {
+                return playerSortDirection === "asc"
+                    ? aValue.localeCompare(bValue)
+                    : bValue.localeCompare(aValue);
+            }
+
+            return playerSortDirection === "asc" ? aValue - bValue : bValue - aValue;
+        });
+    }, [players, playerSortBy, playerSortDirection, playerOVRs]);
     
     // Count active players
     const activePlayerCount = players.filter(player => player.active).length;

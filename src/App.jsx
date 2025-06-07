@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
     getFirestore,
     collection,
@@ -826,11 +826,26 @@ export default function App() {
         return parseFloat(Math.min(Math.max(finalRating, 1), 10).toFixed(1));
     };
 
-    // Create a playerOVRs object to pass to components
-    const playerOVRs = {};
-    players.forEach(player => {
-        playerOVRs[player.name] = calculatePlayerOVR(player.name);
-    });
+    const playerOVRs = useMemo(() => {
+        const ovrs = {};
+        players.forEach(player => {
+            ovrs[player.name] = calculatePlayerOVR(player.name);
+        });
+        return ovrs;
+    }, [players, leaderboard, weightings]);
+
+    // Memoize computeRating function
+    const computeRating = useCallback((player) => {
+        return (
+            player.scoring * weightings.scoring +
+            player.defense * weightings.defense +
+            player.rebounding * weightings.rebounding +
+            player.playmaking * weightings.playmaking +
+            player.stamina * weightings.stamina +
+            player.physicality * weightings.physicality +
+            player.xfactor * weightings.xfactor
+        );
+    }, [weightings]);
 
     const handleCloseMatchResultsModal = () => {
         setShowMatchResultsModal(false);
