@@ -12,7 +12,7 @@ import { PlusCircleIcon } from "@heroicons/react/24/solid";
 import { ratingHelp } from "./ratingHelp";
 import PlayerBeltIcons from "./PlayerBeltIcons";
 import { badgeCategories } from "./badgeSystem.jsx";
-import PlayerBadges from "./PlayerBadges";
+import PlayerBadges from "./playerBadges";
 
 export default function RankingTab({
     players,
