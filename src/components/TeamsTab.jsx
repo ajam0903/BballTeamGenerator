@@ -2,7 +2,7 @@
 import { StyledButton } from "./UIComponents";
 import { StyledSelect } from "./UIComponents";
 import PlayerBeltIcons from "./PlayerBeltIcons";
-import PlayerBadges from "./PlayerBadges";
+import PlayerBadges from "./playerBadges";
 import { badgeCategories } from "./badgeSystem.jsx";
 
 export default function TeamsTab({
