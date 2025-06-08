@@ -1120,25 +1120,21 @@ export default function App() {
             const updatedPlayerData = updatedPlayers.find(p => p.name === newRating.name);
             let newRatingValue = null;
 
-            if (updatedPlayerData) {
-                // Use default values of 5 for any missing attributes
-                const scoring = updatedPlayerData.scoring || 5;
-                const defense = updatedPlayerData.defense || 5;
-                const rebounding = updatedPlayerData.rebounding || 5;
-                const playmaking = updatedPlayerData.playmaking || 5;
-                const stamina = updatedPlayerData.stamina || 5;
-                const physicality = updatedPlayerData.physicality || 5;
-                const xfactor = updatedPlayerData.xfactor || 5;
-
-                newRatingValue = (
-                    scoring * weightings.scoring +
-                    defense * weightings.defense +
-                    rebounding * weightings.rebounding +
-                    playmaking * weightings.playmaking +
-                    stamina * weightings.stamina +
-                    physicality * weightings.physicality +
-                    xfactor * weightings.xfactor
-                ).toFixed(2);
+            if (updatedPlayerData && updatedPlayerData.submissions) {
+                const total = updatedPlayerData.submissions.reduce((sum, sub) => {
+                    const { name, submittedBy, ...scores } = sub;
+                    const weightedAvg = (
+                        (scores.scoring || 5) * weightings.scoring +
+                        (scores.defense || 5) * weightings.defense +
+                        (scores.rebounding || 5) * weightings.rebounding +
+                        (scores.playmaking || 5) * weightings.playmaking +
+                        (scores.stamina || 5) * weightings.stamina +
+                        (scores.physicality || 5) * weightings.physicality +
+                        (scores.xfactor || 5) * weightings.xfactor
+                    );
+                    return sum + weightedAvg;
+                }, 0);
+                newRatingValue = (total / updatedPlayerData.submissions.length).toFixed(2);
             }
 
             // ONLY SET ONE TOAST MESSAGE - with rating change info if available
