@@ -288,6 +288,18 @@ export default function TeamsTab({
         return rating;
     };
 
+    // Calculate team strength based on player ratings
+    const calculateTeamStrength = (team) => {
+        if (!team || team.length === 0) return 0;
+
+        const totalRating = team.reduce((sum, player) => {
+            return sum + computeRating1to10(player);
+        }, 0);
+
+        // Average rating per player (to account for teams with different sizes)
+        return totalRating / team.length;
+    };
+
     const memoizedTeamStrength = useMemo(() => {
         return teams.map(team => calculateTeamStrength(team));
     }, [teams, calculatePlayerScore]);
@@ -336,17 +348,7 @@ export default function TeamsTab({
         return (rating / 10) * 100;
     };
 
-    // Calculate team strength based on player ratings
-    const calculateTeamStrength = (team) => {
-        if (!team || team.length === 0) return 0;
 
-        const totalRating = team.reduce((sum, player) => {
-            return sum + computeRating1to10(player);
-        }, 0);
-
-        // Average rating per player (to account for teams with different sizes)
-        return totalRating / team.length;
-    };
 
     // Handle clicks outside the dropdown to close it
     useEffect(() => {
