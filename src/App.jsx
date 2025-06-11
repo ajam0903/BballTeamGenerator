@@ -1620,6 +1620,14 @@ export default function App() {
     }, [currentLeagueId, currentSet]);
 
     useEffect(() => {
+        // Check for last used league on app startup
+        const lastUsedLeagueId = localStorage.getItem("lastUsedLeagueId");
+        if (lastUsedLeagueId && !currentLeagueId) {
+            setCurrentLeagueId(lastUsedLeagueId);
+        }
+    }, []);
+
+    useEffect(() => {
         // Add the styles to the document
         const styleElement = document.createElement('style');
         styleElement.innerHTML = scrollbarHideStyles;
@@ -2103,7 +2111,6 @@ export default function App() {
             updatedScores[matchIndex] = {
                 ...updatedScores[matchIndex],
                 processed: true,
-                // Add team size information
                 teamSize: teamSize
             };
 
@@ -2118,20 +2125,20 @@ export default function App() {
                 setHasPendingMatchups(false);
             }
 
-            // Update Firestore with the updated scores FIRST
+            // Update Firestore with the updated scores ONLY (don't add to matchHistory yet)
             const firestoreData = prepareDataForFirestore({
                 ...data,
                 mvpVotes: mvpVotes,
                 scores: updatedScores
+                // Remove matchHistory update from here
             });
 
             await firestoreSetDoc(docRef, firestoreData);
 
-            // Calculate leaderboard updates from this match only AFTER saving the processed flag
+            // Calculate leaderboard updates from this match only AFTER saving
             await calculateMatchLeaderboard(matchIndex);
 
-
-            // Check if this is the last match in the current series
+            // Check for rematch prompt logic...
             const currentMatchupTeams = JSON.stringify(matchups[matchIndex].map(team => team.map(p => p.name).sort()));
             const allMatchesForTheseTeams = matchups
                 .map((matchup, idx) => ({
@@ -2140,16 +2147,15 @@ export default function App() {
                 }))
                 .filter(m => m.teams === currentMatchupTeams);
 
-            // USE updatedScores INSTEAD OF scores state
             const allMatchesCompleted = allMatchesForTheseTeams.every(m =>
                 updatedScores[m.index]?.processed
             );
 
             if (allMatchesCompleted) {
                 setShowRematchPrompt(true);
-            } else {
-                setTimeout(() => setToastMessage(""), 3000);
             }
+
+            // Log the activity
             await logActivity(
                 db,
                 currentLeagueId,
@@ -2160,10 +2166,8 @@ export default function App() {
                     scoreB: scores[matchIndex].b,
                     mvp: mvpVotes[matchIndex] || "",
                     teamSize: teamSize,
-                    // Include full player lists for both teams
                     teamA: matchups[matchIndex][0].map(player => player.name),
                     teamB: matchups[matchIndex][1].map(player => player.name),
-                    // Flatten the teams structure to avoid nested arrays
                     teamsFlat: {
                         team0: matchups[matchIndex][0].map(player => player.name),
                         team1: matchups[matchIndex][1].map(player => player.name)
@@ -2173,6 +2177,9 @@ export default function App() {
                 user,
                 true
             );
+
+            setToastMessage("✅ Match result saved!");
+            setTimeout(() => setToastMessage(""), 3000);
         }
     };
 
@@ -2435,6 +2442,7 @@ export default function App() {
                             user={user}
                             updatePlayers={setPlayers}
                             setToastMessage={setToastMessage}
+                            updateMatchHistory={setMatchHistory}
                         />
                     )}
                 </div>

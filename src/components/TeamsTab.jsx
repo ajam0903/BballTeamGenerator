@@ -1134,7 +1134,7 @@ export default function TeamsTab({
                                                 leaderboard={leaderboard}
                                                 matchHistory={matchHistory}
                                                 size="xs"
-                                                maxDisplay={1}
+                                                maxDisplay={10}
                                             />
                                         </div>
                                         <div className="text-sm font-medium text-blue-400">

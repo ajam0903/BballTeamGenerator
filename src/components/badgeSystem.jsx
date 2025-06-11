@@ -1,5 +1,4 @@
-﻿
-export const badgeCategories = {
+﻿export const badgeCategories = {
     gamesPlayed: {
         name: "Vet",
         description: "Total Games Played",
@@ -177,12 +176,11 @@ export const calculatePlayerStats = (playerName, leaderboard = {}, matchHistory 
 export const calculateLongestWinStreak = (playerName, matchHistory) => {
     if (!matchHistory || matchHistory.length === 0) return 0;
 
-    // Sort matches by date (most recent first)
+    // Sort matches by date (newest to oldest for current streak calculation)
     const sortedMatches = [...matchHistory].sort((a, b) =>
         new Date(b.date) - new Date(a.date)
     );
 
-    let longestStreak = 0;
     let currentStreak = 0;
 
     for (const match of sortedMatches) {
@@ -191,13 +189,25 @@ export const calculateLongestWinStreak = (playerName, matchHistory) => {
         let scoreA = 0;
         let scoreB = 0;
 
-        // Handle different match formats
+        // Handle different match formats and normalize player names
         if (Array.isArray(match.teams) && match.teams.length >= 2) {
-            teamA = match.teams[0].map(p => p.name);
-            teamB = match.teams[1].map(p => p.name);
+            teamA = match.teams[0].map(p => {
+                const name = typeof p === 'string' ? p : p.name;
+                return name ? name.trim().toLowerCase() : '';
+            });
+            teamB = match.teams[1].map(p => {
+                const name = typeof p === 'string' ? p : p.name;
+                return name ? name.trim().toLowerCase() : '';
+            });
         } else if (match.teamA && match.teamB) {
-            teamA = match.teamA.map(p => p.name);
-            teamB = match.teamB.map(p => p.name);
+            teamA = match.teamA.map(p => {
+                const name = typeof p === 'string' ? p : p.name;
+                return name ? name.trim().toLowerCase() : '';
+            });
+            teamB = match.teamB.map(p => {
+                const name = typeof p === 'string' ? p : p.name;
+                return name ? name.trim().toLowerCase() : '';
+            });
         }
 
         if (match.score) {
@@ -205,9 +215,12 @@ export const calculateLongestWinStreak = (playerName, matchHistory) => {
             scoreB = parseInt(match.score.b) || 0;
         }
 
+        // Normalize the player name we're searching for
+        const normalizedPlayerName = playerName ? playerName.trim().toLowerCase() : '';
+
         // Check if player participated and won
-        const playerInTeamA = teamA.includes(playerName);
-        const playerInTeamB = teamB.includes(playerName);
+        const playerInTeamA = teamA.includes(normalizedPlayerName);
+        const playerInTeamB = teamB.includes(normalizedPlayerName);
 
         if (playerInTeamA || playerInTeamB) {
             const playerWon = (playerInTeamA && scoreA > scoreB) ||
@@ -215,17 +228,19 @@ export const calculateLongestWinStreak = (playerName, matchHistory) => {
 
             if (playerWon) {
                 currentStreak++;
-                longestStreak = Math.max(longestStreak, currentStreak);
             } else {
-                currentStreak = 0;
+                // Player lost - current streak ends (since we're going newest to oldest)
+                break;
             }
+        } else {
+            // Player didn't participate in this match - current streak ends
+            break;
         }
     }
 
-    return longestStreak;
+    return currentStreak;
 };
 
-// Get earned badges for a player
 export const getPlayerBadges = (playerName, leaderboard = {}, matchHistory = []) => {
     const stats = calculatePlayerStats(playerName, leaderboard, matchHistory);
     const earnedBadges = {};

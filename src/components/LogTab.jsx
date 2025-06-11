@@ -9,7 +9,8 @@ export default function LogTab({
     db,
     user,
     updatePlayers,
-    setToastMessage
+    setToastMessage,
+    updateMatchHistory,
 }) {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -21,6 +22,14 @@ export default function LogTab({
     const [logsPerPage] = useState(10);
     const [totalLogs, setTotalLogs] = useState(0);
     const [hasMoreLogs, setHasMoreLogs] = useState(true);
+
+    const arraysEqual = (a, b) => {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
+    };
 
     const fetchLogs = async (page = 1, reset = false) => {
         setLoading(true);
@@ -63,6 +72,7 @@ export default function LogTab({
             setLoading(false);
         }
     };
+
 
     useEffect(() => {
         if (!currentLeagueId) return;
@@ -216,10 +226,80 @@ export default function LogTab({
             updatedLeaderboard[mvp].MVPs = Math.max(0, (updatedLeaderboard[mvp].MVPs || 0) - 1);
         }
 
-        // Save the updated leaderboard
-        await setDoc(docRef, { ...data, leaderboard: updatedLeaderboard });
+        // NEW: Also remove this match from matchHistory
+        let updatedMatchHistory = [...(data.matchHistory || [])];
 
-        console.log("Reversed match result in leaderboard");
+        // Find and remove the matching game from match history
+        // We'll match based on teams, score, and MVP
+        const matchIndex = updatedMatchHistory.findIndex(match => {
+            // Extract team data from history match
+            let historyTeamA = [];
+            let historyTeamB = [];
+
+            if (Array.isArray(match.teams) && match.teams.length >= 2) {
+                historyTeamA = match.teams[0].map(p => typeof p === 'string' ? p : p.name);
+                historyTeamB = match.teams[1].map(p => typeof p === 'string' ? p : p.name);
+            } else if (match.teamA && match.teamB) {
+                historyTeamA = match.teamA.map(p => typeof p === 'string' ? p : p.name);
+                historyTeamB = match.teamB.map(p => typeof p === 'string' ? p : p.name);
+            }
+
+            // Extract log team names
+            const logTeamANames = teamA.map(p => typeof p === 'string' ? p : p);
+            const logTeamBNames = teamB.map(p => typeof p === 'string' ? p : p);
+
+            // Check if teams match (in either order)
+            const teamsMatch = (
+                (arraysEqual(historyTeamA.sort(), logTeamANames.sort()) &&
+                    arraysEqual(historyTeamB.sort(), logTeamBNames.sort())) ||
+                (arraysEqual(historyTeamA.sort(), logTeamBNames.sort()) &&
+                    arraysEqual(historyTeamB.sort(), logTeamANames.sort()))
+            );
+
+            // Check if scores match
+            const scoresMatch = match.score &&
+                parseInt(match.score.a) === scoreA &&
+                parseInt(match.score.b) === scoreB;
+
+            // Check if MVP matches (if provided)
+            const mvpMatches = !mvp || match.mvp === mvp;
+
+            return teamsMatch && scoresMatch && mvpMatches;
+        });
+
+        if (matchIndex !== -1) {
+            updatedMatchHistory.splice(matchIndex, 1);
+            console.log("Removed match from history at index:", matchIndex);
+
+            // NEW: Update local state immediately
+            if (typeof updateMatchHistory === 'function') {
+                // Convert to app format for local state
+                const appFormatHistory = updatedMatchHistory.map(match => {
+                    if (match.teams) {
+                        return match; // Already in app format
+                    }
+                    // Convert from Firestore format
+                    return {
+                        teams: [match.teamA || [], match.teamB || []],
+                        score: match.score,
+                        mvp: match.mvp || "",
+                        date: match.date
+                    };
+                });
+                updateMatchHistory(appFormatHistory);
+            }
+        } else {
+            console.warn("Could not find matching match in history to remove");
+        }
+
+        // Save the updated leaderboard AND match history
+        await setDoc(docRef, {
+            ...data,
+            leaderboard: updatedLeaderboard,
+            matchHistory: updatedMatchHistory
+        });
+
+        console.log("Reversed match result in leaderboard and removed from match history");
     };
 
     const reversePlayerRating = async (logData) => {
