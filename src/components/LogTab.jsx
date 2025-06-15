@@ -370,7 +370,7 @@ export default function LogTab({
 
         if (matchIndex !== -1) {
             updatedMatchHistory.splice(matchIndex, 1);
-            console.log("Removed match from history at index:", matchIndex);
+            log("Removed match from history at index:", matchIndex);
 
             // NEW: Update local state immediately
             if (typeof updateMatchHistory === 'function') {
@@ -400,7 +400,7 @@ export default function LogTab({
             matchHistory: updatedMatchHistory
         });
 
-        console.log("Reversed match result in leaderboard and removed from match history");
+        log("Reversed match result in leaderboard and removed from match history");
     };
 
     const reversePlayerRating = async (logData) => {
@@ -506,13 +506,13 @@ export default function LogTab({
             updatePlayers(updatedPlayers);
         }
 
-        console.log(`Rating submission for ${playerName} by user ${logData.userId} was reversed`);
+        log(`Rating submission for ${playerName} by user ${logData.userId} was reversed`);
     };
 
     const deletePlayer = async (playerName) => {
         if (!playerName) return;
 
-        console.log("Deleting player:", playerName);
+        log("Deleting player:", playerName);
 
         const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
         const docSnap = await getDoc(docRef);
@@ -530,7 +530,7 @@ export default function LogTab({
         );
 
         if (playerIndex === -1) {
-            console.log("Player not found:", playerName);
+            log("Player not found:", playerName);
             return;
         }
 
@@ -560,7 +560,7 @@ export default function LogTab({
             updatePlayers(updatedPlayers);
         }
 
-        console.log(`Player ${playerName} was deleted as a result of log deletion`);
+        log(`Player ${playerName} was deleted as a result of log deletion`);
     };
 
     const formatTimestamp = (timestamp) => {
