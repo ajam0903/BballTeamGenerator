@@ -33,6 +33,7 @@ export default function TeamsTab({
     currentBelts = {},
     leaderboard = {},
     matchHistory = [],
+    onPlayerClick,
 
 }) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -1093,7 +1094,8 @@ export default function TeamsTab({
                         return (
                             <div
                                 key={player.name}
-                                className="flex items-center border-b border-gray-800 py-2"
+                                className="flex items-center border-b border-gray-800 py-2 cursor-pointer hover:bg-gray-700 transition-colors"
+                                onClick={() => onPlayerClick && onPlayerClick(player)} // Add this onClick
                             >
                                 {/* Active checkbox */}
                                 <div className="w-8 flex-shrink-0">

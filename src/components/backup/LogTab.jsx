@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from "react";
-import { collection, doc, getDoc, setDoc, query, orderBy, limit, getDocs, deleteDoc, where } from "firebase/firestore";
+import { collection, doc, getDoc, setDoc, query, orderBy, limit, getDocs, deleteDoc } from "firebase/firestore";
 import { StyledButton } from "./UIComponents";
 
 export default function LogTab({
@@ -35,139 +35,37 @@ export default function LogTab({
         setLoading(true);
         try {
             const logsRef = collection(db, "leagues", currentLeagueId, "logs");
+            const q = query(
+                logsRef,
+                orderBy("timestamp", "desc"),
+                limit(logsPerPage * page)
+            );
+            const querySnapshot = await getDocs(q);
 
-            // Build query constraints based on current filter
-            let queryConstraints = [orderBy("timestamp", "desc")];
-
-            // Add filter constraints for specific filters (these work well with Firestore)
-            if (filter === "players") {
-                const playerActions = ["player_added", "player_updated", "player_deleted", "player_rating_changed", "player_rating_updated", "player_rating_added"];
-                queryConstraints.push(where("action", "in", playerActions));
-                queryConstraints.push(limit(logsPerPage * page));
-
-                const q = query(logsRef, ...queryConstraints);
-                const querySnapshot = await getDocs(q);
-
-                const logsData = [];
-                querySnapshot.forEach((doc) => {
-                    const logData = { id: doc.id, ...doc.data() };
-                    // Additional filter to exclude rating changes that came from match results
-                    if (!logData.details?.fromMatch) { // Assuming you have a way to identify match-related ratings
-                        logsData.push(logData);
-                    }
+            const logsData = [];
+            querySnapshot.forEach((doc) => {
+                logsData.push({
+                    id: doc.id,
+                    ...doc.data()
                 });
+            });
 
-                // Check for more logs
-                const checkMoreQuery = query(logsRef, ...queryConstraints.slice(0, -1), limit(logsPerPage * page + 1));
-                const checkMoreSnapshot = await getDocs(checkMoreQuery);
-                setHasMoreLogs(checkMoreSnapshot.docs.length > logsData.length);
-
-                setLogs(logsData);
-                setTotalLogs(logsData.length);
-
-            } else if (filter === "matches") {
-                queryConstraints.push(where("action", "==", "match_result_saved"));
-                queryConstraints.push(limit(logsPerPage * page));
-
-                const q = query(logsRef, ...queryConstraints);
-                const querySnapshot = await getDocs(q);
-
-                const logsData = [];
-                querySnapshot.forEach((doc) => {
-                    logsData.push({ id: doc.id, ...doc.data() });
-                });
-
-                // Check for more logs
-                const checkMoreQuery = query(logsRef, ...queryConstraints.slice(0, -1), limit(logsPerPage * page + 1));
-                const checkMoreSnapshot = await getDocs(checkMoreQuery);
-                setHasMoreLogs(checkMoreSnapshot.docs.length > logsData.length);
-
-                setLogs(logsData);
-                setTotalLogs(logsData.length);
-
-            } else if (filter === "admin") {
-                const adminActions = ["leaderboard_reset", "log_deleted", "schema_initialized", "user_joined_league"];
-                queryConstraints.push(where("action", "in", adminActions));
-                queryConstraints.push(limit(logsPerPage * page));
-
-                const q = query(logsRef, ...queryConstraints);
-                const querySnapshot = await getDocs(q);
-
-                const logsData = [];
-                querySnapshot.forEach((doc) => {
-                    logsData.push({ id: doc.id, ...doc.data() });
-                });
-
-                // Check for more logs
-                const checkMoreQuery = query(logsRef, ...queryConstraints.slice(0, -1), limit(logsPerPage * page + 1));
-                const checkMoreSnapshot = await getDocs(checkMoreQuery);
-                setHasMoreLogs(checkMoreSnapshot.docs.length > logsData.length);
-
-                setLogs(logsData);
-                setTotalLogs(logsData.length);
-
-            } else {
-                // For "all" filter, fetch more logs and filter client-side (since we can't do NOT IN efficiently)
-                const excludedActions = ["match_completed", "teams_generated", "rematch_created"];
-
-                // Keep fetching until we have enough filtered logs for this page
-                let allFilteredLogs = [];
-                let fetchLimit = logsPerPage * page * 2; // Start with 2x
-                let hasMore = true;
-
-                while (allFilteredLogs.length < logsPerPage * page && hasMore) {
-                    queryConstraints = [orderBy("timestamp", "desc"), limit(fetchLimit)];
-                    const q = query(logsRef, ...queryConstraints);
-                    const querySnapshot = await getDocs(q);
-
-                    const tempLogs = [];
-                    querySnapshot.forEach((doc) => {
-                        const logData = { id: doc.id, ...doc.data() };
-                        if (!excludedActions.includes(logData.action)) {
-                            tempLogs.push(logData);
-                        }
-                    });
-
-                    allFilteredLogs = tempLogs;
-
-                    // If we got fewer docs than requested, we've reached the end
-                    if (querySnapshot.docs.length < fetchLimit) {
-                        hasMore = false;
-                    } else {
-                        // Double the fetch limit for next iteration if we still don't have enough
-                        fetchLimit *= 2;
-                    }
-
-                    // Safety break to avoid infinite loop
-                    if (fetchLimit > 10000) break;
-                }
-
-                setLogs(allFilteredLogs);
-
-                // Check if there are more logs by trying to fetch just a bit more
-                if (hasMore && allFilteredLogs.length >= logsPerPage * page) {
-                    const checkQuery = query(logsRef, orderBy("timestamp", "desc"), limit(fetchLimit + 50));
-                    const checkSnapshot = await getDocs(checkQuery);
-
-                    const checkFiltered = [];
-                    checkSnapshot.forEach((doc) => {
-                        const logData = { id: doc.id, ...doc.data() };
-                        if (!excludedActions.includes(logData.action)) {
-                            checkFiltered.push(logData);
-                        }
-                    });
-
-                    setHasMoreLogs(checkFiltered.length > allFilteredLogs.length);
-                } else {
-                    setHasMoreLogs(false);
-                }
-
-                setTotalLogs(allFilteredLogs.length);
-            }
+            // Check if there are more logs
+            const checkMoreQuery = query(
+                logsRef,
+                orderBy("timestamp", "desc"),
+                limit(logsPerPage * page + 1)
+            );
+            const checkMoreSnapshot = await getDocs(checkMoreQuery);
+            setHasMoreLogs(checkMoreSnapshot.docs.length > logsPerPage * page);
 
             if (reset) {
                 setCurrentPage(1);
             }
+
+            setLogs(logsData);
+            setTotalLogs(logsData.length);
+            console.log(`Fetched ${logsData.length} logs for page ${page}`);
         } catch (error) {
             console.error("Error fetching logs:", error);
         } finally {
@@ -175,10 +73,11 @@ export default function LogTab({
         }
     };
 
+
     useEffect(() => {
         if (!currentLeagueId) return;
         fetchLogs(1, true);
-    }, [currentLeagueId, currentSet, filter]);
+    }, [currentLeagueId, currentSet]);
 
     const handleDeleteLog = async (logId) => {
         if (!currentLeagueId || !isAdmin) return;
@@ -878,8 +777,38 @@ export default function LogTab({
     };
 
     const getFilteredLogs = () => {
-        const endIndex = Math.min(currentPage * logsPerPage, logs.length);
-        return logs.slice(0, endIndex);
+        let filtered = logs;
+
+        if (filter !== "all") {
+            filtered = logs.filter(log => {
+                if (log.action === "match_completed" ||
+                    log.action === "teams_generated" ||
+                    log.action === "rematch_created") {
+                    return false;
+                }
+
+                switch (filter) {
+                    case "players":
+                        return ["player_added", "player_updated", "player_deleted", "player_rating_changed", "player_rating_updated", "player_rating_added"].includes(log.action);
+                    case "matches":
+                        return log.action === "match_result_saved";
+                    case "admin":
+                        return ["leaderboard_reset", "log_deleted", "schema_initialized", "user_joined_league"].includes(log.action);
+                    default:
+                        return true;
+                }
+            });
+        } else {
+            filtered = logs.filter(log =>
+                log.action !== "match_completed" &&
+                log.action !== "teams_generated" &&
+                log.action !== "rematch_created"
+            );
+        }
+
+        // Show logs based on current page view
+        const endIndex = Math.min(currentPage * logsPerPage, filtered.length);
+        return filtered.slice(0, endIndex);
     };
 
     return (
@@ -891,14 +820,12 @@ export default function LogTab({
                     <select
                         className="bg-gray-800 text-gray-200 border border-gray-700 rounded px-3 py-1.5 text-sm"
                         value={filter}
-                        onChange={(e) => {
-                            setFilter(e.target.value);
-                            setCurrentPage(1); // Reset to first page when filter changes
-                        }}
+                        onChange={(e) => setFilter(e.target.value)}
                     >
                         <option value="all">All Activities</option>
                         <option value="players">Players</option>
                         <option value="matches">Matches</option>
+                        <option value="system">System Events</option>
                         <option value="admin">Admin Actions</option>
                     </select>
                 </div>
@@ -917,8 +844,11 @@ export default function LogTab({
                             {/* Status and refresh controls */}
                             <div className="flex justify-between items-center mb-4">
                                 <div className="text-sm text-gray-400">
-                                    Showing {Math.min(getFilteredLogs().length, currentPage * logsPerPage)} of {getFilteredLogs().length} logs
-                                    {filter !== "all" && ` (filtered: ${filter})`}
+                                    Showing {getFilteredLogs().length} of {logs.filter(log =>
+                                        log.action !== "match_completed" &&
+                                        log.action !== "teams_generated" &&
+                                        log.action !== "rematch_created"
+                                    ).length} logs
                                 </div>
                                 <button
                                     onClick={handleRefresh}
