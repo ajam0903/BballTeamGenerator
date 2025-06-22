@@ -1122,6 +1122,7 @@ export default function TeamsTab({
                                                 setSelectAll(false);
                                             }
                                         }}
+                                        onClick={(e) => e.stopPropagation()}
                                     />
                                 </div>
 
