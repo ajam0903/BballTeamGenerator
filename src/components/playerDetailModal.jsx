@@ -1,4 +1,5 @@
 // PlayerDetailModal.jsx
+import { log, logWarn, logError } from "../utils/logger";
 import React, { useState } from "react";
 import { getPlayerBadges, getBadgeProgress, badgeCategories, calculatePlayerStats } from "./badgeSystem.jsx";
 import Badge from "./Badge";
@@ -13,13 +14,15 @@ function getCategoryIcon(categoryName) {
     return iconMap[categoryName] || "gamesPlayed"; // default fallback
 }
 
-export default function PlayerDetailModal({ 
-    isOpen, 
-    onClose, 
-    player, 
-    leaderboard = {}, 
+export default function PlayerDetailModal({
+    isOpen,
+    onClose,
+    player,
+    leaderboard = {},
     matchHistory = [],
-    playerOVRs = {}
+    playerOVRs = {},
+    showReviewerNames = false,
+    isAdmin = false
 }) {
     const [activeTab, setActiveTab] = useState("overview");
 
@@ -82,6 +85,15 @@ export default function PlayerDetailModal({
                     >
                         Awards & Badges
                     </button>
+                    <button
+                        onClick={() => setActiveTab("reviews")}
+                        className={`px-6 py-3 text-sm font-medium ${activeTab === "reviews"
+                                ? "text-blue-400 border-b-2 border-blue-400 bg-gray-750"
+                                : "text-gray-400 hover:text-gray-300"
+                            }`}
+                    >
+                        Reviews ({player.submissions?.length || 0})
+                    </button>
                 </div>
 
                 {/* Content */}
@@ -117,7 +129,7 @@ export default function PlayerDetailModal({
                                             <span className="text-gray-300 capitalize">{ability}:</span>
                                             <div className="flex items-center">
                                                 <div className="w-20 h-2 bg-gray-600 rounded-full mr-2">
-                                                    <div 
+                                                    <div
                                                         className="h-2 bg-blue-500 rounded-full"
                                                         style={{ width: `${((player[ability] || 5) / 10) * 100}%` }}
                                                     />
@@ -209,7 +221,7 @@ export default function PlayerDetailModal({
                                 <div className="space-y-4">
                                     {Object.entries(progress).map(([categoryId, prog]) => {
                                         if (!prog.nextTier) return null; // Already at max tier
-                                        
+
                                         return (
                                             <div key={categoryId} className="bg-gray-700 p-4 rounded-lg">
                                                 <div className="flex justify-between items-center mb-2">
@@ -231,7 +243,7 @@ export default function PlayerDetailModal({
                                                     </span>
                                                 </div>
                                                 <div className="w-full bg-gray-600 rounded-full h-2">
-                                                    <div 
+                                                    <div
                                                         className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                                                         style={{ width: `${prog.progressPercent}%` }}
                                                     />
@@ -244,6 +256,130 @@ export default function PlayerDetailModal({
                                     })}
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {activeTab === "reviews" && (
+                        <div className="space-y-6">
+                            {/* Reviews Section */}
+                            <div>
+                                <h3 className="text-lg font-semibold text-white mb-4">
+                                    Player Reviews ({player.submissions?.length || 0})
+                                </h3>
+                                {player.submissions && player.submissions.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {player.submissions.map((submission, index) => (
+                                            <div key={index} className="bg-gray-700 p-4 rounded-lg">
+                                                {/* Review Header */}
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div className="flex items-center">
+                                                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
+                                                            {submission.submittedByName ? submission.submittedByName.charAt(0).toUpperCase() :
+                                                                submission.submittedBy ? submission.submittedBy.charAt(0).toUpperCase() : '?'}
+                                                        </div>
+                                                        <div className="ml-3">
+                                                            {/* Show reviewer name only if admin allows it AND user is admin */}
+                                                            {showReviewerNames && isAdmin ? (
+                                                                <div className="text-sm font-medium text-white">
+                                                                    {submission.userName || submission.submittedByName || submission.submittedBy || 'Anonymous'}
+
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-sm font-medium text-white">
+                                                                    Reviewer #{index + 1}
+                                                                </div>
+                                                            )}
+                                                            <div className="text-xs text-gray-400">
+                                                                {submission.submissionDate ?
+                                                                    new Date(submission.submissionDate).toLocaleDateString() :
+                                                                    'Date unknown'
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Overall Rating */}
+                                                    <div className="text-right">
+                                                        <div className="text-lg font-bold text-blue-400">
+                                                            {(
+                                                                (submission.scoring + submission.defense + submission.rebounding +
+                                                                    submission.playmaking + submission.stamina + submission.physicality +
+                                                                    submission.xfactor) / 7
+                                                            ).toFixed(1)}
+                                                        </div>
+                                                        <div className="text-xs text-gray-400">Overall</div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Rating Breakdown */}
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                    {[
+                                                        { key: 'scoring', label: 'Scoring' },
+                                                        { key: 'defense', label: 'Defense' },
+                                                        { key: 'rebounding', label: 'Rebounding' },
+                                                        { key: 'playmaking', label: 'Playmaking' },
+                                                        { key: 'stamina', label: 'Stamina' },
+                                                        { key: 'physicality', label: 'Physicality' },
+                                                        { key: 'xfactor', label: 'X-Factor' }
+                                                    ].map(({ key, label }) => (
+                                                        <div key={key} className="text-center">
+                                                            <div className="text-sm text-gray-300 mb-1">{label}</div>
+                                                            <div className="text-lg font-medium text-white">
+                                                                {submission[key] || 0}
+                                                            </div>
+                                                            <div className="w-full bg-gray-600 rounded-full h-1.5 mt-1">
+                                                                <div
+                                                                    className="bg-blue-500 h-1.5 rounded-full"
+                                                                    style={{ width: `${((submission[key] || 0) / 10) * 100}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-gray-400">
+                                        No reviews submitted for this player yet.
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Review Statistics */}
+                            {player.submissions && player.submissions.length > 1 && (
+                                <div className="bg-gray-700 p-4 rounded-lg">
+                                    <h4 className="text-md font-semibold text-white mb-3">Review Statistics</h4>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        {[
+                                            { key: 'scoring', label: 'Scoring' },
+                                            { key: 'defense', label: 'Defense' },
+                                            { key: 'rebounding', label: 'Rebounding' },
+                                            { key: 'playmaking', label: 'Playmaking' },
+                                            { key: 'stamina', label: 'Stamina' },
+                                            { key: 'physicality', label: 'Physicality' },
+                                            { key: 'xfactor', label: 'X-Factor' }
+                                        ].map(({ key, label }) => {
+                                            const values = player.submissions.map(s => s[key] || 0);
+                                            const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+                                            const min = Math.min(...values);
+                                            const max = Math.max(...values);
+
+                                            return (
+                                                <div key={key} className="text-center">
+                                                    <div className="text-sm text-gray-300 mb-1">{label}</div>
+                                                    <div className="text-lg font-medium text-white">
+                                                        {avg.toFixed(1)}
+                                                    </div>
+                                                    <div className="text-xs text-gray-400">
+                                                        Range: {min}-{max}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

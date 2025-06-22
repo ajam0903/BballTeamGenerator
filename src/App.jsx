@@ -109,6 +109,7 @@ export default function App() {
     const [playersSubTab, setPlayersSubTab] = useState("rankings");
     const [showPlayerDetailModal, setShowPlayerDetailModal] = useState(false);
     const [selectedPlayerForDetail, setSelectedPlayerForDetail] = useState(null);
+    const [showReviewerNames, setShowReviewerNames] = useState(false);
 
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -209,6 +210,36 @@ export default function App() {
             return match;
         });
     }
+
+    const handleToggleReviewerVisibility = async () => {
+        if (!currentLeagueId || !isAdmin) return;
+
+        try {
+            const leagueRef = doc(db, "leagues", currentLeagueId);
+            const leagueDoc = await getDoc(leagueRef);
+
+            if (leagueDoc.exists()) {
+                const leagueData = leagueDoc.data();
+                const newValue = !showReviewerNames;
+
+                await firestoreSetDoc(leagueRef, {
+                    ...leagueData,
+                    preferences: {
+                        ...leagueData.preferences,
+                        showReviewerNames: newValue
+                    }
+                });
+
+                setShowReviewerNames(newValue);
+                setToastMessage(`Reviewer names ${newValue ? 'enabled' : 'disabled'}`);
+                setTimeout(() => setToastMessage(""), 3000);
+            }
+        } catch (error) {
+            console.error("Error updating preferences:", error);
+            setToastMessage("Error updating preferences");
+            setTimeout(() => setToastMessage(""), 3000);
+        }
+    };
 
     const handleCancelTabChange = () => {
         setPendingTabChange(null);
@@ -1032,6 +1063,9 @@ export default function App() {
             const submission = {
                 ...newRating,
                 submittedBy: user.email,
+                submittedByName: user.displayName || user.email,
+                userName: user.displayName || user.email,
+                submissionDate: new Date().toISOString(),
             };
 
             let isNewRating = false;
@@ -1566,6 +1600,26 @@ export default function App() {
         }
     };
 
+    useEffect(() => {
+        if (!currentLeagueId) return;
+
+        const fetchLeaguePreferences = async () => {
+            try {
+                const leagueRef = doc(db, "leagues", currentLeagueId);
+                const leagueDoc = await getDoc(leagueRef);
+
+                if (leagueDoc.exists()) {
+                    const leagueData = leagueDoc.data();
+                    setShowReviewerNames(leagueData.preferences?.showReviewerNames || false);
+                }
+            } catch (error) {
+                console.error("Error fetching league preferences:", error);
+            }
+        };
+
+        fetchLeaguePreferences();
+    }, [currentLeagueId]);
+
     // Modified to use league structure
     useEffect(() => {
         if (!currentLeagueId) return;
@@ -2008,6 +2062,8 @@ export default function App() {
                 submissions: [
                     {
                         submittedBy: user.email,
+                        submittedByName: user.displayName || user.email,
+                        submissionDate: new Date().toISOString(),
                         ...playerData,
                     }
                 ],
@@ -2290,6 +2346,9 @@ export default function App() {
                             user={user}
                             currentLeague={currentLeague}
                             handleBackToLeagues={handleBackToLeagues}
+                            showReviewerNames={showReviewerNames}
+                            onToggleReviewerVisibility={handleToggleReviewerVisibility}
+                            isAdmin={isAdmin}
                         />
                     </div>
 
@@ -2462,6 +2521,8 @@ export default function App() {
                         leaderboard={leaderboard}
                         matchHistory={matchHistory}
                         playerOVRs={playerOVRs}
+                        showReviewerNames={showReviewerNames}
+                        isAdmin={isAdmin}
                     />
                 )}
 
