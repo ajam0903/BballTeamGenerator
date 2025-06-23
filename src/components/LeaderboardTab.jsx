@@ -123,6 +123,7 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             const matchTeamSize = getTeamSizeFromMatch(match);
             return matchTeamSize === teamSize;
         });
+        return filtered;
     };
 
     // Update getRecentForm to use consistent data source

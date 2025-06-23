@@ -614,16 +614,22 @@ export default function LogTab({
                 // Default message if no specifics or too many changes
                 return `Updated rating for ${playerName} ${overallRating}`;
             }
-            case "match_result_saved":
-                // For match_result_saved, show a slightly different title to reduce redundancy
-                return `Saved match result: ${log.details?.scoreA || 0} - ${log.details?.scoreB || 0}`;
+            case "match_result_saved": {
+                const gameType = log.details?.gameType || `${log.details?.teamSize || "?"}v${log.details?.teamSize || "?"}`;
+                const teamARating = log.details?.teamARating ? ` (${log.details.teamARating})` : '';
+                const teamBRating = log.details?.teamBRating ? ` (${log.details.teamBRating})` : '';
+
+                return `Saved ${gameType} match result: ${log.details?.scoreA || 0}${teamARating} - ${log.details?.scoreB || 0}${teamBRating}`;
+            }
             case "match_completed": {
-                // For completed match, show more info about completion
+                const gameType = log.details?.gameType || `${log.details?.teamSize || "?"}v${log.details?.teamSize || "?"}`;
                 const scoreA = log.details?.scoreA || 0;
                 const scoreB = log.details?.scoreB || 0;
-                const scoreDisplay = `${scoreA} - ${scoreB}`;
+                const teamARating = log.details?.teamARating ? ` (${log.details.teamARating})` : '';
+                const teamBRating = log.details?.teamBRating ? ` (${log.details.teamBRating})` : '';
+                const scoreDisplay = `${scoreA}${teamARating} - ${scoreB}${teamBRating}`;
                 const mvp = log.details?.mvp ? `MVP: ${log.details.mvp}` : 'No MVP selected';
-                return `Completed match: ${scoreDisplay} (${mvp})`;
+                return `Completed ${gameType} match: ${scoreDisplay} (${mvp})`;
             }
             case "rematch_created": {
                 return `Created rematch with the same teams`;

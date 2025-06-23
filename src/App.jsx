@@ -602,6 +602,7 @@ export default function App() {
             }
         }
     };
+
     const convertFirestoreDataToAppFormat = (data) => {
         // Handle matchups conversion (from Firestore object format to arrays)
         if (data.matchups) {
@@ -611,16 +612,25 @@ export default function App() {
             ]);
             data.matchups = matchupsArray;
         }
-
         // Handle teams conversion
         if (data.teams) {
             const teamsArray = data.teams.map(team => team.players || []);
             data.teams = teamsArray;
         }
-
         // Handle matchHistory conversion from Firestore format to app format
         if (data.matchHistory) {
             data.matchHistory = data.matchHistory.map(match => {
+                // Infer teamSize if it's missing
+                let inferredTeamSize = match.teamSize;
+                if (!inferredTeamSize) {
+                    const teamASize = match.teamA?.length || 0;
+                    const teamBSize = match.teamB?.length || 0;
+                    const maxTeamSize = Math.max(teamASize, teamBSize);
+
+                    // If there are more than 5 players, infer it was a 5v5 game
+                    inferredTeamSize = maxTeamSize > 5 ? 5 : maxTeamSize;
+                }
+
                 return {
                     teams: [
                         match.teamA || [],
@@ -628,11 +638,11 @@ export default function App() {
                     ],
                     score: match.score,
                     mvp: match.mvp || "",
-                    date: match.date
+                    date: match.date,
+                    teamSize: inferredTeamSize
                 };
             });
         }
-
         return data;
     };
 
@@ -714,6 +724,7 @@ export default function App() {
                             teamA: matchups[idx][0].map(player => ({
                                 name: player.name,
                                 active: player.active !== undefined ? player.active : true,
+                                isBench: player.isBench || false,
                                 scoring: player.scoring || 0,
                                 defense: player.defense || 0,
                                 rebounding: player.rebounding || 0,
@@ -725,6 +736,7 @@ export default function App() {
                             teamB: matchups[idx][1].map(player => ({
                                 name: player.name,
                                 active: player.active !== undefined ? player.active : true,
+                                isBench: player.isBench || false,
                                 scoring: player.scoring || 0,
                                 defense: player.defense || 0,
                                 rebounding: player.rebounding || 0,
@@ -752,6 +764,9 @@ export default function App() {
                                 scoreB: match.score.b,
                                 mvp: match.mvp || "",
                                 teamSize: match.teamSize || teamSize,
+                                gameType: `${match.teamSize || teamSize}v${match.teamSize || teamSize}`,
+                                teamARating: calculateTeamStrength(match.teamA).toFixed(1),
+                                teamBRating: calculateTeamStrength(match.teamB).toFixed(1),
                                 date: match.date
                             },
                             user,
@@ -1422,6 +1437,9 @@ export default function App() {
                         scoreB: match.score.b,
                         mvp: match.mvp || "",
                         teamSize: match.teamSize || teamSize,
+                        gameType: `${match.teamSize || teamSize}v${match.teamSize || teamSize}`,
+                        teamARating: calculateTeamStrength(match.teamA).toFixed(1),
+                        teamBRating: calculateTeamStrength(match.teamB).toFixed(1),
                         date: match.date
                     },
                     user,
@@ -1630,7 +1648,6 @@ export default function App() {
 
             if (docSnap.exists()) {
                 const data = docSnap.data();
-
                 // Load belt votes (always needed for player icons)
                 if (data.beltVotes) {
                     setBeltVotes(data.beltVotes);
@@ -1658,7 +1675,6 @@ export default function App() {
                         }
                         return match;
                     });
-
                     setMatchHistory(convertedHistory);
                 }
             }
@@ -2216,8 +2232,11 @@ export default function App() {
                     scoreB: scores[matchIndex].b,
                     mvp: mvpVotes[matchIndex] || "",
                     teamSize: teamSize,
+                    gameType: `${teamSize}v${teamSize}`,
                     teamA: matchups[matchIndex][0].map(player => player.name),
                     teamB: matchups[matchIndex][1].map(player => player.name),
+                    teamARating: calculateTeamStrength(matchups[matchIndex][0]).toFixed(1),
+                    teamBRating: calculateTeamStrength(matchups[matchIndex][1]).toFixed(1),
                     teamsFlat: {
                         team0: matchups[matchIndex][0].map(player => player.name),
                         team1: matchups[matchIndex][1].map(player => player.name)
