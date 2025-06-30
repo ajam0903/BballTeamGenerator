@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+﻿import { log, logWarn, logError } from "./utils/logger";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
     getFirestore,
     collection,
@@ -108,6 +109,7 @@ export default function App() {
     const [playersSubTab, setPlayersSubTab] = useState("rankings");
     const [showPlayerDetailModal, setShowPlayerDetailModal] = useState(false);
     const [selectedPlayerForDetail, setSelectedPlayerForDetail] = useState(null);
+    const [showReviewerNames, setShowReviewerNames] = useState(false);
 
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -209,6 +211,36 @@ export default function App() {
         });
     }
 
+    const handleToggleReviewerVisibility = async () => {
+        if (!currentLeagueId || !isAdmin) return;
+
+        try {
+            const leagueRef = doc(db, "leagues", currentLeagueId);
+            const leagueDoc = await getDoc(leagueRef);
+
+            if (leagueDoc.exists()) {
+                const leagueData = leagueDoc.data();
+                const newValue = !showReviewerNames;
+
+                await firestoreSetDoc(leagueRef, {
+                    ...leagueData,
+                    preferences: {
+                        ...leagueData.preferences,
+                        showReviewerNames: newValue
+                    }
+                });
+
+                setShowReviewerNames(newValue);
+                setToastMessage(`Reviewer names ${newValue ? 'enabled' : 'disabled'}`);
+                setTimeout(() => setToastMessage(""), 3000);
+            }
+        } catch (error) {
+            console.error("Error updating preferences:", error);
+            setToastMessage("Error updating preferences");
+            setTimeout(() => setToastMessage(""), 3000);
+        }
+    };
+
     const handleCancelTabChange = () => {
         setPendingTabChange(null);
         setShowUnsavedModal(false);
@@ -227,7 +259,7 @@ export default function App() {
 
 
     const generateBalancedTeams = async () => {
-        console.log("Starting generateBalancedTeams...");
+        log("Starting generateBalancedTeams...");
 
         if (!currentLeagueId) {
             console.error("No currentLeagueId set");
@@ -257,18 +289,18 @@ export default function App() {
         }
 
         try {
-            console.log("Players:", players);
-            console.log("Team size:", teamSize);
+            log("Players:", players);
+            log("Team size:", teamSize);
 
             // Use the imported function to generate teams and matchups
             const result = balanceTeams(players, teamSize, calculatePlayerScore);
-            console.log("Balance teams result:", result);
+            log("Balance teams result:", result);
 
             const generatedTeams = result.teams;  // Correctly declare the variable here
             const generatedMatchups = result.matchups;
 
-            console.log("Generated teams:", generatedTeams);
-            console.log("Generated matchups:", generatedMatchups);
+            log("Generated teams:", generatedTeams);
+            log("Generated matchups:", generatedMatchups);
 
             setTeams(generatedTeams);
             setMatchups(generatedMatchups);
@@ -320,7 +352,7 @@ export default function App() {
 
     const calculateLeaderboard = async () => {
         if (!currentLeagueId || !matchups || matchups.length === 0) {
-            console.log("No matchups data to calculate leaderboard or no league selected");
+            log("No matchups data to calculate leaderboard or no league selected");
             return;
         }
 
@@ -392,7 +424,7 @@ export default function App() {
             updatedLeaderboard[player].MVPs += currentTally[player].MVPs;
         });
 
-        console.log("Final leaderboard to be saved:", updatedLeaderboard);
+        log("Final leaderboard to be saved:", updatedLeaderboard);
         setLeaderboard(updatedLeaderboard);
 
         if (docSnap.exists()) {
@@ -446,7 +478,7 @@ export default function App() {
 
         // Convert teams for Firestore
         if (data.teams) {
-            console.log("Teams data:", data.teams);
+            log("Teams data:", data.teams);
             data.teams = data.teams.map((team, index) => {
                 if (!team || !Array.isArray(team)) {
                     return {
@@ -570,6 +602,7 @@ export default function App() {
             }
         }
     };
+
     const convertFirestoreDataToAppFormat = (data) => {
         // Handle matchups conversion (from Firestore object format to arrays)
         if (data.matchups) {
@@ -579,16 +612,25 @@ export default function App() {
             ]);
             data.matchups = matchupsArray;
         }
-
         // Handle teams conversion
         if (data.teams) {
             const teamsArray = data.teams.map(team => team.players || []);
             data.teams = teamsArray;
         }
-
         // Handle matchHistory conversion from Firestore format to app format
         if (data.matchHistory) {
             data.matchHistory = data.matchHistory.map(match => {
+                // Infer teamSize if it's missing
+                let inferredTeamSize = match.teamSize;
+                if (!inferredTeamSize) {
+                    const teamASize = match.teamA?.length || 0;
+                    const teamBSize = match.teamB?.length || 0;
+                    const maxTeamSize = Math.max(teamASize, teamBSize);
+
+                    // If there are more than 5 players, infer it was a 5v5 game
+                    inferredTeamSize = maxTeamSize > 5 ? 5 : maxTeamSize;
+                }
+
                 return {
                     teams: [
                         match.teamA || [],
@@ -596,11 +638,11 @@ export default function App() {
                     ],
                     score: match.score,
                     mvp: match.mvp || "",
-                    date: match.date
+                    date: match.date,
+                    teamSize: inferredTeamSize
                 };
             });
         }
-
         return data;
     };
 
@@ -682,6 +724,7 @@ export default function App() {
                             teamA: matchups[idx][0].map(player => ({
                                 name: player.name,
                                 active: player.active !== undefined ? player.active : true,
+                                isBench: player.isBench || false,
                                 scoring: player.scoring || 0,
                                 defense: player.defense || 0,
                                 rebounding: player.rebounding || 0,
@@ -693,6 +736,7 @@ export default function App() {
                             teamB: matchups[idx][1].map(player => ({
                                 name: player.name,
                                 active: player.active !== undefined ? player.active : true,
+                                isBench: player.isBench || false,
                                 scoring: player.scoring || 0,
                                 defense: player.defense || 0,
                                 rebounding: player.rebounding || 0,
@@ -720,11 +764,14 @@ export default function App() {
                                 scoreB: match.score.b,
                                 mvp: match.mvp || "",
                                 teamSize: match.teamSize || teamSize,
+                                gameType: `${match.teamSize || teamSize}v${match.teamSize || teamSize}`,
+                                teamARating: calculateTeamStrength(match.teamA).toFixed(1),
+                                teamBRating: calculateTeamStrength(match.teamB).toFixed(1),
                                 date: match.date
                             },
                             user,
                             false
-                        ).catch(err => console.warn("Error logging match completion:", err));
+                        ).catch(err => logWarn("Error logging match completion:", err));
                     }
                     const existingHistory = data.matchHistory || [];
                     const updatedHistory = [...existingHistory, ...completedMatches];
@@ -858,7 +905,7 @@ export default function App() {
 
         // Check if this match has already been processed
         if (scores[matchIndex].processed) {
-            console.log("Match already processed, skipping leaderboard calculation");
+            log("Match already processed, skipping leaderboard calculation");
             return;
         }
 
@@ -916,7 +963,7 @@ export default function App() {
                 updatedLeaderboard[mvp].MVPs = (updatedLeaderboard[mvp].MVPs || 0) + 1;
             }
 
-            console.log("Updated leaderboard after match:", updatedLeaderboard);
+            log("Updated leaderboard after match:", updatedLeaderboard);
             setLeaderboard(updatedLeaderboard);
 
             // Save to Firestore
@@ -1031,6 +1078,9 @@ export default function App() {
             const submission = {
                 ...newRating,
                 submittedBy: user.email,
+                submittedByName: user.displayName || user.email,
+                userName: user.displayName || user.email,
+                submissionDate: new Date().toISOString(),
             };
 
             let isNewRating = false;
@@ -1219,7 +1269,7 @@ export default function App() {
             // Now log the activity with comprehensive information
             setTimeout(() => {
                 try {
-                    console.log("Logging rating submission for player:", newRating.name);
+                    log("Logging rating submission for player:", newRating.name);
 
                     // Current rating data
                     const ratingData = {
@@ -1282,8 +1332,8 @@ export default function App() {
                     }
 
                     // Log the activity with explicit debugging
-                    console.log("About to log activity with player name:", newRating.name);
-                    console.log("Log details:", logDetails);
+                    log("About to log activity with player name:", newRating.name);
+                    log("Log details:", logDetails);
 
                     logActivity(
                         db,
@@ -1293,10 +1343,10 @@ export default function App() {
                         user,
                         true
                     ).catch(err => {
-                        console.warn("Non-critical logging error:", err);
+                        logWarn("Non-critical logging error:", err);
                     });
                 } catch (e) {
-                    console.warn("Failed to log activity (non-critical):", e);
+                    logWarn("Failed to log activity (non-critical):", e);
                 }
             }, 100);
 
@@ -1387,6 +1437,9 @@ export default function App() {
                         scoreB: match.score.b,
                         mvp: match.mvp || "",
                         teamSize: match.teamSize || teamSize,
+                        gameType: `${match.teamSize || teamSize}v${match.teamSize || teamSize}`,
+                        teamARating: calculateTeamStrength(match.teamA).toFixed(1),
+                        teamBRating: calculateTeamStrength(match.teamB).toFixed(1),
                         date: match.date
                     },
                     user,
@@ -1469,7 +1522,7 @@ export default function App() {
                 },
                 user,
                 false // Not undoable
-            ).catch(err => console.warn("Non-critical logging error:", err));
+            ).catch(err => logWarn("Non-critical logging error:", err));
         }
         */
     };
@@ -1534,7 +1587,7 @@ export default function App() {
                     // Delete the old name entry
                     delete updatedLeaderboard[originalName];
 
-                    console.log("Updated leaderboard after name change:", updatedLeaderboard);
+                    log("Updated leaderboard after name change:", updatedLeaderboard);
                 }
 
                 // Save to Firestore
@@ -1565,6 +1618,26 @@ export default function App() {
         }
     };
 
+    useEffect(() => {
+        if (!currentLeagueId) return;
+
+        const fetchLeaguePreferences = async () => {
+            try {
+                const leagueRef = doc(db, "leagues", currentLeagueId);
+                const leagueDoc = await getDoc(leagueRef);
+
+                if (leagueDoc.exists()) {
+                    const leagueData = leagueDoc.data();
+                    setShowReviewerNames(leagueData.preferences?.showReviewerNames || false);
+                }
+            } catch (error) {
+                console.error("Error fetching league preferences:", error);
+            }
+        };
+
+        fetchLeaguePreferences();
+    }, [currentLeagueId]);
+
     // Modified to use league structure
     useEffect(() => {
         if (!currentLeagueId) return;
@@ -1572,32 +1645,26 @@ export default function App() {
         const fetchMatchHistory = async () => {
             const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
             const docSnap = await getDoc(docRef);
+
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                // existing code...
-
-                // Load belt votes
+                // Load belt votes (always needed for player icons)
                 if (data.beltVotes) {
                     setBeltVotes(data.beltVotes);
-
-                    // Calculate current belt holders
                     const calculatedBelts = calculateBeltStandings(data.beltVotes);
                     setCurrentBelts(calculatedBelts);
                 }
-            }
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (data.matchHistory && data.matchHistory.length > 0) {
-                    console.log("Loaded match history:", data.matchHistory.length, "matches");
 
-                    // Convert data to the app format (with teams array instead of teamA/teamB)
+                // Only load match history for tabs that need it
+                if (["leaderboard", "awards"].includes(activeTab) &&
+                    data.matchHistory && data.matchHistory.length > 0) {
+
+                    log("Loaded match history:", data.matchHistory.length, "matches");
+
                     const convertedHistory = data.matchHistory.map(match => {
-                        // Already in app format
                         if (match.teams) {
                             return match;
                         }
-
-                        // Convert from Firestore format to app format
                         if (match.teamA || match.teamB) {
                             return {
                                 teams: [match.teamA || [], match.teamB || []],
@@ -1606,18 +1673,15 @@ export default function App() {
                                 date: match.date
                             };
                         }
-
-                        // Unknown format, return as is
                         return match;
                     });
-
                     setMatchHistory(convertedHistory);
                 }
             }
         };
 
         fetchMatchHistory();
-    }, [currentLeagueId, currentSet]);
+    }, [currentLeagueId, currentSet, activeTab]); // Add activeTab dependency
 
     useEffect(() => {
         // Check for last used league on app startup
@@ -1650,7 +1714,7 @@ export default function App() {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 if (data.matchHistory) {
-                    console.log("Loaded match history:", data.matchHistory.length, "matches");
+                    log("Loaded match history:", data.matchHistory.length, "matches");
                     setMatchHistory(data.matchHistory);
                 }
             }
@@ -1688,7 +1752,7 @@ export default function App() {
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-            console.log("Auth change:", currentUser);
+            log("Auth change:", currentUser ? 'signed in' : 'signed out');
             setUser(currentUser);
         });
         return () => unsubscribe();
@@ -1738,7 +1802,7 @@ export default function App() {
 
     // Modify the tab switching function to check for pending matchups
     const handleTabChange = (newTab) => {
-        console.log("handleTabChange called:", { newTab, activeTab, hasPendingMatchups, forceTabChange });
+        log("handleTabChange called:", { newTab, activeTab, hasPendingMatchups, forceTabChange });
 
         // If we're forcing a tab change, just do it
         if (forceTabChange) {
@@ -1758,7 +1822,7 @@ export default function App() {
 
     // Replace the handleConfirmTabChange function:
     const handleConfirmTabChange = async () => {
-        console.log("handleConfirmTabChange called:", { pendingTabChange });
+        log("handleConfirmTabChange called:", { pendingTabChange });
 
         if (pendingTabChange === 'generate-teams') {
             // Special case for generating teams
@@ -1769,7 +1833,7 @@ export default function App() {
         } else if (pendingTabChange) {
             // Normal tab change - user wants to leave anyway
             const targetTab = pendingTabChange;
-            console.log("User confirmed tab change to:", targetTab);
+            log("User confirmed tab change to:", targetTab);
 
             // Clear the modal and states
             setShowUnsavedModal(false);
@@ -1797,7 +1861,7 @@ export default function App() {
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 const data = convertFirestoreDataToAppFormat(docSnap.data());
-                console.log("Raw leaderboard data from Firestore:", data.leaderboard);
+                log("Raw leaderboard data from Firestore - players:", Object.keys(data.leaderboard || {}).length);
                 const averagedPlayers = (data.players || []).map((player) => {
                     const submissions = player.submissions || [];
                     const avgStats = {
@@ -1835,10 +1899,10 @@ export default function App() {
                 setScores(data.scores || []);
 
                 if (data.leaderboard && Object.keys(data.leaderboard).length > 0) {
-                    console.log("Setting leaderboard with data:", data.leaderboard);
+                    log("Setting leaderboard with players:", Object.keys(data.leaderboard || {}).length);
                     setLeaderboard(data.leaderboard);
                 } else if ((data.scores?.length || 0) > 0 && (data.matchups?.length || 0) > 0) {
-                    console.log("No leaderboard data found, calculating from scores and matchups");
+                    log("No leaderboard data found, calculating from scores and matchups");
                     setTimeout(() => calculateLeaderboard(), 100);
                 }
             }
@@ -1973,7 +2037,7 @@ export default function App() {
                 // Delete the old name entry
                 delete updatedLeaderboard[originalName];
 
-                console.log("Updated leaderboard after name change:", updatedLeaderboard);
+                log("Updated leaderboard after name change:", updatedLeaderboard);
             }
 
             await firestoreSetDoc(docRef, {
@@ -2014,6 +2078,8 @@ export default function App() {
                 submissions: [
                     {
                         submittedBy: user.email,
+                        submittedByName: user.displayName || user.email,
+                        submissionDate: new Date().toISOString(),
                         ...playerData,
                     }
                 ],
@@ -2166,8 +2232,11 @@ export default function App() {
                     scoreB: scores[matchIndex].b,
                     mvp: mvpVotes[matchIndex] || "",
                     teamSize: teamSize,
+                    gameType: `${teamSize}v${teamSize}`,
                     teamA: matchups[matchIndex][0].map(player => player.name),
                     teamB: matchups[matchIndex][1].map(player => player.name),
+                    teamARating: calculateTeamStrength(matchups[matchIndex][0]).toFixed(1),
+                    teamBRating: calculateTeamStrength(matchups[matchIndex][1]).toFixed(1),
                     teamsFlat: {
                         team0: matchups[matchIndex][0].map(player => player.name),
                         team1: matchups[matchIndex][1].map(player => player.name)
@@ -2198,10 +2267,6 @@ export default function App() {
                 });
         }
     };
-
-    useEffect(() => {
-        console.log("Current leaderboard data:", leaderboard);
-    }, [leaderboard]);
 
     // If no league is selected, show the LeagueLandingPage
     if (!currentLeagueId) {
@@ -2300,6 +2365,9 @@ export default function App() {
                             user={user}
                             currentLeague={currentLeague}
                             handleBackToLeagues={handleBackToLeagues}
+                            showReviewerNames={showReviewerNames}
+                            onToggleReviewerVisibility={handleToggleReviewerVisibility}
+                            isAdmin={isAdmin}
                         />
                     </div>
 
@@ -2472,6 +2540,8 @@ export default function App() {
                         leaderboard={leaderboard}
                         matchHistory={matchHistory}
                         playerOVRs={playerOVRs}
+                        showReviewerNames={showReviewerNames}
+                        isAdmin={isAdmin}
                     />
                 )}
 

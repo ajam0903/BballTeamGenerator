@@ -616,10 +616,7 @@ export default function LogTab({
             }
             case "match_result_saved": {
                 const gameType = log.details?.gameType || `${log.details?.teamSize || "?"}v${log.details?.teamSize || "?"}`;
-                const teamARating = log.details?.teamARating ? ` (${log.details.teamARating})` : '';
-                const teamBRating = log.details?.teamBRating ? ` (${log.details.teamBRating})` : '';
-
-                return `Saved ${gameType} match result: ${log.details?.scoreA || 0}${teamARating} - ${log.details?.scoreB || 0}${teamBRating}`;
+                return `Saved ${gameType} match result`;
             }
             case "match_completed": {
                 const gameType = log.details?.gameType || `${log.details?.teamSize || "?"}v${log.details?.teamSize || "?"}`;
@@ -627,7 +624,12 @@ export default function LogTab({
                 const scoreB = log.details?.scoreB || 0;
                 const teamARating = log.details?.teamARating ? ` (${log.details.teamARating})` : '';
                 const teamBRating = log.details?.teamBRating ? ` (${log.details.teamBRating})` : '';
-                const scoreDisplay = `${scoreA}${teamARating} - ${scoreB}${teamBRating}`;
+
+                // Get team names if available
+                const teamAName = log.details?.teamA?.[0] || "Team A";
+                const teamBName = log.details?.teamB?.[0] || "Team B";
+
+                const scoreDisplay = `${teamAName}${teamARating} ${scoreA} - ${scoreB} ${teamBName}${teamBRating}`;
                 const mvp = log.details?.mvp ? `MVP: ${log.details.mvp}` : 'No MVP selected';
                 return `Completed ${gameType} match: ${scoreDisplay} (${mvp})`;
             }
@@ -694,7 +696,12 @@ export default function LogTab({
                     {/* Team A */}
                     <div className={`p-2 rounded ${scoreA > scoreB ? 'bg-green-900 bg-opacity-20' : 'bg-red-900 bg-opacity-20'}`}>
                         <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm font-medium text-gray-300 flex-1">{teamAName}</span>
+                            <div className="flex items-center flex-1">
+                                <span className="text-sm font-medium text-gray-300">{teamAName}</span>
+                                {log.details?.teamARating && (
+                                    <span className="text-xs text-white ml-2">({log.details.teamARating})</span>
+                                )}
+                            </div>
                             <span className="text-sm font-bold text-white ml-2">{scoreA}</span>
                         </div>
 
@@ -729,7 +736,12 @@ export default function LogTab({
                     {/* Team B */}
                     <div className={`p-2 rounded ${scoreB > scoreA ? 'bg-green-900 bg-opacity-20' : 'bg-red-900 bg-opacity-20'}`}>
                         <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm font-medium text-gray-300 flex-1">{teamBName}</span>
+                            <div className="flex items-center flex-1">
+                                <span className="text-sm font-medium text-gray-300">{teamBName}</span>
+                                {log.details?.teamBRating && (
+                                    <span className="text-xs text-white ml-2">({log.details.teamBRating})</span>
+                                )}
+                            </div>
                             <span className="text-sm font-bold text-white ml-2">{scoreB}</span>
                         </div>
 

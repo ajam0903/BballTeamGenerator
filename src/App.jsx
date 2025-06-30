@@ -9,7 +9,6 @@ import {
     getDocs
 } from "firebase/firestore";
 import { StyledButton } from "./components/UIComponents";
-import { generateBalancedTeams as balanceTeams } from "./components/BalancedTeamGenerator";
 import RankingTab from "./components/RankingTab";
 import TeamsTab from "./components/TeamsTab";
 import LeaderboardTab from "./components/LeaderboardTab";
@@ -279,6 +278,7 @@ export default function App() {
             return;
         }
 
+        // Replace the local algorithm call with API call
         await generateBalancedTeamsInternal();
     };
 
@@ -289,6 +289,132 @@ export default function App() {
         }
 
         try {
+            log("Starting API-based team generation...");
+            log("Players:", players.length, "active players");
+            log("Team size:", teamSize);
+
+            // Prepare player data for API (only send what's needed)
+            const activePlayersData = players
+                .filter(p => p.active)
+                .map(player => ({
+                    name: player.name,
+                    scoring: player.scoring || 5,
+                    defense: player.defense || 5,
+                    rebounding: player.rebounding || 5,
+                    playmaking: player.playmaking || 5,
+                    stamina: player.stamina || 5,
+                    physicality: player.physicality || 5,
+                    xfactor: player.xfactor || 5
+                }));
+
+            // Call your protected API
+            const response = await fetch('https://simple-api-self.vercel.app/api/generate-teams', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Remove Authorization for now since the API doesn't handle it yet
+                    // 'Authorization': `Bearer ${await user?.getIdToken()}` 
+                },
+                body: JSON.stringify({
+                    players: activePlayersData,
+                    teamSize,
+                    leagueId: currentLeagueId,
+                    weightings: weightings
+                })
+            });
+
+            // Add response handling
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to generate teams');
+            }
+
+            // Use the generated teams and matchups
+            const generatedTeams = data.teams;
+            const generatedMatchups = data.matchups;
+
+            log("Generated teams:", generatedTeams);
+            log("Generated matchups:", generatedMatchups);
+
+            setTeams(generatedTeams);
+            setMatchups(generatedMatchups);
+            setHasPendingMatchups(false);
+            setHasGeneratedTeams(true);
+
+            // Create MVP votes and scores arrays based on matchup count
+            const newMvpVotes = Array(generatedMatchups.length).fill("");
+            const newScores = Array(generatedMatchups.length).fill({ a: "", b: "" });
+
+            setMvpVotes(newMvpVotes);
+            setScores(newScores);
+
+            // Update Firestore
+            const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const firestoreData = prepareDataForFirestore({
+                    ...data,
+                    teams: generatedTeams,
+                    matchups: generatedMatchups,
+                    mvpVotes: newMvpVotes,
+                    scores: newScores,
+                    leaderboard: data.leaderboard || {}
+                });
+                await firestoreSetDoc(docRef, firestoreData);
+            }
+
+            // Log the activity
+            await logActivity(
+                db,
+                currentLeagueId,
+                "teams_generated",
+                {
+                    teamCount: generatedTeams.length,
+                    matchupCount: generatedMatchups.length,
+                    teamSize: teamSize,
+                    source: "protected_api"
+                },
+                user,
+                false
+            );
+
+        } catch (error) {
+            console.error("Error in API team generation:", error);
+
+            // Development fallback (remove in production)
+            if (process.env.NODE_ENV === 'development') {
+                console.warn("API failed, using local fallback for development");
+                return await generateBalancedTeamsLocalFallback();
+            } else {
+                alert("Team generation is temporarily unavailable. Please try again later.");
+            }
+        }
+    };
+
+    // Keep this for development only - remove in production
+    const generateBalancedTeamsLocalFallback = async () => {
+        if (!currentLeagueId) {
+            console.error("No currentLeagueId set");
+            return;
+        }
+
+        // Only allow local fallback in development
+        if (process.env.NODE_ENV !== 'development') {
+            console.error("Local algorithm not available in production");
+            alert("Team generation service is unavailable. Please try again later.");
+            return;
+        }
+
+        try {
+            log("Using local fallback algorithm...");
             log("Players:", players);
             log("Team size:", teamSize);
 
@@ -296,7 +422,7 @@ export default function App() {
             const result = balanceTeams(players, teamSize, calculatePlayerScore);
             log("Balance teams result:", result);
 
-            const generatedTeams = result.teams;  // Correctly declare the variable here
+            const generatedTeams = result.teams;
             const generatedMatchups = result.matchups;
 
             log("Generated teams:", generatedTeams);
@@ -330,25 +456,28 @@ export default function App() {
                 });
                 await firestoreSetDoc(docRef, firestoreData);
             }
+
+            await logActivity(
+                db,
+                currentLeagueId,
+                "teams_generated",
+                {
+                    teamCount: generatedTeams.length,
+                    matchupCount: generatedMatchups.length,
+                    teamSize: teamSize,
+                    source: "local_fallback"
+                },
+                user,
+                false
+            );
+
         } catch (error) {
-            console.error("Error in generateBalancedTeams:", error);
+            console.error("Error in local fallback team generation:", error);
             alert("An error occurred while generating teams. Check the console for details.");
         }
-
-        // Make sure to reference generatedTeams within this scope
-        await logActivity(
-            db,
-            currentLeagueId,
-            "teams_generated",
-            {
-                teamCount: teams.length,  // Use the state variable instead
-                matchupCount: matchups.length,  // Use the state variable instead
-                teamSize: teamSize
-            },
-            user,
-            false
-        );
     };
+
+
 
     const calculateLeaderboard = async () => {
         if (!currentLeagueId || !matchups || matchups.length === 0) {
@@ -2274,7 +2403,7 @@ export default function App() {
             <div className="bg-gray-900 min-h-screen">
                 {/* Update this section to include Squad Sync text */}
                 <div className="flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800">
-                    <h1 className="text-2xl font-bold text-white">WEEKEND BALL</h1>
+                    <h1 className="text-2xl font-bold text-white">WEEKEND BALLERS</h1>
                     {user ? (
                         <UserMenu user={user} />
                     ) : (
