@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { collection, doc, getDoc, setDoc, query, orderBy, limit, getDocs, deleteDoc, where } from "firebase/firestore";
 import { StyledButton } from "./UIComponents";
 
@@ -22,6 +22,9 @@ export default function LogTab({
     const [logsPerPage] = useState(10);
     const [totalLogs, setTotalLogs] = useState(0);
     const [hasMoreLogs, setHasMoreLogs] = useState(true);
+
+    const teamARef = useRef(null);
+    const teamBRef = useRef(null);
 
     const arraysEqual = (a, b) => {
         if (a.length !== b.length) return false;
@@ -657,6 +660,50 @@ export default function LogTab({
     };
 
     const renderMatchDetails = (log) => {
+        // Helper function to abbreviate long names
+        const abbreviateName = (fullName) => {
+            if (!fullName) return fullName;
+
+            const nameParts = fullName.trim().split(/\s+/);
+
+            // If only one name (or empty), return it
+            if (nameParts.length <= 1) return fullName;
+
+            const firstName = nameParts[0];
+
+            // Get last name and abbreviate if needed
+            let lastName = nameParts[nameParts.length - 1];
+            let lastInitial = lastName[0] || '';
+
+            // Add a period to the initial
+            return `${firstName} ${lastInitial}.`;
+        };
+
+        // Helper function to check if text fits in container
+        const getDisplayName = (playerName, containerRef) => {
+            if (!playerName || !containerRef?.current) return playerName;
+
+            // Create a temporary span to measure text width
+            const tempSpan = document.createElement('span');
+            tempSpan.style.visibility = 'hidden';
+            tempSpan.style.position = 'absolute';
+            tempSpan.style.fontSize = '0.75rem'; // text-xs
+            tempSpan.style.fontFamily = window.getComputedStyle(containerRef.current).fontFamily;
+            tempSpan.textContent = playerName;
+
+            document.body.appendChild(tempSpan);
+            const textWidth = tempSpan.offsetWidth;
+            document.body.removeChild(tempSpan);
+
+            // Get available width (subtract some padding)
+            const availableWidth = containerRef.current.offsetWidth - 16; // 16px for padding
+
+            if (textWidth > availableWidth) {
+                return abbreviateName(playerName);
+            }
+
+            return playerName;
+        };
         // Only render for match-related logs
         if (!["match_result_saved", "match_completed"].includes(log.action)) {
             return null;
@@ -707,14 +754,14 @@ export default function LogTab({
 
                         {/* Only show player list for multi-player teams */}
                         {!is1v1 && (
-                            <div className="space-y-1">
+                            <div className="space-y-1" ref={teamARef}>
                                 {Array.isArray(teamA) ? (
                                     teamA.map((player, idx) => {
                                         const playerName = typeof player === 'string' ? player : player.name;
                                         const isMVP = mvp === playerName;
                                         return (
-                                            <div key={idx} className="text-xs flex items-center">
-                                                <span className={`${isMVP ? 'text-yellow-400 font-medium' : 'text-gray-300'}`}>
+                                            <div key={idx} className="text-xs flex items-center w-full">
+                                                <span className={`${isMVP ? 'text-yellow-400 font-medium' : 'text-gray-300'} truncate flex-1`}>
                                                     {playerName}
                                                     {isMVP && <span className="ml-1">👑</span>}
                                                 </span>
@@ -747,14 +794,14 @@ export default function LogTab({
 
                         {/* Only show player list for multi-player teams */}
                         {!is1v1 && (
-                            <div className="space-y-1">
+                            <div className="space-y-1" ref={teamBRef}>
                                 {Array.isArray(teamB) ? (
                                     teamB.map((player, idx) => {
                                         const playerName = typeof player === 'string' ? player : player.name;
                                         const isMVP = mvp === playerName;
                                         return (
-                                            <div key={idx} className="text-xs flex items-center">
-                                                <span className={`${isMVP ? 'text-yellow-400 font-medium' : 'text-gray-300'}`}>
+                                            <div key={idx} className="text-xs flex items-center w-full">
+                                                <span className={`${isMVP ? 'text-yellow-400 font-medium' : 'text-gray-300'} truncate flex-1`}>
                                                     {playerName}
                                                     {isMVP && <span className="ml-1">👑</span>}
                                                 </span>
