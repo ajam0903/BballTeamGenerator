@@ -761,10 +761,10 @@ export default function LogTab({
                                         const isMVP = mvp === playerName;
                                         return (
                                             <div key={idx} className="text-xs flex items-center w-full">
-                                                <span className={`${isMVP ? 'text-yellow-400 font-medium' : 'text-gray-300'} truncate flex-1`}>
+                                                <span className={`${isMVP ? 'text-yellow-400 font-medium' : 'text-gray-300'} truncate flex-1 mr-1`}>
                                                     {playerName}
-                                                    {isMVP && <span className="ml-1">👑</span>}
                                                 </span>
+                                                {isMVP && <span className="text-yellow-400 flex-shrink-0">👑</span>}
                                             </div>
                                         );
                                     })
@@ -801,10 +801,10 @@ export default function LogTab({
                                         const isMVP = mvp === playerName;
                                         return (
                                             <div key={idx} className="text-xs flex items-center w-full">
-                                                <span className={`${isMVP ? 'text-yellow-400 font-medium' : 'text-gray-300'} truncate flex-1`}>
+                                                <span className={`${isMVP ? 'text-yellow-400 font-medium' : 'text-gray-300'} truncate flex-1 mr-1`}>
                                                     {playerName}
-                                                    {isMVP && <span className="ml-1">👑</span>}
                                                 </span>
+                                                {isMVP && <span className="text-yellow-400 flex-shrink-0">👑</span>}
                                             </div>
                                         );
                                     })
