@@ -9,7 +9,8 @@ export default function UserMenu({
     handleBackToLeagues,
     showReviewerNames = false,
     onToggleReviewerVisibility,
-    isAdmin = false
+    isAdmin = false,
+    resetLeaderboardData,
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [showPreferences, setShowPreferences] = useState(false);
@@ -187,6 +188,40 @@ export default function UserMenu({
                                         </button>
                                         <div className="px-2 py-1 text-xs text-gray-500">
                                             When enabled, reviewers' names are visible to admins in player reviews
+                                        </div>
+
+                                        {/* Add a separator and new section for dangerous actions */}
+                                        <div className="px-2 py-1 text-xs text-gray-400 border-b border-gray-700 mb-2 mt-3">
+                                            Danger Zone
+                                        </div>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (resetLeaderboardData) {
+                                                    resetLeaderboardData();
+                                                }
+                                                setIsOpen(false);
+                                            }}
+                                            className="w-full text-left px-2 py-1 text-red-300 hover:bg-red-900/20 rounded text-xs flex items-center"
+                                        >
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                className="h-3.5 w-3.5 mr-1.5"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                />
+                                            </svg>
+                                            Reset All Stats
+                                        </button>
+                                        <div className="px-2 py-1 text-xs text-gray-500">
+                                            Permanently delete all match history and player statistics
                                         </div>
                                     </div>
                                 )}

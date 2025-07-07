@@ -408,6 +408,16 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
     return (
 
         <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                {isAdmin && (
+                    <StyledButton
+                        onClick={resetLeaderboardData}
+                        className="bg-red-600"
+                    >
+                        Reset Stats
+                    </StyledButton>
+                )}
+            </div>
 
             <div className="flex items-center mb-4 overflow-x-auto scrollbar-hide pb-2 justify-center">
                 <div className="text-center px-3">
@@ -612,6 +622,13 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                                         >
                                             X-F {sortBy === "xfactor" && (sortDirection === "asc" ? "▲" : "▼")}
                                         </th>
+
+                                        {/* Admin actions column - no border on last column */}
+                                        {isAdmin && (
+                                            <th className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                                Actions
+                                            </th>
+                                        )}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-700 bg-gray-900">
@@ -708,22 +725,31 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                                             <td className="px-1 py-3 whitespace-nowrap text-sm text-gray-300 text-center border-r border-gray-700">
                                                 {player.xfactor}
                                             </td>
-                                            {isAdmin && editingPlayer === player.name && (
+                                            {isAdmin && (
                                                 <td className="px-1 py-3 whitespace-nowrap text-sm text-center">
-                                                    <div className="flex gap-2">
+                                                    {editingPlayer === player.name ? (
+                                                        <div className="flex gap-2">
+                                                            <StyledButton
+                                                                onClick={saveEdits}
+                                                                className="bg-green-600 hover:bg-green-700 py-1 px-2 text-xs"
+                                                            >
+                                                                Save
+                                                            </StyledButton>
+                                                            <StyledButton
+                                                                onClick={cancelEditing}
+                                                                className="bg-gray-600 hover:bg-gray-700 py-1 px-2 text-xs"
+                                                            >
+                                                                Cancel
+                                                            </StyledButton>
+                                                        </div>
+                                                    ) : (
                                                         <StyledButton
-                                                            onClick={saveEdits}
-                                                            className="bg-green-600 hover:bg-green-700 py-1 px-2 text-xs"
+                                                            onClick={() => startEditing(player)}
+                                                            className="bg-blue-600 hover:bg-blue-700 py-1 px-2 text-xs"
                                                         >
-                                                            Save
+                                                            Edit
                                                         </StyledButton>
-                                                        <StyledButton
-                                                            onClick={cancelEditing}
-                                                            className="bg-gray-600 hover:bg-gray-700 py-1 px-2 text-xs"
-                                                        >
-                                                            Cancel
-                                                        </StyledButton>
-                                                    </div>
+                                                    )}
                                                 </td>
                                             )}
                                         </tr>

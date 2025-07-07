@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs } from "firebase/firestore";
+import { getFirestore, collection, doc, getDoc, setDoc, query, where, getDocs, deleteDoc } from "firebase/firestore";
 import { DarkContainer, StyledButton, StyledInput } from "../components/UIComponents";
+import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { auth } from "../firebase";
 import logActivity from "../utils/logActivity";
 
@@ -13,6 +14,8 @@ export default function LeagueLandingPage({ user, onSelectLeague }) {
     const [errorMessage, setErrorMessage] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
     const [isLoading, setIsLoading] = useState(true);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [leagueToDelete, setLeagueToDelete] = useState(null);
 
     // Load user's leagues when component mounts or user changes
     useEffect(() => {
@@ -264,6 +267,76 @@ export default function LeagueLandingPage({ user, onSelectLeague }) {
         localStorage.setItem("lastUsedLeagueId", leagueId);
     };
 
+    const handleDeleteLeague = async (leagueId, leagueName, isCreator) => {
+        try {
+            setIsLoading(true);
+
+            if (isCreator) {
+                // If user is the creator, delete the entire league
+                await deleteDoc(doc(db, "leagues", leagueId));
+                await logActivity(
+                    db,
+                    leagueId,
+                    "league_deleted",
+                    {
+                        leagueName: leagueName,
+                        deletedBy: user.displayName || user.email
+                    },
+                    user,
+                    false
+                );
+            } else {
+                // If user is not the creator, just remove them from the league
+                const leagueRef = doc(db, "leagues", leagueId);
+                const leagueDoc = await getDoc(leagueRef);
+
+                if (leagueDoc.exists()) {
+                    const leagueData = leagueDoc.data();
+                    const updatedMembers = leagueData.members.filter(memberId => memberId !== user.uid);
+                    const updatedAdmins = leagueData.admins?.filter(adminId => adminId !== user.uid) || [];
+
+                    await setDoc(leagueRef, {
+                        ...leagueData,
+                        members: updatedMembers,
+                        admins: updatedAdmins
+                    });
+                }
+            }
+
+            // Remove league from user's leagues
+            const userDocRef = doc(db, "users", user.uid);
+            const userDoc = await getDoc(userDocRef);
+
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                const updatedLeagues = userData.leagues.filter(id => id !== leagueId);
+
+                await setDoc(userDocRef, {
+                    ...userData,
+                    leagues: updatedLeagues
+                });
+            }
+
+            // Update local state
+            setLeagues(leagues.filter(league => league.id !== leagueId));
+
+            // Clear last used league if it was this one
+            if (localStorage.getItem("lastUsedLeagueId") === leagueId) {
+                localStorage.removeItem("lastUsedLeagueId");
+            }
+
+            setSuccessMessage(isCreator ? "League deleted successfully!" : "Left league successfully!");
+            setShowDeleteModal(false);
+            setLeagueToDelete(null);
+
+        } catch (error) {
+            console.error("Error deleting/leaving league:", error);
+            setErrorMessage("Failed to " + (isCreator ? "delete" : "leave") + " league. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <DarkContainer className="bg-gray-900">
 
@@ -279,94 +352,155 @@ export default function LeagueLandingPage({ user, onSelectLeague }) {
                 </div>
             )}
 
-            {successMessage && (
-                <div className="bg-green-800 text-green-100 p-4 rounded mb-6">
-                    {successMessage}
+            {/* Sign In Prompt for Unauthenticated Users */}
+            {!user && (
+                <div className="text-center py-12">
+                    <div className="max-w-md mx-auto">
+                        <h2 className="text-2xl font-bold text-white mb-4">Welcome to RecBall</h2>
+
+                        <button
+                            onClick={() => {
+                                const provider = new GoogleAuthProvider();
+                                signInWithPopup(auth, provider).catch((error) => {
+                                    console.error("Login failed:", error);
+                                    setErrorMessage("Failed to sign in. Please try again.");
+                                });
+                            }}
+                            className="w-full max-w-sm bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center mx-auto"
+                        >
+                            Sign In to Create or Join League
+                        </button>
+                    </div>
                 </div>
             )}
 
-            {errorMessage && (
-                <div className="bg-red-800 text-red-100 p-4 rounded mb-6">
-                    {errorMessage}
-                </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Create League Section */}
-                <div className="bg-gray-800 p-6 rounded-lg">
-                    <h2 className="text-xl font-semibold text-white mb-4">Create New League</h2>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-gray-300 mb-2">League Name</label>
-                            <StyledInput
-                                type="text"
-                                value={newLeagueName}
-                                onChange={(e) => setNewLeagueName(e.target.value)}
-                                placeholder="Enter league name"
-                                disabled={!user || isLoading}
-                            />
-                        </div>
-                        <StyledButton
-                            onClick={handleCreateLeague}
-                            className={`w-full ${!user ? 'bg-gray-600' : 'bg-blue-600'}`}
-                            disabled={!user || isLoading}
-                        >
-                            {isLoading ? "Creating..." : "Create League"}
-                        </StyledButton>
-                    </div>
-                </div>
-
-                {/* Join League Section */}
-                <div className="bg-gray-800 p-6 rounded-lg">
-                    <h2 className="text-xl font-semibold text-white mb-4">Join League</h2>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-gray-300 mb-2">Invite Code</label>
-                            <StyledInput
-                                type="text"
-                                value={joinCode}
-                                onChange={(e) => setJoinCode(e.target.value)}
-                                placeholder="Enter invite code"
-                                disabled={!user || isLoading}
-                            />
-                        </div>
-                        <StyledButton
-                            onClick={handleJoinLeague}
-                            className={`w-full ${!user ? 'bg-gray-600' : 'bg-green-600'}`}
-                            disabled={!user || isLoading}
-                        >
-                            {isLoading ? "Joining..." : "Join League"}
-                        </StyledButton>
-                    </div>
-                </div>
-            </div>
-
-            {/* Your Leagues Section */}
-            <div className="mt-8">
-                <h2 className="text-xl font-semibold text-white mb-4">Your Leagues</h2>
-                {isLoading ? (
-                    <div className="text-gray-400">Loading your leagues...</div>
-                ) : leagues.length === 0 ? (
-                    <div className="text-gray-400 p-4 bg-gray-800 rounded-lg">
-                        {user ? "You haven't joined any leagues yet." : "Sign in to see your leagues."}
-                    </div>
-                ) : (
+            {user && leagues.length > 0 && (
+                <div className="mb-8">
+                    <h2 className="text-xl font-semibold text-white mb-4">Your Leagues</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {leagues.map((league) => (
-                            <div
-                                key={league.id}
-                                className="bg-gray-800 p-4 rounded-lg hover:bg-gray-700 cursor-pointer transition"
-                                onClick={() => handleSelectLeague(league.id)}
-                            >
-                                <h3 className="text-lg font-medium text-white">{league.name}</h3>
-                                <div className="text-sm text-gray-400 mt-2">
-                                    Invite Code: <span className="text-gray-300">{league.inviteCode}</span>
+                            <div key={league.id} className="bg-gray-800 p-4 rounded-lg hover:bg-gray-700 transition">
+                                <div
+                                    className="cursor-pointer"
+                                    onClick={() => handleSelectLeague(league.id)}
+                                >
+                                    <h3 className="text-lg font-medium text-white">{league.name}</h3>
+                                    <div className="text-sm text-gray-400 mt-2">
+                                        Invite Code: <span className="text-gray-300">{league.inviteCode}</span>
+                                    </div>
+                                </div>
+                                <div className="mt-3 flex justify-end">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setLeagueToDelete({
+                                                id: league.id,
+                                                name: league.name,
+                                                isCreator: league.createdBy === user?.uid
+                                            });
+                                            setShowDeleteModal(true);
+                                        }}
+                                        className="text-sm text-red-400 hover:text-red-300 transition-colors"
+                                    >
+                                        {league.createdBy === user?.uid ? "Delete League" : "Leave League"}
+                                    </button>
                                 </div>
                             </div>
                         ))}
                     </div>
-                )}
-            </div>
+                </div>
+            )}
+
+            {/* Existing Create/Join League Sections - Only show when authenticated */}
+            {user && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Create League Section */}
+                    <div className="bg-gray-800 p-6 rounded-lg">
+                        <h2 className="text-xl font-semibold text-white mb-4">Create New League</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-gray-300 mb-2">League Name</label>
+                                <StyledInput
+                                    type="text"
+                                    value={newLeagueName}
+                                    onChange={(e) => setNewLeagueName(e.target.value)}
+                                    placeholder="Enter league name"
+                                    disabled={!user || isLoading}
+                                />
+                            </div>
+                            <StyledButton
+                                onClick={handleCreateLeague}
+                                className={`w-full ${!user ? 'bg-gray-600' : 'bg-blue-600'}`}
+                                disabled={!user || isLoading}
+                            >
+                                {isLoading ? "Creating..." : "Create League"}
+                            </StyledButton>
+                        </div>
+                    </div>
+
+                    {/* Join League Section */}
+                    <div className="bg-gray-800 p-6 rounded-lg">
+                        <h2 className="text-xl font-semibold text-white mb-4">Join League</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-gray-300 mb-2">Invite Code</label>
+                                <StyledInput
+                                    type="text"
+                                    value={joinCode}
+                                    onChange={(e) => setJoinCode(e.target.value)}
+                                    placeholder="Enter invite code"
+                                    disabled={!user || isLoading}
+                                />
+                            </div>
+                            <StyledButton
+                                onClick={handleJoinLeague}
+                                className={`w-full ${!user ? 'bg-gray-600' : 'bg-green-600'}`}
+                                disabled={!user || isLoading}
+                            >
+                                {isLoading ? "Joining..." : "Join League"}
+                            </StyledButton>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Delete/Leave League Confirmation Modal */}
+            {showDeleteModal && leagueToDelete && (
+                <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+                    <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
+                        <h3 className="text-lg font-bold text-white mb-4">
+                            {leagueToDelete.isCreator ? "Delete League" : "Leave League"}
+                        </h3>
+                        <p className="text-gray-300 mb-4">
+                            {leagueToDelete.isCreator
+                                ? `Are you sure you want to delete "${leagueToDelete.name}"? This will permanently remove the league and all its data for all members.`
+                                : `Are you sure you want to leave "${leagueToDelete.name}"? You'll need an invite code to rejoin.`
+                            }
+                        </p>
+                        <p className="text-yellow-400 text-sm mb-6">
+                            This action cannot be undone.
+                        </p>
+                        <div className="flex justify-end space-x-3">
+                            <button
+                                onClick={() => {
+                                    setShowDeleteModal(false);
+                                    setLeagueToDelete(null);
+                                }}
+                                className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
+                                disabled={isLoading}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => handleDeleteLeague(leagueToDelete.id, leagueToDelete.name, leagueToDelete.isCreator)}
+                                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                                disabled={isLoading}
+                            >
+                                {isLoading ? "Processing..." : (leagueToDelete.isCreator ? "Delete League" : "Leave League")}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </DarkContainer>
     );
 }

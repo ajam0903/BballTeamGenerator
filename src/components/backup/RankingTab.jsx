@@ -30,8 +30,8 @@ export default function RankingTab({
     matchHistory = [],
     onPlayerClick,
 }) {
-    const [sortKey, setSortKey] = useState("rating");
-    const [sortDirection, setSortDirection] = useState("desc");
+    const [sortKey, setSortKey] = useState("name");
+    const [sortDirection, setSortDirection] = useState("asc");
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     const [showRatingModal, setShowRatingModal] = useState(false);
     const [activeRatingIndex, setActiveRatingIndex] = useState(null);
@@ -314,11 +314,11 @@ export default function RankingTab({
                                 )}
                             </div>
 
-                                {isAdmin && (
-                                    <div className="flex space-x-1 ml-auto">
+                            {isAdmin && (
+                                <div className="flex space-x-1 ml-auto">
                                         <StyledButton
                                             onClick={(e) => {
-                                                e.stopPropagation();
+                                                e.stopPropagation(); // Add this line
                                                 const playerToEdit = {
                                                     name: player.name,
                                                     scoring: player.scoring || 5,
@@ -330,7 +330,7 @@ export default function RankingTab({
                                                     xfactor: player.xfactor || 5,
                                                     active: player.active !== undefined ? player.active : true
                                                 };
-                                                openEditModal(playerToEdit, true, true); // Pass true for isAdminEdit
+                                                openEditModal(playerToEdit, true);
                                             }}
                                             className="px-2 py-1 text-xs bg-yellow-600 hover:bg-yellow-700"
                                         >
@@ -338,7 +338,7 @@ export default function RankingTab({
                                         </StyledButton>
                                         <StyledButton
                                             onClick={(e) => {
-                                                e.stopPropagation();
+                                                e.stopPropagation(); // Add this line
                                                 if (confirm(`Are you sure you want to delete ${player.name}? This will permanently remove all player data including ratings, match history, and statistics. This action cannot be undone.`)) {
                                                     handleDeletePlayer(player.name);
                                                 }
@@ -347,8 +347,8 @@ export default function RankingTab({
                                         >
                                             Delete
                                         </StyledButton>
-                                    </div>
-                                )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 );
@@ -387,10 +387,10 @@ export default function RankingTab({
                                         type="range"
                                         min="1"
                                         max="10"
-                                        step="0.1"
+                                        step="1"
                                         value={value}
                                         onChange={(e) =>
-                                            setNewRating({ ...newRating, [key]: parseFloat(e.target.value) })
+                                            setNewRating({ ...newRating, [key]: parseInt(e.target.value) })
                                         }
                                         className="w-full mt-1 accent-blue-500"
                                     />

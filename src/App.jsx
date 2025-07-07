@@ -109,6 +109,7 @@ export default function App() {
     const [showPlayerDetailModal, setShowPlayerDetailModal] = useState(false);
     const [selectedPlayerForDetail, setSelectedPlayerForDetail] = useState(null);
     const [showReviewerNames, setShowReviewerNames] = useState(false);
+    const [isAdminEdit, setIsAdminEdit] = useState(false);
 
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -1590,11 +1591,21 @@ export default function App() {
         }
     };
 
-    // Modified to use league structure
     const resetLeaderboardData = async () => {
         if (!currentLeagueId) return;
 
-        if (confirm("Are you sure you want to reset the leaderboard? All match history will be lost.")) {
+        const confirmText = "⚠️ DANGER: Reset All Stats\n\n" +
+            "This will permanently delete:\n" +
+            "• All match history\n" +
+            "• All player win/loss records\n" +
+            "• All MVP counts\n" +
+            "• All team matchups\n\n" +
+            "THIS ACTION CANNOT BE UNDONE!\n\n" +
+            "Type 'RESET' to confirm:";
+
+        const userInput = prompt(confirmText);
+
+        if (userInput === "RESET") {
             const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
@@ -1609,51 +1620,42 @@ export default function App() {
                     matchHistory: []
                 };
                 await firestoreSetDoc(docRef, clearedData);
-
                 setMvpVotes([]);
                 setScores([]);
                 setMatchups([]);
                 setTeams([]);
                 setLeaderboard({});
+                setMatchHistory([]); // Add this line that was missing
 
-                alert("Leaderboard and match data have been reset.");
+                setToastMessage("⚠️ All stats have been reset");
+                setTimeout(() => setToastMessage(""), 5000);
+
+                // Log the activity only if the reset actually happened
+                await logActivity(
+                    db,
+                    currentLeagueId,
+                    "leaderboard_reset",
+                    {},
+                    user,
+                    false
+                );
             }
+        } else if (userInput !== null) {
+            // User typed something other than "RESET"
+            alert("Reset cancelled. You must type 'RESET' exactly to confirm.");
         }
-        await logActivity(
-            db,
-            currentLeagueId,
-            "leaderboard_reset",
-            {},
-            user,
-            false
-        );
+        // If userInput is null, user clicked Cancel, so do nothing
     };
 
-    const openEditModal = (player, isEdit = true) => {
+    const openEditModal = (player, isEdit = true, isAdminEdit = false) => {
         // Store the original name as a separate property
         if (player && isEdit) {
             player.originalName = player.name;
         }
         setSelectedPlayerToEdit(player);
         setIsEditingExisting(isEdit);
+        setIsAdminEdit(isAdminEdit);
         setEditPlayerModalOpen(true);
-
-        // Log that we're opening the edit modal (optional - uncomment if you want to log openings)
-        /*
-        if (!isEdit) {
-            // This is a new player being added
-            logActivity(
-                db,
-                currentLeagueId,
-                "edit_modal_opened_for_new_player",
-                {
-                    action: "Adding new player"
-                },
-                user,
-                false // Not undoable
-            ).catch(err => logWarn("Non-critical logging error:", err));
-        }
-        */
     };
 
     const closeEditModal = () => {
@@ -2404,11 +2406,7 @@ export default function App() {
                 {/* Update this section to include Squad Sync text */}
                 <div className="flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800">
                     <h1 className="text-2xl font-bold text-white">WEEKEND BALLERS</h1>
-                    {user ? (
-                        <UserMenu user={user} />
-                    ) : (
-                        <StyledButton onClick={handleLogin} className="bg-blue-600">Sign in with Google</StyledButton>
-                    )}
+                    {user && <UserMenu user={user} />}
                 </div>
 
                 <div className="p-6">
@@ -2497,6 +2495,7 @@ export default function App() {
                             showReviewerNames={showReviewerNames}
                             onToggleReviewerVisibility={handleToggleReviewerVisibility}
                             isAdmin={isAdmin}
+                            resetLeaderboardData={resetLeaderboardData}
                         />
                     </div>
 
@@ -2579,6 +2578,14 @@ export default function App() {
                                     leaderboard={leaderboard}
                                     matchHistory={matchHistory}
                                     onPlayerClick={handlePlayerCardClick}
+                                    currentLeagueId={currentLeagueId}
+                                    currentSet={currentSet}
+                                    db={db}
+                                    user={user}
+                                    logActivity={logActivity}
+                                    setToastMessage={setToastMessage}
+                                    prepareDataForFirestore={prepareDataForFirestore}
+                                    setHasPendingMatchups={setHasPendingMatchups}
 
                                 />
                             </ErrorBoundary>
@@ -2650,6 +2657,7 @@ export default function App() {
                         player={selectedPlayerToEdit}
                         onSave={handlePlayerSaveFromModal}
                         onClose={closeEditModal}
+                        isAdminEdit={isAdminEdit}
                     />
                 )}
 

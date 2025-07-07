@@ -4,7 +4,7 @@ import { StyledButton } from "./UIComponents";
 import Tooltip from "./Tooltip";
 import { ratingHelp } from "./ratingHelp"; // Import the rating help text
 
-export default function EditPlayerModal({ player, onSave, onClose }) {
+export default function EditPlayerModal({ player, onSave, onClose, isAdminEdit = false }) {
     const [editedPlayer, setEditedPlayer] = useState({
         name: "",
         scoring: 5,
@@ -91,29 +91,50 @@ export default function EditPlayerModal({ player, onSave, onClose }) {
                     />
                 </div>
 
-                {/* Ability scores with tooltips */}
-                {["scoring", "defense", "rebounding", "playmaking", "stamina", "physicality", "xfactor"].map((ability) => (
-                    <div key={ability} className="mb-3">
-                        <div className="flex justify-between items-center">
-                            <label className="text-sm font-medium text-gray-300 flex items-center">
-                                {capitalize(ability)}
-                                <span className="ml-2">
-                                    <Tooltip text={ratingHelp[ability]} />
-                                </span>
-                            </label>
-                            <span className="text-sm text-gray-400">{editedPlayer[ability]}</span>
+                {/* Ability scores with tooltips - only show if not admin edit */}
+                {!isAdminEdit ? (
+                    <>
+                        {["scoring", "defense", "rebounding", "playmaking", "stamina", "physicality", "xfactor"].map((ability) => (
+                            <div key={ability} className="mb-3">
+                                <div className="flex justify-between items-center">
+                                    <label className="text-sm font-medium text-gray-300 flex items-center">
+                                        {capitalize(ability)}
+                                        <span className="ml-2">
+                                            <Tooltip text={ratingHelp[ability]} />
+                                        </span>
+                                    </label>
+                                    <span className="text-sm text-gray-400">{editedPlayer[ability]}</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="1"
+                                    max="10"
+                                    step="0.1"
+                                    value={editedPlayer[ability]}
+                                    onChange={(e) => handleChange(ability, e.target.value)}
+                                    className="w-full mt-1 accent-blue-500"
+                                />
+                            </div>
+                        ))}
+                    </>
+                ) : (
+                    /* Show read-only stats if admin edit */
+                    <div className="mb-4 p-3 bg-gray-700 rounded">
+                        <div className="text-sm font-medium text-gray-300 mb-2">Current Player Stats (Read-Only)</div>
+                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
+                            <div>Scoring: {editedPlayer.scoring}</div>
+                            <div>Defense: {editedPlayer.defense}</div>
+                            <div>Rebounding: {editedPlayer.rebounding}</div>
+                            <div>Playmaking: {editedPlayer.playmaking}</div>
+                            <div>Stamina: {editedPlayer.stamina}</div>
+                            <div>Physicality: {editedPlayer.physicality}</div>
+                            <div>X-Factor: {editedPlayer.xfactor}</div>
                         </div>
-                        <input
-                            type="range"
-                            min="1"
-                            max="10"
-                            step="1"
-                            value={editedPlayer[ability]}
-                            onChange={(e) => handleChange(ability, e.target.value)}
-                            className="w-full mt-1 accent-blue-500"
-                        />
+                        <div className="text-xs text-gray-500 mt-2">
+                            Only player names can be edited by admins. Use the rating system to update stats.
+                        </div>
                     </div>
-                ))}
+                )}
 
                 <div className="flex items-center justify-between mt-6">
                     <StyledButton

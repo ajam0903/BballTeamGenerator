@@ -4,6 +4,7 @@ import { StyledSelect } from "./UIComponents";
 import PlayerBeltIcons from "./PlayerBeltIcons";
 import PlayerBadges from "./playerBadges";
 import { badgeCategories } from "./badgeSystem.jsx";
+import { doc, getDoc, setDoc as firestoreSetDoc } from "firebase/firestore";
 
 export default function TeamsTab({
     players = [],
@@ -34,8 +35,17 @@ export default function TeamsTab({
     leaderboard = {},
     matchHistory = [],
     onPlayerClick,
+    currentLeagueId,
+    currentSet,
+    db,
+    user,
+    logActivity,
+    setToastMessage,
+    prepareDataForFirestore,
+    setHasPendingMatchups,
 
 }) {
+    const [teamGenerationMethod, setTeamGenerationMethod] = useState(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [showTeamSelector, setShowTeamSelector] = useState(false);
     const [manualTeams, setManualTeams] = useState([[], []]);
@@ -289,6 +299,114 @@ export default function TeamsTab({
         return rating;
     };
 
+    const generateRandomTeams = async () => {
+        if (!currentLeagueId) {
+            console.error("No currentLeagueId set");
+            return;
+        }
+
+        // Check for unsaved results
+        const hasUnsavedScores = scores.some(score =>
+            score && (score.a || score.b) && !score.processed
+        );
+
+        if (hasUnsavedScores && hasGeneratedTeams) {
+            if (!confirm("You have unsaved match results. Creating new teams will discard these results. Continue?")) {
+                return;
+            }
+        }
+
+        // Get active players
+        const activePlayers = players.filter(p => p.active);
+
+        if (activePlayers.length < teamSize * 2) {
+            alert(`Need at least ${teamSize * 2} active players for ${teamSize}v${teamSize} games`);
+            return;
+        }
+
+        // Calculate number of teams
+        const numPossibleTeams = Math.floor(activePlayers.length / teamSize);
+        const numTeams = Math.max(2, numPossibleTeams - (numPossibleTeams % 2)); // Ensure even number
+
+        // Shuffle players randomly
+        const shuffledPlayers = [...activePlayers].sort(() => Math.random() - 0.5);
+
+        // Create teams
+        const randomTeams = [];
+        for (let i = 0; i < numTeams; i++) {
+            randomTeams.push([]);
+        }
+
+        // Distribute players randomly to teams
+        shuffledPlayers.forEach((player, index) => {
+            const teamIndex = index % numTeams;
+            const playerCopy = { ...player };
+
+            // Mark as bench if team already has enough starters
+            if (randomTeams[teamIndex].filter(p => !p.isBench).length >= teamSize) {
+                playerCopy.isBench = true;
+            } else {
+                playerCopy.isBench = false;
+            }
+
+            randomTeams[teamIndex].push(playerCopy);
+        });
+
+        // Create random matchups
+        const randomMatchups = [];
+        for (let i = 0; i < randomTeams.length - 1; i += 2) {
+            randomMatchups.push([randomTeams[i], randomTeams[i + 1] || []]);
+        }
+
+        // Update state
+        setTeams(randomTeams);
+        setMatchups(randomMatchups);
+        setHasPendingMatchups(false);
+        setHasGeneratedTeams(true);
+
+        // Create MVP votes and scores arrays
+        const newMvpVotes = Array(randomMatchups.length).fill("");
+        const newScores = Array(randomMatchups.length).fill({ a: "", b: "" });
+
+        setMvpVotes(newMvpVotes);
+        setScores(newScores);
+
+        // Update Firestore
+        const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const firestoreData = prepareDataForFirestore({
+                ...data,
+                teams: randomTeams,
+                matchups: randomMatchups,
+                mvpVotes: newMvpVotes,
+                scores: newScores,
+                leaderboard: data.leaderboard || {}
+            });
+            await firestoreSetDoc(docRef, firestoreData);
+        }
+
+        // Log the activity
+        await logActivity(
+            db,
+            currentLeagueId,
+            "teams_generated",
+            {
+                teamCount: randomTeams.length,
+                matchupCount: randomMatchups.length,
+                teamSize: teamSize,
+                source: "random"
+            },
+            user,
+            false
+        );
+
+        setToastMessage("🎲 Random teams generated!");
+        setTimeout(() => setToastMessage(""), 3000);
+    };
+
     // Calculate team strength based on player ratings
     const calculateTeamStrength = (team) => {
         if (!team || team.length === 0) return 0;
@@ -376,6 +494,13 @@ export default function TeamsTab({
         }
     }, [players]);
 
+    useEffect(() => {
+        // Reset generation method when teams are cleared
+        if (teams.length === 0) {
+            setTeamGenerationMethod(null);
+        }
+    }, [teams]);
+
     // Initialize manual teams when team size changes
     useEffect(() => {
         // Calculate required number of teams to fit all active players
@@ -414,6 +539,109 @@ export default function TeamsTab({
         setManualTeams(updatedTeams);
     };
 
+    // Fill partial teams with random players
+    const fillTeamsRandomly = () => {
+        const unassignedPlayers = getUnassignedPlayers();
+        if (unassignedPlayers.length === 0) return;
+
+        const shuffledPlayers = [...unassignedPlayers].sort(() => Math.random() - 0.5);
+        const updatedTeams = [...manualTeams];
+
+        shuffledPlayers.forEach(player => {
+            // Find teams that need more players (prioritize teams with fewer players)
+            const teamsNeedingPlayers = updatedTeams
+                .map((team, index) => ({
+                    index,
+                    currentSize: team.filter(p => !p.isBench).length,
+                    totalSize: team.length
+                }))
+                .filter(t => t.currentSize < teamSize)
+                .sort((a, b) => a.totalSize - b.totalSize); // Fill teams with fewer total players first
+
+            if (teamsNeedingPlayers.length > 0) {
+                const targetTeam = teamsNeedingPlayers[0];
+                const playerCopy = { ...player, isBench: false };
+                updatedTeams[targetTeam.index].push(playerCopy);
+            }
+        });
+
+        setManualTeams(updatedTeams);
+        setToastMessage("🎲 Teams filled randomly!");
+        setTimeout(() => setToastMessage(""), 3000);
+    };
+
+    // Fill partial teams with balanced players using existing balancing logic
+    const fillTeamsBalanced = () => {
+        const unassignedPlayers = getUnassignedPlayers();
+        if (unassignedPlayers.length === 0) return;
+
+        // Create a copy of current teams for manipulation
+        const updatedTeams = [...manualTeams];
+
+        // Add scores to unassigned players
+        const scoredUnassigned = unassignedPlayers.map(player => ({
+            ...player,
+            score: calculatePlayerScore(player)
+        }));
+
+        // Sort unassigned players by score (highest to lowest) - same as generateBalancedTeams
+        const sortedUnassigned = scoredUnassigned.sort((a, b) => b.score - a.score);
+
+        // Function to calculate team strength (same logic as in generateBalancedTeams)
+        const calculateCurrentTeamStrength = (team) => {
+            if (!team || team.length === 0) return 0;
+
+            const starters = team.filter(p => !p.isBench);
+            const bench = team.filter(p => p.isBench);
+
+            if (starters.length === 0) return 0;
+
+            // Starters contribute 90% to team strength, bench 10%
+            const starterScore = starters.reduce((sum, p) => sum + calculatePlayerScore(p), 0) / starters.length;
+            const benchScore = bench.length > 0
+                ? bench.reduce((sum, p) => sum + calculatePlayerScore(p), 0) / bench.length
+                : 0;
+
+            return (starterScore * 0.9) + (benchScore * 0.1);
+        };
+
+        // Assign each unassigned player using the same balancing logic
+        sortedUnassigned.forEach(player => {
+            // Find teams that need more starters
+            const teamsNeedingStarters = updatedTeams
+                .map((team, index) => ({
+                    index,
+                    currentStarterCount: team.filter(p => !p.isBench).length,
+                    strength: calculateCurrentTeamStrength(team)
+                }))
+                .filter(t => t.currentStarterCount < teamSize);
+
+            if (teamsNeedingStarters.length > 0) {
+                // Sort by team strength (weakest first) - same strategy as generateBalancedTeams
+                teamsNeedingStarters.sort((a, b) => a.strength - b.strength);
+
+                const targetTeam = teamsNeedingStarters[0];
+                const playerCopy = { ...player, isBench: false };
+                updatedTeams[targetTeam.index].push(playerCopy);
+            } else {
+                // All teams are full of starters, add as bench to weakest team
+                const teamStrengths = updatedTeams.map((team, index) => ({
+                    index,
+                    strength: calculateCurrentTeamStrength(team)
+                }));
+
+                teamStrengths.sort((a, b) => a.strength - b.strength);
+                const weakestTeam = teamStrengths[0];
+                const playerCopy = { ...player, isBench: true };
+                updatedTeams[weakestTeam.index].push(playerCopy);
+            }
+        });
+
+        setManualTeams(updatedTeams);
+        setToastMessage("⚖️ Teams filled using balanced algorithm!");
+        setTimeout(() => setToastMessage(""), 3000);
+    };
+
     // Update team rankings whenever teams change
     useEffect(() => {
         if (teams && teams.length > 0) {
@@ -430,6 +658,7 @@ export default function TeamsTab({
             setTeamRankings(rankings.sort((a, b) => b.strength - a.strength));
         }
     }, [teams]);
+
 
     // Generate matchups from manual teams
     const generateMatchupsFromManualTeams = () => {
@@ -454,6 +683,7 @@ export default function TeamsTab({
         setScores(Array(newMatchups.length).fill({ a: "", b: "" }));
         setShowTeamSelector(false);
         setHasGeneratedTeams(true);
+        setTeamGenerationMethod('custom');
     };
 
     // Check if an active player is not assigned to any team
@@ -518,6 +748,13 @@ export default function TeamsTab({
         return "text-gray-400";
     };
 
+    useEffect(() => {
+        // Reset generation method when teams are cleared
+        if (teams.length === 0) {
+            setTeamGenerationMethod(null);
+        }
+    }, [teams]);
+
     return (
         <div className="space-y-8">
             {/* Control Section with Dropdown */}
@@ -557,24 +794,39 @@ export default function TeamsTab({
                                 <li>
                                     <button
                                         onClick={() => {
+                                            setTeamGenerationMethod('balanced');
                                             generateBalancedTeams();
                                             setDropdownOpen(false);
                                             setShowTeamSelector(false);
                                         }}
                                         className="block px-4 py-2 text-sm text-white hover:bg-gray-700 w-full text-left"
                                     >
-                                        Balanced Randomize
+                                        Balanced
                                     </button>
                                 </li>
                                 <li>
                                     <button
                                         onClick={() => {
+                                            setTeamGenerationMethod('random');
+                                            generateRandomTeams();
+                                            setDropdownOpen(false);
+                                            setShowTeamSelector(false);
+                                        }}
+                                        className="block px-4 py-2 text-sm text-white hover:bg-gray-700 w-full text-left"
+                                    >
+                                        Random
+                                    </button>
+                                </li>
+                                <li>
+                                    <button
+                                        onClick={() => {
+                                            setTeamGenerationMethod('custom');
                                             setShowTeamSelector(true);
                                             setDropdownOpen(false);
                                         }}
                                         className="block px-4 py-2 text-sm text-white hover:bg-gray-700 w-full text-left"
                                     >
-                                        Choose Teams
+                                        Custom
                                     </button>
                                 </li>
                             </ul>
@@ -724,29 +976,57 @@ export default function TeamsTab({
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex justify-end space-x-3 mt-4">
-                        <button
-                            onClick={() => {
-                                // Calculate required number of teams to fit all active players
-                                const numTeams = Math.floor(activePlayerCount / teamSize);
-                                // Always ensure we have at least 2 teams for matchup creation  
-                                const finalNumTeams = Math.max(2, numTeams);
-                                setManualTeams(Array.from({ length: finalNumTeams }, () => []));
-                            }}
-                            className="px-3 py-1 text-sm text-gray-300 hover:text-white border border-gray-700 rounded"
-                        >
-                            Reset
-                        </button>
-                        <button
-                            onClick={generateMatchupsFromManualTeams}
-                            disabled={!areTeamsValid()}
-                            className={`px-3 py-1 text-sm text-white rounded ${areTeamsValid()
-                                    ? "bg-blue-600 hover:bg-blue-500"
-                                    : "bg-gray-600 cursor-not-allowed opacity-50"
-                                }`}
-                        >
-                            Create Matchups
-                        </button>
+                    <div className="flex justify-between items-center mt-4">
+                        {/* Fill buttons on the left */}
+                        <div className="flex space-x-2">
+                            {getUnassignedPlayers().length > 0 &&
+                                manualTeams.every(team => team.length > 0) && (
+                                    <>
+                                        <button
+                                            onClick={fillTeamsRandomly}
+                                            className="flex items-center px-2 py-1 text-xs text-white bg-purple-600 hover:bg-purple-500 rounded transition-colors"
+                                            title="Fill incomplete teams with random unassigned players"
+                                        >
+                                            <span className="mr-1">🎲</span>
+                                            Fill Random
+                                        </button>
+                                        <button
+                                            onClick={fillTeamsBalanced}
+                                            className="flex items-center px-2 py-1 text-xs text-white bg-green-600 hover:bg-green-500 rounded transition-colors"
+                                            title="Fill incomplete teams with balanced unassigned players"
+                                        >
+                                            <span className="mr-1">⚖️</span>
+                                            Fill Balanced
+                                        </button>
+                                    </>
+                                )}
+                        </div>
+
+                        {/* Reset and Create buttons on the right */}
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={() => {
+                                    // Calculate required number of teams to fit all active players
+                                    const numTeams = Math.floor(activePlayerCount / teamSize);
+                                    // Always ensure we have at least 2 teams for matchup creation  
+                                    const finalNumTeams = Math.max(2, numTeams);
+                                    setManualTeams(Array.from({ length: finalNumTeams }, () => []));
+                                }}
+                                className="px-2 py-1 text-xs text-gray-400 hover:text-white border border-gray-600 hover:border-gray-500 rounded transition-colors"
+                            >
+                                Reset
+                            </button>
+                            <button
+                                onClick={generateMatchupsFromManualTeams}
+                                disabled={!areTeamsValid()}
+                                className={`px-2 py-1 text-xs rounded transition-colors ${areTeamsValid()
+                                    ? "text-white bg-blue-600 hover:bg-blue-500"
+                                    : "text-gray-500 bg-gray-700 cursor-not-allowed opacity-60"
+                                    }`}
+                            >
+                                Create Matchups
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -823,6 +1103,21 @@ export default function TeamsTab({
                             );
                         })}
                     </div>
+                </div>
+            )}
+
+            {/* Randomize Again Button - only show if teams were generated randomly */}
+            {hasGeneratedTeams && teams.length > 0 && !showTeamSelector && teamGenerationMethod === 'random' && (
+                <div className="flex justify-center mb-4">
+                    <button
+                        onClick={generateRandomTeams}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        🎲 Randomize Again
+                    </button>
                 </div>
             )}
 
