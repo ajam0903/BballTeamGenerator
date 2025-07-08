@@ -35,6 +35,7 @@ import { calculateBeltStandings, beltCategories } from "./components/BeltsSystem
 import AwardsTab from "./components/awardsTab";
 import PlayerDetailModal from "./components/playerDetailModal";
 import PlayerBadges from "./components/playerBadges";
+import LeagueSelector from "./components/LeagueSelector";
 
 const db = getFirestore();
 // This helps hide the default scrollbar while maintaining scroll functionality
@@ -110,6 +111,7 @@ export default function App() {
     const [selectedPlayerForDetail, setSelectedPlayerForDetail] = useState(null);
     const [showReviewerNames, setShowReviewerNames] = useState(false);
     const [isAdminEdit, setIsAdminEdit] = useState(false);
+    const [userLeagues, setUserLeagues] = useState([]);
 
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -1885,9 +1887,17 @@ export default function App() {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             log("Auth change:", currentUser ? 'signed in' : 'signed out');
             setUser(currentUser);
+
+            // If user logs out, redirect to league landing page
+            if (!currentUser && currentLeagueId) {
+                // Clear any stored league data
+                localStorage.removeItem("lastUsedLeagueId");
+                setCurrentLeagueId(null);
+                setCurrentLeague(null);
+            }
         });
         return () => unsubscribe();
-    }, []);
+    }, [currentLeagueId]); // Add currentLeagueId as dependency
 
     // Modified to use league structure
     useEffect(() => {
@@ -2057,6 +2067,54 @@ export default function App() {
             setTeamRankings(rankings.sort((a, b) => b.strength - a.strength));
         }
     }, [teams]);
+
+    useEffect(() => {
+        const fetchUserLeagues = async () => {
+            if (!user) {
+                setUserLeagues([]);
+                return;
+            }
+
+            try {
+                // Get user document
+                const userDocRef = doc(db, "users", user.uid);
+                const userDoc = await getDoc(userDocRef);
+
+                if (userDoc.exists()) {
+                    const userData = userDoc.data();
+                    const userLeagueIds = userData.leagues || [];
+
+                    if (userLeagueIds.length === 0) {
+                        setUserLeagues([]);
+                        return;
+                    }
+
+                    // Fetch league details for each league ID
+                    const leagueDetails = await Promise.all(
+                        userLeagueIds.map(async (leagueId) => {
+                            const leagueDocRef = doc(db, "leagues", leagueId);
+                            const leagueDoc = await getDoc(leagueDocRef);
+
+                            if (leagueDoc.exists()) {
+                                return {
+                                    id: leagueId,
+                                    ...leagueDoc.data()
+                                };
+                            }
+                            return null;
+                        })
+                    );
+
+                    // Filter out any null values (leagues that don't exist)
+                    setUserLeagues(leagueDetails.filter(league => league !== null));
+                }
+            } catch (error) {
+                console.error("Error fetching user leagues:", error);
+            }
+        };
+
+        fetchUserLeagues();
+    }, [user, currentLeagueId]); // Re-fetch when user or currentLeagueId changes
 
     // Get team rank string showing position out of total
     const getTeamRankString = (teamIndex) => {
@@ -2477,14 +2535,14 @@ export default function App() {
                 <div className="mb-4">
                     {/* League name and user menu */}
                     <div className="flex items-center justify-between py-1.5 mb-2 border-b border-gray-800">
-                        {/* Left side: League name */}
+                        {/* Left side: League selector */}
                         <div className="flex items-center">
-                            <div className="relative group">
-                                <span className="text-lg font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">
-                                    {currentLeague?.name}
-                                </span>
-                                <div className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 transition-all duration-300 group-hover:w-full"></div>
-                            </div>
+                            <LeagueSelector
+                                currentLeague={currentLeague}
+                                userLeagues={userLeagues}
+                                onLeagueSelect={handleLeagueSelect}
+                                onBackToLeagues={handleBackToLeagues}
+                            />
                         </div>
 
                         {/* Right side: User menu */}
@@ -2496,6 +2554,7 @@ export default function App() {
                             onToggleReviewerVisibility={handleToggleReviewerVisibility}
                             isAdmin={isAdmin}
                             resetLeaderboardData={resetLeaderboardData}
+                            db={db}
                         />
                     </div>
 
