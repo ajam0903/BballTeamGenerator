@@ -37,6 +37,7 @@ export default function RankingTab({
     const [showRatingModal, setShowRatingModal] = useState(false);
     const [activeRatingIndex, setActiveRatingIndex] = useState(null);
     const [showingUnratedOnly, setShowingUnratedOnly] = useState(false);
+    const [showOwnRatings, setShowOwnRatings] = useState(true);
 
     const handleRatingSubmitWithPreserve = () => {
         // Store current values before submission
@@ -64,25 +65,56 @@ export default function RankingTab({
         }
     };
 
+    const loadRatingsForPlayer = (player, userSubmission) => {
+        if (showOwnRatings) {
+            // Show user's own ratings, or 0 if they haven't rated this player
+            return {
+                name: player.name,
+                scoring: userSubmission?.scoring ?? 0,
+                defense: userSubmission?.defense ?? 0,
+                rebounding: userSubmission?.rebounding ?? 0,
+                playmaking: userSubmission?.playmaking ?? 0,
+                stamina: userSubmission?.stamina ?? 0,
+                physicality: userSubmission?.physicality ?? 0,
+                xfactor: userSubmission?.xfactor ?? 0,
+            };
+        } else {
+            // Show average ratings from all submissions
+            return {
+                name: player.name,
+                scoring: player.scoring ?? 5,
+                defense: player.defense ?? 5,
+                rebounding: player.rebounding ?? 5,
+                playmaking: player.playmaking ?? 5,
+                stamina: player.stamina ?? 5,
+                physicality: player.physicality ?? 5,
+                xfactor: player.xfactor ?? 5,
+            };
+        }
+    };
+
     const openRatingModal = (index) => {
         const p = sortedPlayers[index];
         const userSubmission = p.submissions?.find((s) => s.submittedBy === user?.email);
 
+        // Always default to showing own ratings when opening modal
+        setShowOwnRatings(true);
+
+        // Load with own ratings (userSubmission or 0)
         setNewRating({
             name: p.name,
-            scoring: userSubmission?.scoring ?? p.scoring ?? 5,
-            defense: userSubmission?.defense ?? p.defense ?? 5,
-            rebounding: userSubmission?.rebounding ?? p.rebounding ?? 5,
-            playmaking: userSubmission?.playmaking ?? p.playmaking ?? 5,
-            stamina: userSubmission?.stamina ?? p.stamina ?? 5,
-            physicality: userSubmission?.physicality ?? p.physicality ?? 5,
-            xfactor: userSubmission?.xfactor ?? p.xfactor ?? 5,
+            scoring: userSubmission?.scoring ?? 0,
+            defense: userSubmission?.defense ?? 0,
+            rebounding: userSubmission?.rebounding ?? 0,
+            playmaking: userSubmission?.playmaking ?? 0,
+            stamina: userSubmission?.stamina ?? 0,
+            physicality: userSubmission?.physicality ?? 0,
+            xfactor: userSubmission?.xfactor ?? 0,
         });
 
         setActiveRatingIndex(index);
         setShowRatingModal(true);
     };
-
 
     const closeRatingModal = () => {
         setShowRatingModal(false);
@@ -101,9 +133,7 @@ export default function RankingTab({
         const nextIndex = Math.min(currentIndex + 1, playersToNavigate.length - 1);
 
         if (nextIndex === currentIndex) {
-            // We're at the last player
             if (showingUnratedOnly) {
-                // Exit unrated-only mode when reaching the end
                 setShowingUnratedOnly(false);
                 setShowRatingModal(false);
                 return;
@@ -115,16 +145,30 @@ export default function RankingTab({
             const userSubmission = nextPlayer.submissions?.find((s) => s.submittedBy === user?.email);
             const playerIndexInSorted = sortedPlayers.findIndex(p => p.name === nextPlayer.name);
 
-            setNewRating({
-                name: nextPlayer.name,
-                scoring: userSubmission?.scoring ?? nextPlayer.scoring ?? 5,
-                defense: userSubmission?.defense ?? nextPlayer.defense ?? 5,
-                rebounding: userSubmission?.rebounding ?? nextPlayer.rebounding ?? 5,
-                playmaking: userSubmission?.playmaking ?? nextPlayer.playmaking ?? 5,
-                stamina: userSubmission?.stamina ?? nextPlayer.stamina ?? 5,
-                physicality: userSubmission?.physicality ?? nextPlayer.physicality ?? 5,
-                xfactor: userSubmission?.xfactor ?? nextPlayer.xfactor ?? 5,
-            });
+            // Maintain current toggle state when navigating
+            if (showOwnRatings) {
+                setNewRating({
+                    name: nextPlayer.name,
+                    scoring: userSubmission?.scoring ?? 0,
+                    defense: userSubmission?.defense ?? 0,
+                    rebounding: userSubmission?.rebounding ?? 0,
+                    playmaking: userSubmission?.playmaking ?? 0,
+                    stamina: userSubmission?.stamina ?? 0,
+                    physicality: userSubmission?.physicality ?? 0,
+                    xfactor: userSubmission?.xfactor ?? 0,
+                });
+            } else {
+                setNewRating({
+                    name: nextPlayer.name,
+                    scoring: nextPlayer.scoring ?? 5,
+                    defense: nextPlayer.defense ?? 5,
+                    rebounding: nextPlayer.rebounding ?? 5,
+                    playmaking: nextPlayer.playmaking ?? 5,
+                    stamina: nextPlayer.stamina ?? 5,
+                    physicality: nextPlayer.physicality ?? 5,
+                    xfactor: nextPlayer.xfactor ?? 5,
+                });
+            }
 
             setActiveRatingIndex(playerIndexInSorted);
             setHasUnsavedChanges(false);
@@ -148,16 +192,30 @@ export default function RankingTab({
             const userSubmission = prevPlayer.submissions?.find((s) => s.submittedBy === user?.email);
             const playerIndexInSorted = sortedPlayers.findIndex(p => p.name === prevPlayer.name);
 
-            setNewRating({
-                name: prevPlayer.name,
-                scoring: userSubmission?.scoring ?? prevPlayer.scoring ?? 5,
-                defense: userSubmission?.defense ?? prevPlayer.defense ?? 5,
-                rebounding: userSubmission?.rebounding ?? prevPlayer.rebounding ?? 5,
-                playmaking: userSubmission?.playmaking ?? prevPlayer.playmaking ?? 5,
-                stamina: userSubmission?.stamina ?? prevPlayer.stamina ?? 5,
-                physicality: userSubmission?.physicality ?? prevPlayer.physicality ?? 5,
-                xfactor: userSubmission?.xfactor ?? prevPlayer.xfactor ?? 5,
-            });
+            // Maintain current toggle state when navigating
+            if (showOwnRatings) {
+                setNewRating({
+                    name: prevPlayer.name,
+                    scoring: userSubmission?.scoring ?? 0,
+                    defense: userSubmission?.defense ?? 0,
+                    rebounding: userSubmission?.rebounding ?? 0,
+                    playmaking: userSubmission?.playmaking ?? 0,
+                    stamina: userSubmission?.stamina ?? 0,
+                    physicality: userSubmission?.physicality ?? 0,
+                    xfactor: userSubmission?.xfactor ?? 0,
+                });
+            } else {
+                setNewRating({
+                    name: prevPlayer.name,
+                    scoring: prevPlayer.scoring ?? 5,
+                    defense: prevPlayer.defense ?? 5,
+                    rebounding: prevPlayer.rebounding ?? 5,
+                    playmaking: prevPlayer.playmaking ?? 5,
+                    stamina: prevPlayer.stamina ?? 5,
+                    physicality: prevPlayer.physicality ?? 5,
+                    xfactor: prevPlayer.xfactor ?? 5,
+                });
+            }
 
             setActiveRatingIndex(playerIndexInSorted);
             setHasUnsavedChanges(false);
@@ -240,6 +298,18 @@ export default function RankingTab({
             if (indexInSorted !== -1) {
                 openRatingModal(indexInSorted);
             }
+        }
+    };
+
+    const handleToggleRatingView = () => {
+        const newShowOwnRatings = !showOwnRatings;
+        setShowOwnRatings(newShowOwnRatings);
+
+        // Reload current player's ratings with new view
+        const currentPlayer = sortedPlayers[activeRatingIndex];
+        if (currentPlayer) {
+            const userSubmission = currentPlayer.submissions?.find((s) => s.submittedBy === user?.email);
+            setNewRating(loadRatingsForPlayer(currentPlayer, userSubmission));
         }
     };
 
@@ -468,13 +538,70 @@ export default function RankingTab({
                             ✕
                         </button>
 
-                        <h2 className="text-xl font-bold mb-4 text-white pr-8">
-                            Rate: {newRating.name}
-                            {showingUnratedOnly && (
-                                <span className="block text-sm font-normal text-blue-400 mt-1">
-                                    Rating unrated players only
-                                </span>
-                            )}
+                        {/* Toggle button for rating view - at the very top */}
+                        <div className="mb-4 flex items-center justify-center gap-2 pt-2">
+                            <button
+                                onClick={() => {
+                                    if (!showOwnRatings) {
+                                        setShowOwnRatings(true);
+                                        // Explicitly load own ratings
+                                        const currentPlayer = sortedPlayers[activeRatingIndex];
+                                        if (currentPlayer) {
+                                            const userSubmission = currentPlayer.submissions?.find((s) => s.submittedBy === user?.email);
+                                            setNewRating({
+                                                name: currentPlayer.name,
+                                                scoring: userSubmission?.scoring ?? 0,
+                                                defense: userSubmission?.defense ?? 0,
+                                                rebounding: userSubmission?.rebounding ?? 0,
+                                                playmaking: userSubmission?.playmaking ?? 0,
+                                                stamina: userSubmission?.stamina ?? 0,
+                                                physicality: userSubmission?.physicality ?? 0,
+                                                xfactor: userSubmission?.xfactor ?? 0,
+                                            });
+                                        }
+                                    }
+                                }}
+                                className={`px-2 py-1 text-sm rounded-lg transition-colors font-medium ${showOwnRatings
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                                    }`}
+                                title="Show your previous ratings for this player"
+                            >
+                                📊 My Ratings
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    if (showOwnRatings) {
+                                        setShowOwnRatings(false);
+                                        // Explicitly load average ratings
+                                        const currentPlayer = sortedPlayers[activeRatingIndex];
+                                        if (currentPlayer) {
+                                            setNewRating({
+                                                name: currentPlayer.name,
+                                                scoring: currentPlayer.scoring ?? 5,
+                                                defense: currentPlayer.defense ?? 5,
+                                                rebounding: currentPlayer.rebounding ?? 5,
+                                                playmaking: currentPlayer.playmaking ?? 5,
+                                                stamina: currentPlayer.stamina ?? 5,
+                                                physicality: currentPlayer.physicality ?? 5,
+                                                xfactor: currentPlayer.xfactor ?? 5,
+                                            });
+                                        }
+                                    }
+                                }}
+                                className={`px-2 py-1 text-sm rounded-lg transition-colors font-medium ${!showOwnRatings
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                                    }`}
+                                title="Show average ratings from all members"
+                            >
+                                📈 Average Ratings
+                            </button>
+                        </div>
+
+                        <h2 className="text-xl font-bold mb-4 text-white">
+                            Rate: {sortedPlayers[activeRatingIndex]?.name}
                         </h2>
 
                         {Object.entries(newRating).map(([key, value]) => {
