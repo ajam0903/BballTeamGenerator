@@ -177,34 +177,32 @@ export default function PlayerDetailModal({
                                     </div>
                                 </div>
 
-                                {/* Height and Weight */}
-                                <div className="grid grid-cols-2 gap-0 border-b border-gray-600">
-                                    <div className="text-center py-2 px-3 border-r border-gray-600">
-                                        <div className="text-xs text-gray-400 mb-1">HEIGHT:</div>
-                                        <div className="text-lg font-bold text-white">
-                                            {playerCardData?.height || "6'0\""}
-                                        </div>
-                                    </div>
-                                    <div className="text-center py-2 px-3">
-                                        <div className="text-xs text-gray-400 mb-1">WEIGHT:</div>
-                                        <div className="text-lg font-bold text-white">
-                                            {playerCardData?.weight ? (
-                                                <>
+                                {/* Height and Weight - only show if player card is claimed and has data */}
+                                {playerCardData?.isClaimed && (playerCardData?.height || playerCardData?.weight) && (
+                                    <div className="grid grid-cols-2 gap-0 border-b border-gray-600">
+                                        {playerCardData?.height && (
+                                            <div className="text-center py-2 px-3 border-r border-gray-600">
+                                                <div className="text-xs text-gray-400 mb-1">HEIGHT:</div>
+                                                <div className="text-lg font-bold text-white">
+                                                    {playerCardData.height}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {playerCardData?.weight && (
+                                            <div className="text-center py-2 px-3">
+                                                <div className="text-xs text-gray-400 mb-1">WEIGHT:</div>
+                                                <div className="text-lg font-bold text-white">
                                                     {playerCardData.weight} <span className="text-xs">lbs</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    180 <span className="text-xs">lbs</span>
-                                                </>
-                                            )}
-                                        </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
+                                )}
 
                                 {/* Wins Record - Full width */}
                                 <div className="text-center py-2 border-b border-gray-600">
-                                    <div className="text-xl font-bold text-white">
-                                        WINS: {playerStats.wins}/{playerStats.gamesPlayed}
+                                    <div className="text-l font-bold text-white">
+                                        Record: {playerStats.wins}/{playerStats.gamesPlayed}
                                     </div>
                                 </div>
 
