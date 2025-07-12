@@ -193,9 +193,11 @@ export default function BeltsTab({
             {/* Quick Vote Modal */}
             {showQuickVote && selectedBeltForVote && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                    <div className="bg-gray-800 p-6 rounded-lg w-full max-w-md">
+                    <div className="bg-gray-800 p-6 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
                         {(() => {
                             const belt = beltCategories[selectedBeltForVote];
+                            const holder = currentBelts[selectedBeltForVote];
+                            const voteBreakdown = getBeltVoteBreakdown(selectedBeltForVote);
 
                             const handleQuickVote = () => {
                                 if (selectedPlayer) {
@@ -207,9 +209,10 @@ export default function BeltsTab({
 
                             return (
                                 <>
+                                    {/* Header */}
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="flex items-center">
-                                            <span className="text-3xl mr-3">{belt.icon}</span>
+                                            <span className="text-4xl mr-3">{belt.icon}</span>
                                             <div>
                                                 <h2 className="text-xl font-bold text-white">{belt.name}</h2>
                                                 <p className={`text-sm ${belt.isNegative ? 'text-red-400' : 'text-green-400'}`}>
@@ -218,26 +221,55 @@ export default function BeltsTab({
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => {
-                                                setShowQuickVote(false);
-                                                setSelectedPlayer(""); // Reset when closing
-                                            }}
+                                            onClick={() => setShowQuickVote(false)}
                                             className="text-gray-400 hover:text-white text-xl font-bold"
                                         >
                                             ✕
                                         </button>
                                     </div>
 
+                                    {/* Belt Description */}
                                     <p className="text-gray-300 mb-4">{belt.description}</p>
 
-                                    <div className="mb-4">
+                                    {/* Current Holder Info */}
+                                    {holder && (
+                                        <div className={`p-4 rounded-lg mb-4 ${belt.isNegative ?
+                                            'bg-red-900 bg-opacity-20 border border-red-700' :
+                                            'bg-green-900 bg-opacity-20 border border-green-700'}`}>
+                                            <div className="text-center">
+                                                <div className="text-lg font-bold text-white mb-1">
+                                                    👑 Current Champion
+                                                </div>
+                                                <div className="text-xl font-bold text-white">{holder.playerName}</div>
+                                                <div className="text-sm text-gray-300">{holder.votes} votes</div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Vote Breakdown */}
+                                    {voteBreakdown.length > 0 && (
+                                        <div className="mb-4">
+                                            <h3 className="text-sm font-medium text-gray-300 mb-2">Vote Breakdown:</h3>
+                                            <div className="space-y-1">
+                                                {voteBreakdown.map(({ playerName, count }) => (
+                                                    <div key={playerName} className="flex justify-between items-center text-sm">
+                                                        <span className="text-white">{playerName}</span>
+                                                        <span className="text-gray-400">{count} vote{count !== 1 ? 's' : ''}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Voting Section */}
+                                    <div className="border-t border-gray-600 pt-4">
                                         <label className="block text-sm font-medium text-gray-300 mb-2">
                                             Select a Player:
                                         </label>
                                         <select
                                             value={selectedPlayer}
                                             onChange={(e) => setSelectedPlayer(e.target.value)}
-                                            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white mb-4"
                                         >
                                             <option value="">-- Select a player --</option>
                                             {players.map(player => (
@@ -246,37 +278,19 @@ export default function BeltsTab({
                                                 </option>
                                             ))}
                                         </select>
-                                    </div>
 
-                                    {userVotes[selectedBeltForVote] && (
-                                        <div className="bg-blue-900 bg-opacity-20 p-3 rounded mb-4">
-                                            <div className="text-sm text-blue-400">Your current vote:</div>
-                                            <div className="text-white font-medium">{userVotes[selectedBeltForVote]}</div>
+                                        <div className="flex justify-end">
+                                            <button
+                                                onClick={handleQuickVote}
+                                                disabled={!selectedPlayer}
+                                                className={`px-4 py-2 text-white rounded ${!selectedPlayer
+                                                    ? "bg-gray-600 cursor-not-allowed"
+                                                    : "bg-blue-600 hover:bg-blue-700"
+                                                    }`}
+                                            >
+                                                {userVotes[selectedBeltForVote] ? "Change Vote" : "Vote"}
+                                            </button>
                                         </div>
-                                    )}
-
-                                    <div className="flex justify-between">
-                                        <button
-                                            onClick={() => {
-                                                setShowQuickVote(false);
-                                                setSelectedBeltForDetails(selectedBeltForVote);
-                                                setShowBeltDetails(true);
-                                                setSelectedPlayer(""); // Reset when switching to details
-                                            }}
-                                            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-                                        >
-                                            View Details
-                                        </button>
-                                        <button
-                                            onClick={handleQuickVote}
-                                            disabled={!selectedPlayer}
-                                            className={`px-4 py-2 text-white rounded ${!selectedPlayer
-                                                ? "bg-gray-600 cursor-not-allowed"
-                                                : "bg-blue-600 hover:bg-blue-700"
-                                                }`}
-                                        >
-                                            {userVotes[selectedBeltForVote] ? "Change Vote" : "Vote"}
-                                        </button>
                                     </div>
                                 </>
                             );
