@@ -13,6 +13,7 @@ import { ratingHelp } from "./ratingHelp";
 import PlayerBeltIcons from "./PlayerBeltIcons";
 import { badgeCategories } from "./badgeSystem.jsx";
 import PlayerBadges from "./playerBadges";
+import UnratedPlayersNotification from './UnratedPlayersNotification';
 
 export default function RankingTab({
     players,
@@ -35,6 +36,8 @@ export default function RankingTab({
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     const [showRatingModal, setShowRatingModal] = useState(false);
     const [activeRatingIndex, setActiveRatingIndex] = useState(null);
+    const [showingUnratedOnly, setShowingUnratedOnly] = useState(false);
+
     const handleRatingSubmitWithPreserve = () => {
         // Store current values before submission
         const currentValues = { ...newRating };
@@ -86,13 +89,31 @@ export default function RankingTab({
     };
 
     const nextPlayer = () => {
-        const nextIndex = Math.min(activeRatingIndex + 1, sortedPlayers.length - 1);
-        setActiveRatingIndex(nextIndex);
+        let playersToNavigate = showingUnratedOnly
+            ? players.filter(player => {
+                const userSubmission = player.submissions?.find(s => s.submittedBy === user?.email);
+                return !userSubmission;
+            })
+            : sortedPlayers;
 
-        // Load the next player's data
-        const nextPlayer = sortedPlayers[nextIndex];
+        const currentPlayerName = newRating.name;
+        const currentIndex = playersToNavigate.findIndex(p => p.name === currentPlayerName);
+        const nextIndex = Math.min(currentIndex + 1, playersToNavigate.length - 1);
+
+        if (nextIndex === currentIndex) {
+            // We're at the last player
+            if (showingUnratedOnly) {
+                // Exit unrated-only mode when reaching the end
+                setShowingUnratedOnly(false);
+                setShowRatingModal(false);
+                return;
+            }
+        }
+
+        const nextPlayer = playersToNavigate[nextIndex];
         if (nextPlayer) {
             const userSubmission = nextPlayer.submissions?.find((s) => s.submittedBy === user?.email);
+            const playerIndexInSorted = sortedPlayers.findIndex(p => p.name === nextPlayer.name);
 
             setNewRating({
                 name: nextPlayer.name,
@@ -105,18 +126,27 @@ export default function RankingTab({
                 xfactor: userSubmission?.xfactor ?? nextPlayer.xfactor ?? 5,
             });
 
+            setActiveRatingIndex(playerIndexInSorted);
             setHasUnsavedChanges(false);
         }
     };
 
     const prevPlayer = () => {
-        const prevIndex = Math.max(activeRatingIndex - 1, 0);
-        setActiveRatingIndex(prevIndex);
+        let playersToNavigate = showingUnratedOnly
+            ? players.filter(player => {
+                const userSubmission = player.submissions?.find(s => s.submittedBy === user?.email);
+                return !userSubmission;
+            })
+            : sortedPlayers;
 
-        // Load the previous player's data
-        const prevPlayer = sortedPlayers[prevIndex];
+        const currentPlayerName = newRating.name;
+        const currentIndex = playersToNavigate.findIndex(p => p.name === currentPlayerName);
+        const prevIndex = Math.max(currentIndex - 1, 0);
+
+        const prevPlayer = playersToNavigate[prevIndex];
         if (prevPlayer) {
             const userSubmission = prevPlayer.submissions?.find((s) => s.submittedBy === user?.email);
+            const playerIndexInSorted = sortedPlayers.findIndex(p => p.name === prevPlayer.name);
 
             setNewRating({
                 name: prevPlayer.name,
@@ -129,11 +159,41 @@ export default function RankingTab({
                 xfactor: userSubmission?.xfactor ?? prevPlayer.xfactor ?? 5,
             });
 
+            setActiveRatingIndex(playerIndexInSorted);
             setHasUnsavedChanges(false);
         }
     };
 
     const computeRating = (p) => {
+        // If player has submissions, calculate from them
+        if (p.submissions && p.submissions.length > 0) {
+            const weightings = {
+                scoring: 0.25,
+                defense: 0.2,
+                rebounding: 0.15,
+                playmaking: 0.15,
+                stamina: 0.1,
+                physicality: 0.1,
+                xfactor: 0.05,
+            };
+
+            const total = p.submissions.reduce((sum, sub) => {
+                const weightedAvg = (
+                    (sub.scoring || 5) * weightings.scoring +
+                    (sub.defense || 5) * weightings.defense +
+                    (sub.rebounding || 5) * weightings.rebounding +
+                    (sub.playmaking || 5) * weightings.playmaking +
+                    (sub.stamina || 5) * weightings.stamina +
+                    (sub.physicality || 5) * weightings.physicality +
+                    (sub.xfactor || 5) * weightings.xfactor
+                );
+                return sum + weightedAvg;
+            }, 0);
+
+            return (total / p.submissions.length).toFixed(2);
+        }
+
+        // Fallback to individual stats if no submissions
         return (
             (p.scoring || 5) * 0.25 +
             (p.defense || 5) * 0.2 +
@@ -154,6 +214,34 @@ export default function RankingTab({
 
     const modalRef = useRef();
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+    // Helper function to get player initials
+    const getPlayerInitials = (name) => {
+        if (!name) return "?";
+        const words = name.trim().split(/\s+/);
+        if (words.length === 1) {
+            return words[0].substring(0, 2).toUpperCase();
+        }
+        return words.slice(0, 2).map(word => word.charAt(0)).join("").toUpperCase();
+    };
+
+    const startRatingUnratedPlayers = () => {
+        const unratedPlayers = players.filter(player => {
+            const userSubmission = player.submissions?.find(s => s.submittedBy === user?.email);
+            return !userSubmission;
+        });
+
+        if (unratedPlayers.length > 0) {
+            setShowingUnratedOnly(true);
+            // Find the index of the first unrated player in sortedPlayers
+            const firstUnratedPlayer = unratedPlayers[0];
+            const indexInSorted = sortedPlayers.findIndex(p => p.name === firstUnratedPlayer.name);
+
+            if (indexInSorted !== -1) {
+                openRatingModal(indexInSorted);
+            }
+        }
+    };
 
     useEffect(() => {
         function handleClickOutside(e) {
@@ -200,6 +288,11 @@ export default function RankingTab({
 
     return (
         <div className="space-y-1">
+            <UnratedPlayersNotification
+                user={user}
+                players={players}
+                onStartRating={startRatingUnratedPlayers}
+            />
             {/* Header with Add Player button */}
             <div className="flex justify-end items-center mb-4">
                 <button
@@ -249,109 +342,118 @@ export default function RankingTab({
                         (s) => s.submittedBy === user?.email
                     );
                     const bgColorClass = index % 2 === 0 ? "bg-gray-800" : "bg-gray-800/50";
+
                     return (
                         <div
                             key={player.name}
-                            className={`${bgColorClass} rounded p-2 cursor-pointer hover:bg-gray-700 transition-colors`}
+                            className={`${bgColorClass} rounded overflow-hidden cursor-pointer hover:bg-gray-700 transition-colors`}
                             onClick={() => onPlayerClick && onPlayerClick(player)}
                         >
-                            <div className="flex justify-between items-center mb-0.5">
-                                <div className="flex items-center">
-                                    <span className="text-base text-white">{player.name}</span>
-                                    <PlayerBeltIcons playerName={player.name} currentBelts={currentBelts} />
-                                    <PlayerBadges
-                                        playerName={player.name}
-                                        leaderboard={leaderboard}
-                                        matchHistory={matchHistory}
-                                        size="small"
-                                        maxDisplay={2}
-                                    />
-                                </div>
-                                <span className="text-base font-medium text-blue-400">
-                                    {rating}
-                                </span>
-                            </div>
-
-                            <div className="mb-1">
-                                <div className="text-xs text-gray-400">Ratings: {player.submissions?.length || 0}</div>
-                                <div className="mt-0.5 bg-gray-700 h-1 rounded w-full">
+                            <div className="flex items-stretch min-h-[80px]">
+                                {/* Player Image or Initials - Full Height */}
+                                <div className="flex-shrink-0 w-20 relative">
+                                    {player.customPhotoURL ? (
+                                        <img
+                                            src={player.customPhotoURL}
+                                            alt={player.name}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                                // Fallback to initials if image fails to load
+                                                e.target.style.display = 'none';
+                                                e.target.nextSibling.style.display = 'flex';
+                                            }}
+                                        />
+                                    ) : null}
                                     <div
-                                        className="bg-blue-500 h-1 rounded"
-                                        style={{ width: `${getPercentage(parseFloat(rating))}%` }}
-                                    />
+                                        className={`absolute inset-0 bg-gray-600 flex items-center justify-center text-white font-semibold text-lg ${player.customPhotoURL ? 'hidden' : 'flex'}`}
+                                    >
+                                        {getPlayerInitials(player.name)}
+                                    </div>
+                                </div>
+
+                                {/* Player Info */}
+                                <div className="flex-1 min-w-0 p-2 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex justify-between items-center mb-0.5">
+                                            <div className="flex items-center">
+                                                <span className="text-base text-white truncate">{player.name}</span>
+                                                <PlayerBeltIcons playerName={player.name} currentBelts={currentBelts} />
+                                                <PlayerBadges
+                                                    playerName={player.name}
+                                                    leaderboard={leaderboard}
+                                                    matchHistory={matchHistory}
+                                                    size="small"
+                                                    maxDisplay={2}
+                                                />
+                                            </div>
+                                            <span className="text-base font-medium text-blue-400 flex-shrink-0">
+                                                {rating}
+                                            </span>
+                                        </div>
+
+                                        <div className="mb-1">
+                                            <div className="text-xs text-gray-400">Ratings: {player.submissions?.length || 0}</div>
+                                            <div className="mt-0.5 bg-gray-700 h-1 rounded w-full">
+                                                <div
+                                                    className="bg-blue-500 h-1 rounded"
+                                                    style={{ width: `${getPercentage(parseFloat(rating))}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openRatingModal(index);
+                                            }}
+                                            className="px-1.5 py-0.5 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 mr-1"
+                                        >
+                                            Rate
+                                        </button>
+
+                                        <div className={`flex items-center px-1.5 py-0.5 rounded text-xs ${userSubmission
+                                            ? "bg-green-600 text-white"
+                                            : "bg-gray-600 text-gray-300"
+                                            }`}>
+                                            <span className="mr-1">●</span>
+                                            {userSubmission ? "Rated" : "Not Rated"}
+                                        </div>
+
+                                        {isAdmin && (
+                                            <div className="ml-auto flex space-x-0.5">
+                                                <StyledButton
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const playerToEdit = {
+                                                            ...player,
+                                                            active: player.active !== undefined ? player.active : true
+                                                        };
+                                                        openEditModal(playerToEdit, true, true);
+                                                    }}
+                                                    className="px-1.5 py-0.5 text-xs bg-yellow-600 hover:bg-yellow-700"
+                                                >
+                                                    Edit
+                                                </StyledButton>
+                                                <StyledButton
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (confirm(`Are you sure you want to delete ${player.name}? This will permanently remove all player data including ratings, match history, and statistics. This action cannot be undone.`)) {
+                                                            handleDeletePlayer(player.name);
+                                                        }
+                                                    }}
+                                                    className="px-1.5 py-0.5 text-xs bg-red-600 hover:bg-red-700"
+                                                >
+                                                    Delete
+                                                </StyledButton>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-
-                        <div className="flex items-center">
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation(); // Add this line
-                                        openRatingModal(index);
-                                    }}
-                                    className="px-2 py-1 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 mr-2"
-                                >
-                                    Rate
-                                </button>
-
-                            <div className={`flex items-center px-2 py-0.5 rounded-md text-xs ${userSubmission
-                                ? "bg-green-900 bg-opacity-30 text-green-400"
-                                : "bg-yellow-900 bg-opacity-30 text-yellow-400"
-                                }`}>
-                                {userSubmission ? (
-                                    <>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                        </svg>
-                                        <span>Rated</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                                        </svg>
-                                        <span>Not rated</span>
-                                    </>
-                                )}
-                            </div>
-
-                                {isAdmin && (
-                                    <div className="flex space-x-1 ml-auto">
-                                        <StyledButton
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                const playerToEdit = {
-                                                    name: player.name,
-                                                    scoring: player.scoring || 5,
-                                                    defense: player.defense || 5,
-                                                    rebounding: player.rebounding || 5,
-                                                    playmaking: player.playmaking || 5,
-                                                    stamina: player.stamina || 5,
-                                                    physicality: player.physicality || 5,
-                                                    xfactor: player.xfactor || 5,
-                                                    active: player.active !== undefined ? player.active : true
-                                                };
-                                                openEditModal(playerToEdit, true, true); // Pass true for isAdminEdit
-                                            }}
-                                            className="px-2 py-1 text-xs bg-yellow-600 hover:bg-yellow-700"
-                                        >
-                                            Edit
-                                        </StyledButton>
-                                        <StyledButton
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (confirm(`Are you sure you want to delete ${player.name}? This will permanently remove all player data including ratings, match history, and statistics. This action cannot be undone.`)) {
-                                                    handleDeletePlayer(player.name);
-                                                }
-                                            }}
-                                            className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700"
-                                        >
-                                            Delete
-                                        </StyledButton>
-                                    </div>
-                                )}
                         </div>
-                    </div>
-                );
+                    );
                 })}
             </div>
             {/* Rating Modal */}
@@ -367,7 +469,12 @@ export default function RankingTab({
                         </button>
 
                         <h2 className="text-xl font-bold mb-4 text-white pr-8">
-                            Rate: {sortedPlayers[activeRatingIndex]?.name}
+                            Rate: {newRating.name}
+                            {showingUnratedOnly && (
+                                <span className="block text-sm font-normal text-blue-400 mt-1">
+                                    Rating unrated players only
+                                </span>
+                            )}
                         </h2>
 
                         {Object.entries(newRating).map(([key, value]) => {
@@ -398,27 +505,56 @@ export default function RankingTab({
                             );
                         })}
 
+                        {/* Navigation and Submit buttons */}
                         <div className="flex justify-between items-center mt-4">
-                            <button
-                                className="text-white text-lg disabled:text-gray-500 p-1"
+                            <StyledButton
                                 onClick={prevPlayer}
-                                disabled={activeRatingIndex === 0}
+                                disabled={showingUnratedOnly ?
+                                    (players.filter(p => !p.submissions?.find(s => s.submittedBy === user?.email))
+                                        .findIndex(p => p.name === newRating.name) === 0) :
+                                    (activeRatingIndex === 0)
+                                }
+                                className="bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs px-2 py-1"
                             >
-                                ⬅️
-                            </button>
+                                ← Prev
+                            </StyledButton>
+
                             <StyledButton
                                 onClick={handleRatingSubmitWithPreserve}
-                                className="bg-blue-600 hover:bg-blue-700 py-1 px-3 text-sm"
+                                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 mx-2"
                             >
                                 Submit Rating
                             </StyledButton>
-                            <button
-                                className="text-white text-lg disabled:text-gray-500 p-1"
+
+                            <StyledButton
                                 onClick={nextPlayer}
-                                disabled={activeRatingIndex === sortedPlayers.length - 1}
+                                disabled={showingUnratedOnly ?
+                                    (players.filter(p => !p.submissions?.find(s => s.submittedBy === user?.email))
+                                        .findIndex(p => p.name === newRating.name) ===
+                                        players.filter(p => !p.submissions?.find(s => s.submittedBy === user?.email)).length - 1) :
+                                    (activeRatingIndex === sortedPlayers.length - 1)
+                                }
+                                className="bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs px-2 py-1"
                             >
-                                ➡️
-                            </button>
+                                {showingUnratedOnly &&
+                                    players.filter(p => !p.submissions?.find(s => s.submittedBy === user?.email))
+                                        .findIndex(p => p.name === newRating.name) ===
+                                    players.filter(p => !p.submissions?.find(s => s.submittedBy === user?.email)).length - 1
+                                    ? 'Finish' : 'Next'} →
+                            </StyledButton>
+                        </div>
+
+                        {/* Progress indicator */}
+                        <div className="text-center mt-2">
+                            <span className="text-gray-400 text-xs">
+                                {showingUnratedOnly ? (
+                                    `${players.filter(p => !p.submissions?.find(s => s.submittedBy === user?.email))
+                                        .findIndex(p => p.name === newRating.name) + 1} of ${players.filter(p => !p.submissions?.find(s => s.submittedBy === user?.email)).length
+                                    } unrated`
+                                ) : (
+                                    `${activeRatingIndex + 1} of ${sortedPlayers.length}`
+                                )}
+                            </span>
                         </div>
                     </div>
                 </div>

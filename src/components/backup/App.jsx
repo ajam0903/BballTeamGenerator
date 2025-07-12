@@ -116,7 +116,6 @@ export default function App() {
     const [userLeagues, setUserLeagues] = useState([]);
     const [showPlayerClaimModal, setShowPlayerClaimModal] = useState(false);
     const [selectedPlayerToClaim, setSelectedPlayerToClaim] = useState(null);
-    const [enhancedPlayers, setEnhancedPlayers] = useState([]);
 
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -2167,79 +2166,6 @@ export default function App() {
         fetchUserLeagues();
     }, [user, currentLeagueId]); // Re-fetch when user or currentLeagueId changes
 
-    useEffect(() => {
-        const enhanceAndSetPlayers = async () => {
-            if (players.length > 0 && currentLeagueId) {
-                const enhanced = await enhancePlayersWithClaimData(players);
-                setEnhancedPlayers(enhanced);
-            } else {
-                setEnhancedPlayers(players);
-            }
-        };
-
-        enhanceAndSetPlayers();
-    }, [players, currentLeagueId]); // Re-run when players or league changes
-
-    useEffect(() => {
-        // Create a global refresh function that can be called from LogTab
-        window.refreshPlayersData = async () => {
-            if (currentLeagueId) {
-                const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    // Process players the same way as in the original fetch
-                    const averagedPlayers = (data.players || []).map((player) => {
-                        const submissions = Array.isArray(player.submissions) ? player.submissions : [];
-                        if (submissions.length === 0) {
-                            return {
-                                ...player,
-                                submissions: []
-                            };
-                        }
-
-                        // Calculate averages from submissions
-                        const avgStats = {
-                            name: player.name || "Unknown",
-                            active: player.active !== undefined ? player.active : true,
-                            scoring: 0,
-                            defense: 0,
-                            rebounding: 0,
-                            playmaking: 0,
-                            stamina: 0,
-                            physicality: 0,
-                            xfactor: 0,
-                        };
-                        submissions.forEach((s) => {
-                            avgStats.scoring += s.scoring;
-                            avgStats.defense += s.defense;
-                            avgStats.rebounding += s.rebounding;
-                            avgStats.playmaking += s.playmaking;
-                            avgStats.stamina += s.stamina;
-                            avgStats.physicality += s.physicality;
-                            avgStats.xfactor += s.xfactor;
-                        });
-                        const len = submissions.length || 1;
-                        Object.keys(avgStats).forEach((key) => {
-                            if (typeof avgStats[key] === "number") {
-                                avgStats[key] = parseFloat((avgStats[key] / len).toFixed(2));
-                            }
-                        });
-                        avgStats.submissions = submissions;
-                        return avgStats;
-                    });
-
-                    setPlayers(averagedPlayers);
-                }
-            }
-        };
-
-        // Cleanup
-        return () => {
-            delete window.refreshPlayersData;
-        };
-    }, [currentLeagueId, currentSet]);
-
     // Get team rank string showing position out of total
     const getTeamRankString = (teamIndex) => {
         if (!teamRankings || teamRankings.length === 0) return "";
@@ -2798,7 +2724,7 @@ export default function App() {
                         <div className="space-y-4">
                             {playersSubTab === "rankings" && (
                                 <RankingTab
-                                    players={enhancedPlayers}
+                                    players={players}
                                     newRating={newRating}
                                     setNewRating={setNewRating}
                                     handleRatingSubmit={handleRatingSubmit}

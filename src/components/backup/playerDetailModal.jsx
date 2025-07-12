@@ -5,7 +5,6 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { getPlayerBadges, getBadgeProgress, badgeCategories, calculatePlayerStats } from "./badgeSystem.jsx";
 import Badge from "./Badge";
 import PlayerCardClaimModal from './PlayerCardClaimModal';
-import { StyledButton } from './UIComponents';
 
 function getCategoryIcon(categoryName) {
     const iconMap = {
@@ -96,13 +95,23 @@ export default function PlayerDetailModal({
     }, [isOpen, player, currentLeagueId]);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
             <div className="bg-gray-800 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden">
-                {/* Header with Player Name and Close Button */}
-                <div className="flex justify-between items-center px-6 py-3 border-b border-gray-700 bg-gray-800">
-                    <h2 className="text-2xl font-bold text-white tracking-wider">
-                        {player.name.toUpperCase()}
-                    </h2>
+                {/* Header */}
+                <div className="flex justify-between items-center p-6 border-b border-gray-700">
+                    <div className="flex items-center">
+                        <div>
+                            <h2 className="text-2xl font-bold text-white">{player.name}</h2>
+                            <div className="flex items-center mt-1">
+                                <span className="text-blue-400 text-lg font-medium">
+                                    {overallRating.toFixed(1)} OVR
+                                </span>
+                                <div className="ml-4 text-sm text-gray-300">
+                                    {playerStats.gamesPlayed} games • {winPercentage}% win rate
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <button
                         onClick={onClose}
                         className="text-gray-400 hover:text-white text-xl font-bold"
@@ -115,27 +124,29 @@ export default function PlayerDetailModal({
                 <div className="flex border-b border-gray-700 bg-gray-800">
                     <button
                         onClick={() => setActiveTab("overview")}
-                        className={`px-4 py-2 text-sm font-medium ${activeTab === "overview"
+                        className={`px-6 py-3 text-sm font-medium ${
+                            activeTab === "overview"
                                 ? "text-blue-400 border-b-2 border-blue-400 bg-gray-750"
                                 : "text-gray-400 hover:text-gray-300"
-                            }`}
+                        }`}
                     >
                         Overview
                     </button>
                     <button
                         onClick={() => setActiveTab("awards")}
-                        className={`px-4 py-2 text-sm font-medium ${activeTab === "awards"
+                        className={`px-6 py-3 text-sm font-medium ${
+                            activeTab === "awards"
                                 ? "text-blue-400 border-b-2 border-blue-400 bg-gray-750"
                                 : "text-gray-400 hover:text-gray-300"
-                            }`}
+                        }`}
                     >
                         Awards & Badges
                     </button>
                     <button
                         onClick={() => setActiveTab("reviews")}
-                        className={`px-4 py-2 text-sm font-medium ${activeTab === "reviews"
-                            ? "text-blue-400 border-b-2 border-blue-400 bg-gray-750"
-                            : "text-gray-400 hover:text-gray-300"
+                        className={`px-6 py-3 text-sm font-medium ${activeTab === "reviews"
+                                ? "text-blue-400 border-b-2 border-blue-400 bg-gray-750"
+                                : "text-gray-400 hover:text-gray-300"
                             }`}
                     >
                         Reviews ({player.submissions?.length || 0})
@@ -146,87 +157,28 @@ export default function PlayerDetailModal({
                 <div className="p-6 overflow-y-auto" style={{ maxHeight: "60vh" }}>
                     {activeTab === "overview" && (
                         <div className="space-y-6">
-                            {/* Player Card - Condensed spacing */}
-                            <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-4 rounded-lg">
-
-                                {/* Player Photo with OVR Badge */}
-                                <div className="flex justify-center mb-4 relative">
-                                    <div className="w-36 h-36 bg-gray-700 rounded-lg border-2 border-gray-600 flex items-center justify-center relative overflow-hidden">
-                                        {playerCardData?.customPhotoURL ? (
-                                            <img
-                                                src={playerCardData.customPhotoURL}
-                                                alt={player.name}
-                                                className="w-full h-full object-cover rounded-lg"
-                                                onError={(e) => {
-                                                    e.target.style.display = 'none';
-                                                }}
-                                            />
-                                        ) : (
-                                            <div className="text-gray-300 text-4xl font-bold">
-                                                {player.name.split(' ').map(name => name.charAt(0)).join('').toUpperCase()}
-                                            </div>
-                                        )}
-
-                                        {/* OVR Badge */}
-                                        <div className="absolute top-0 left-0 bg-gray-800 rounded-br-lg px-2 py-1 border-r border-b border-gray-600 shadow-lg">
-                                            <div className="text-xs text-gray-400 text-center leading-tight">OVR</div>
-                                            <div className="text-sm font-bold text-white text-center leading-tight">
-                                                {overallRating.toFixed(1)}
-                                            </div>
-                                        </div>
-                                    </div>
+                            {/* Player Stats Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="bg-gray-700 p-4 rounded-lg text-center">
+                                    <div className="text-2xl font-bold text-white">{playerStats.gamesPlayed}</div>
+                                    <div className="text-sm text-gray-400">Games Played</div>
                                 </div>
-
-                                {/* Height and Weight */}
-                                <div className="grid grid-cols-2 gap-0 border-b border-gray-600">
-                                    <div className="text-center py-2 px-3 border-r border-gray-600">
-                                        <div className="text-xs text-gray-400 mb-1">HEIGHT:</div>
-                                        <div className="text-lg font-bold text-white">
-                                            {playerCardData?.height || "6'0\""}
-                                        </div>
-                                    </div>
-                                    <div className="text-center py-2 px-3">
-                                        <div className="text-xs text-gray-400 mb-1">WEIGHT:</div>
-                                        <div className="text-lg font-bold text-white">
-                                            {playerCardData?.weight ? (
-                                                <>
-                                                    {playerCardData.weight} <span className="text-xs">lbs</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    180 <span className="text-xs">lbs</span>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
+                                <div className="bg-gray-700 p-4 rounded-lg text-center">
+                                    <div className="text-2xl font-bold text-green-400">{playerStats.wins}</div>
+                                    <div className="text-sm text-gray-400">Wins</div>
                                 </div>
-
-                                {/* Wins Record - Full width */}
-                                <div className="text-center py-2 border-b border-gray-600">
-                                    <div className="text-xl font-bold text-white">
-                                        WINS: {playerStats.wins}/{playerStats.gamesPlayed}
-                                    </div>
+                                <div className="bg-gray-700 p-4 rounded-lg text-center">
+                                    <div className="text-2xl font-bold text-red-400">{playerLeaderboardStats._l}</div>
+                                    <div className="text-sm text-gray-400">Losses</div>
                                 </div>
-
-                                {/* Win Rate and MVPs */}
-                                <div className="grid grid-cols-2 gap-0">
-                                    <div className="text-center py-2 px-3 border-r border-gray-600">
-                                        <div className="text-xs text-gray-400 mb-1">Win Rate</div>
-                                        <div className="text-lg font-bold text-white">
-                                            {winPercentage}%
-                                        </div>
-                                    </div>
-                                    <div className="text-center py-2 px-3">
-                                        <div className="text-xs text-gray-400 mb-1">MVP's</div>
-                                        <div className="text-lg font-bold text-white">
-                                            {playerStats.mvps}
-                                        </div>
-                                    </div>
+                                <div className="bg-gray-700 p-4 rounded-lg text-center">
+                                    <div className="text-2xl font-bold text-yellow-400">{playerStats.mvps}</div>
+                                    <div className="text-sm text-gray-400">MVPs</div>
                                 </div>
                             </div>
 
                             {/* Player Abilities */}
-                            <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-6 rounded-lg">
+                            <div className="bg-gray-700 p-4 rounded-lg">
                                 <h3 className="text-lg font-semibold text-white mb-4">Player Abilities</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {["scoring", "defense", "rebounding", "playmaking", "stamina", "physicality", "xfactor"].map((ability) => (
@@ -247,41 +199,77 @@ export default function PlayerDetailModal({
                                     ))}
                                 </div>
                             </div>
-                            {/* Player Card Claim Section - Simplified */}
+                            {/* Player Card Claim Section */}
                             {playerCardData && (
-                                <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-6 rounded-lg">
-                                    <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
+                                <div className="bg-gray-700 p-4 rounded-lg">
+                                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
                                         <span className="mr-2">👤</span>
-                                        Player Card Status
+                                        Player Card
                                     </h3>
 
                                     {playerCardData.isClaimed ? (
-                                        <div className="space-y-2">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-green-400 font-medium">✓ Claimed</span>
-                                                <span className="text-sm text-gray-400">
-                                                    by {playerCardData.claimedByName}
-                                                </span>
-                                            </div>
-                                            {playerCardData.status === 'pending' && (
-                                                <div className="text-yellow-400 text-sm">
-                                                    ⏳ Approval pending
+                                        <div className="space-y-3">
+                                            {/* Custom Photo */}
+                                            {playerCardData.customPhotoURL && (
+                                                <div className="flex justify-center">
+                                                    <img
+                                                        src={playerCardData.customPhotoURL}
+                                                        alt={`${playerCardData.preferredName || player.name}`}
+                                                        className="w-20 h-20 rounded-full object-cover border-2 border-blue-500"
+                                                        onError={(e) => {
+                                                            e.target.style.display = 'none';
+                                                        }}
+                                                    />
                                                 </div>
+                                            )}
+
+                                            {/* Height and Weight */}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {playerCardData.height && (
+                                                    <div>
+                                                        <span className="text-gray-400 text-sm">Height:</span>
+                                                        <div className="text-white font-medium">{playerCardData.height}</div>
+                                                    </div>
+                                                )}
+                                                {playerCardData.weight && (
+                                                    <div>
+                                                        <span className="text-gray-400 text-sm">Weight:</span>
+                                                        <div className="text-white font-medium">{playerCardData.weight}</div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Claimed by indicator */}
+                                            <div className="text-xs text-green-400 flex items-center">
+                                                <span className="mr-1">✓</span>
+                                                Card claimed by {playerCardData.claimedByName}
+                                            </div>
+
+                                            {/* Edit button for owner */}
+                                            {user && playerCardData.claimedByUid === user.uid && (
+                                                <button
+                                                    onClick={() => setShowClaimModal(true)}
+                                                    className="text-sm text-blue-400 hover:text-blue-300 underline"
+                                                >
+                                                    Edit Card
+                                                </button>
                                             )}
                                         </div>
                                     ) : (
-                                        <div className="space-y-3">
-                                            <div className="text-gray-400">
-                                                This player card is available to claim
+                                        <div className="text-center py-4">
+                                            <div className="text-gray-400 mb-3">
+                                                This player card is unclaimed
                                             </div>
-                                            {!playerCardData.userHasClaimedCard && (
-                                                <StyledButton
+                                            {/* Only show claim button if user hasn't claimed any player card in this league */}
+                                            {user && !playerCardData.userHasClaimedCard && (
+                                                <button
                                                     onClick={() => setShowClaimModal(true)}
-                                                    className="bg-blue-600 hover:bg-blue-700"
+                                                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors"
                                                 >
-                                                    Claim Player Card
-                                                </StyledButton>
+                                                    Claim This Card
+                                                </button>
                                             )}
+
                                         </div>
                                     )}
                                 </div>
@@ -318,7 +306,7 @@ export default function PlayerDetailModal({
                     )}
 
                     {activeTab === "awards" && (
-                       <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-4 rounded-lg">
+                        <div className="space-y-6">
                             {/* Earned Badges */}
                             <div>
                                 <h3 className="text-lg font-semibold text-white mb-4">

@@ -255,6 +255,18 @@ export default function LogTab({
             setLogs(logs.filter(log => log.id !== logId));
             setShowConfirmDelete(null);
 
+            if (["player_rating_changed", "player_rating_updated", "player_rating_added"].includes(logData.action)) {
+                // Force refresh the data by dispatching a custom event or calling a refresh function
+                if (window.refreshPlayersData) {
+                    window.refreshPlayersData();
+                } else {
+                    // Alternative: reload the page to ensure fresh data
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+            }
+
             // Show success message
             setToastMessage("Log entry deleted and action reversed");
             setTimeout(() => setToastMessage(""), 3000);
@@ -451,30 +463,65 @@ export default function LogTab({
             if (player.submissions.length === 1 &&
                 player.submissions[0].submittedBy === logData.userId) {
                 updatedPlayers.splice(playerIndex, 1);
-               
             } else {
                 // Remove just this user's submission
                 const updatedSubmissions = player.submissions.filter(
                     (s) => s.submittedBy !== logData.userId
                 );
 
-                // Recalculate player's rating without this submission
-                let newRating = 0;
+                // Recalculate ALL individual stats from remaining submissions
+                let newPlayerData = {
+                    ...player,
+                    submissions: updatedSubmissions
+                };
+
                 if (updatedSubmissions.length > 0) {
-                    const total = updatedSubmissions.reduce((sum, sub) => {
-                        const { name, submittedBy, ...scores } = sub;
-                        const avg = Object.values(scores).reduce((a, b) => a + b, 0) / 7;
-                        return sum + avg;
-                    }, 0);
-                    newRating = total / updatedSubmissions.length;
+                    // Calculate averages for each individual stat
+                    const totals = { scoring: 0, defense: 0, rebounding: 0, playmaking: 0, stamina: 0, physicality: 0, xfactor: 0 };
+
+                    updatedSubmissions.forEach(sub => {
+                        totals.scoring += sub.scoring || 5;
+                        totals.defense += sub.defense || 5;
+                        totals.rebounding += sub.rebounding || 5;
+                        totals.playmaking += sub.playmaking || 5;
+                        totals.stamina += sub.stamina || 5;
+                        totals.physicality += sub.physicality || 5;
+                        totals.xfactor += sub.xfactor || 5;
+                    });
+
+                    const len = updatedSubmissions.length;
+                    newPlayerData.scoring = parseFloat((totals.scoring / len).toFixed(2));
+                    newPlayerData.defense = parseFloat((totals.defense / len).toFixed(2));
+                    newPlayerData.rebounding = parseFloat((totals.rebounding / len).toFixed(2));
+                    newPlayerData.playmaking = parseFloat((totals.playmaking / len).toFixed(2));
+                    newPlayerData.stamina = parseFloat((totals.stamina / len).toFixed(2));
+                    newPlayerData.physicality = parseFloat((totals.physicality / len).toFixed(2));
+                    newPlayerData.xfactor = parseFloat((totals.xfactor / len).toFixed(2));
+
+                    // Calculate weighted rating
+                    const weightings = { scoring: 0.25, defense: 0.2, rebounding: 0.15, playmaking: 0.15, stamina: 0.1, physicality: 0.1, xfactor: 0.05 };
+                    newPlayerData.rating = parseFloat((
+                        newPlayerData.scoring * weightings.scoring +
+                        newPlayerData.defense * weightings.defense +
+                        newPlayerData.rebounding * weightings.rebounding +
+                        newPlayerData.playmaking * weightings.playmaking +
+                        newPlayerData.stamina * weightings.stamina +
+                        newPlayerData.physicality * weightings.physicality +
+                        newPlayerData.xfactor * weightings.xfactor
+                    ).toFixed(2));
+                } else {
+                    // Default values if no submissions
+                    newPlayerData.scoring = 5;
+                    newPlayerData.defense = 5;
+                    newPlayerData.rebounding = 5;
+                    newPlayerData.playmaking = 5;
+                    newPlayerData.stamina = 5;
+                    newPlayerData.physicality = 5;
+                    newPlayerData.xfactor = 5;
+                    newPlayerData.rating = 5;
                 }
 
-                // Update the player
-                updatedPlayers[playerIndex] = {
-                    ...player,
-                    submissions: updatedSubmissions,
-                    rating: newRating
-                };
+                updatedPlayers[playerIndex] = newPlayerData;
             }
         } else {
             // For updated ratings, remove this user's submission
@@ -482,23 +529,59 @@ export default function LogTab({
                 (s) => s.submittedBy !== logData.userId
             );
 
-            // Recalculate player's rating without this submission
-            let newRating = 0;
+            // Recalculate ALL individual stats from remaining submissions
+            let newPlayerData = {
+                ...player,
+                submissions: updatedSubmissions
+            };
+
             if (updatedSubmissions.length > 0) {
-                const total = updatedSubmissions.reduce((sum, sub) => {
-                    const { name, submittedBy, ...scores } = sub;
-                    const avg = Object.values(scores).reduce((a, b) => a + b, 0) / 7;
-                    return sum + avg;
-                }, 0);
-                newRating = total / updatedSubmissions.length;
+                // Calculate averages for each individual stat
+                const totals = { scoring: 0, defense: 0, rebounding: 0, playmaking: 0, stamina: 0, physicality: 0, xfactor: 0 };
+
+                updatedSubmissions.forEach(sub => {
+                    totals.scoring += sub.scoring || 5;
+                    totals.defense += sub.defense || 5;
+                    totals.rebounding += sub.rebounding || 5;
+                    totals.playmaking += sub.playmaking || 5;
+                    totals.stamina += sub.stamina || 5;
+                    totals.physicality += sub.physicality || 5;
+                    totals.xfactor += sub.xfactor || 5;
+                });
+
+                const len = updatedSubmissions.length;
+                newPlayerData.scoring = parseFloat((totals.scoring / len).toFixed(2));
+                newPlayerData.defense = parseFloat((totals.defense / len).toFixed(2));
+                newPlayerData.rebounding = parseFloat((totals.rebounding / len).toFixed(2));
+                newPlayerData.playmaking = parseFloat((totals.playmaking / len).toFixed(2));
+                newPlayerData.stamina = parseFloat((totals.stamina / len).toFixed(2));
+                newPlayerData.physicality = parseFloat((totals.physicality / len).toFixed(2));
+                newPlayerData.xfactor = parseFloat((totals.xfactor / len).toFixed(2));
+
+                // Calculate weighted rating
+                const weightings = { scoring: 0.25, defense: 0.2, rebounding: 0.15, playmaking: 0.15, stamina: 0.1, physicality: 0.1, xfactor: 0.05 };
+                newPlayerData.rating = parseFloat((
+                    newPlayerData.scoring * weightings.scoring +
+                    newPlayerData.defense * weightings.defense +
+                    newPlayerData.rebounding * weightings.rebounding +
+                    newPlayerData.playmaking * weightings.playmaking +
+                    newPlayerData.stamina * weightings.stamina +
+                    newPlayerData.physicality * weightings.physicality +
+                    newPlayerData.xfactor * weightings.xfactor
+                ).toFixed(2));
+            } else {
+                // Default values if no submissions
+                newPlayerData.scoring = 5;
+                newPlayerData.defense = 5;
+                newPlayerData.rebounding = 5;
+                newPlayerData.playmaking = 5;
+                newPlayerData.stamina = 5;
+                newPlayerData.physicality = 5;
+                newPlayerData.xfactor = 5;
+                newPlayerData.rating = 5;
             }
 
-            // Update the player
-            updatedPlayers[playerIndex] = {
-                ...player,
-                submissions: updatedSubmissions,
-                rating: newRating || 5 // Default to 5 if no other submissions
-            };
+            updatedPlayers[playerIndex] = newPlayerData;
         }
 
         // Save the updated player data
@@ -509,13 +592,13 @@ export default function LogTab({
             updatePlayers(updatedPlayers);
         }
 
-        log(`Rating submission for ${playerName} by user ${logData.userId} was reversed`);
+        console.log(`Rating submission for ${playerName} by user ${logData.userId} was reversed`);
     };
 
     const deletePlayer = async (playerName) => {
         if (!playerName) return;
 
-        log("Deleting player:", playerName);
+        console.log("Deleting player:", playerName);
 
         const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
         const docSnap = await getDoc(docRef);
@@ -533,7 +616,7 @@ export default function LogTab({
         );
 
         if (playerIndex === -1) {
-            log("Player not found:", playerName);
+            console.log("Player not found:", playerName);
             return;
         }
 
@@ -563,7 +646,7 @@ export default function LogTab({
             updatePlayers(updatedPlayers);
         }
 
-        log(`Player ${playerName} was deleted as a result of log deletion`);
+        console.log(`Player ${playerName} was deleted as a result of log deletion`);
     };
 
     const formatTimestamp = (timestamp) => {
