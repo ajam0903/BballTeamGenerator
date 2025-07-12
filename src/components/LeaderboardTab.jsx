@@ -4,7 +4,7 @@ import { StyledButton, StyledInput } from "./UIComponents";
 
 
 
-export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAdmin, matchHistory, players, playerOVRs, onUpdateLeaderboard }) {
+export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAdmin, matchHistory, players, playerOVRs, onUpdateLeaderboard, openPlayerDetailModal }) {
     const [sortBy, setSortBy] = useState("ovr");
     const [sortDirection, setSortDirection] = useState("desc");
     const [scrollPosition, setScrollPosition] = useState(0);
@@ -617,9 +617,12 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                                 <tbody className="divide-y divide-gray-700 bg-gray-900">
                                     {sortedData.map((player, index) => (
                                         <tr key={player.name} className={index % 2 === 0 ? "bg-gray-900" : "bg-gray-800"}>
-                                            {/* Fixed column */}
                                             <td className="px-2 py-3 whitespace-nowrap text-sm font-medium text-white sticky left-0 z-5 bg-inherit text-center border-r border-gray-700">
-                                                {formatPlayerName(player.name)}
+                                                <button
+                                                    onClick={() => openPlayerDetailModal(player)}
+                                                >
+                                                    {formatPlayerName(player.name)}
+                                                </button>
                                             </td>
 
                                             <td className="px-1 py-3 whitespace-nowrap text-sm text-white text-center border-r border-gray-700">

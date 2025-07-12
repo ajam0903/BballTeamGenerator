@@ -28,40 +28,41 @@ export default function LeagueLandingPage({ user, onSelectLeague }) {
         const fetchUserLeagues = async () => {
             try {
                 setIsLoading(true);
-
                 // Get user document
                 const userDocRef = doc(db, "users", user.uid);
                 const userDoc = await getDoc(userDocRef);
-
                 if (!userDoc.exists()) {
                     // Create user document if it doesn't exist
                     await setDoc(userDocRef, {
                         email: user.email,
                         displayName: user.displayName,
                         photoURL: user.photoURL,
-                        leagues: []
+                        leagues: [],
+                        // NEW: Add player card claiming fields
+                        claimedPlayers: [], // Array of { leagueId, playerName, claimedAt, status, height, weight }
+                        profile: {
+                            height: "", // e.g., "6'2\"" or "188 cm"
+                            weight: "", // e.g., "185 lbs" or "84 kg"
+                            customPhotoURL: null
+                        }
                     });
                     setLeagues([]);
                     setIsLoading(false);
                     return;
                 }
-
                 const userData = userDoc.data();
                 const userLeagueIds = userData.leagues || [];
-
                 // If user has no leagues, return empty array
                 if (userLeagueIds.length === 0) {
                     setLeagues([]);
                     setIsLoading(false);
                     return;
                 }
-
                 // Fetch league details for each league ID
                 const leagueDetails = await Promise.all(
                     userLeagueIds.map(async (leagueId) => {
                         const leagueDocRef = doc(db, "leagues", leagueId);
                         const leagueDoc = await getDoc(leagueDocRef);
-
                         if (leagueDoc.exists()) {
                             return {
                                 id: leagueId,
@@ -71,10 +72,8 @@ export default function LeagueLandingPage({ user, onSelectLeague }) {
                         return null;
                     })
                 );
-
                 // Filter out any null values (leagues that don't exist)
                 setLeagues(leagueDetails.filter(league => league !== null));
-
                 // Auto-select the last used league if available
                 const lastUsedLeagueId = localStorage.getItem("lastUsedLeagueId");
                 if (lastUsedLeagueId && leagueDetails.some(league => league?.id === lastUsedLeagueId)) {
@@ -87,7 +86,6 @@ export default function LeagueLandingPage({ user, onSelectLeague }) {
                 setIsLoading(false);
             }
         };
-
         fetchUserLeagues();
     }, [user, onSelectLeague]);
 

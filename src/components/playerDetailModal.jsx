@@ -1,8 +1,10 @@
 // PlayerDetailModal.jsx
 import { log, logWarn, logError } from "../utils/logger";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { getPlayerBadges, getBadgeProgress, badgeCategories, calculatePlayerStats } from "./badgeSystem.jsx";
 import Badge from "./Badge";
+import PlayerCardClaimModal from './PlayerCardClaimModal';
 
 function getCategoryIcon(categoryName) {
     const iconMap = {
@@ -22,10 +24,12 @@ export default function PlayerDetailModal({
     matchHistory = [],
     playerOVRs = {},
     showReviewerNames = false,
-    isAdmin = false
+    isAdmin = false,
+    currentLeagueId, 
+    db, 
+    user, 
 }) {
     const [activeTab, setActiveTab] = useState("overview");
-
     if (!isOpen || !player) return null;
 
     const playerStats = calculatePlayerStats(player.name, leaderboard, matchHistory);
@@ -36,6 +40,59 @@ export default function PlayerDetailModal({
 
     const winPercentage = playerStats.gamesPlayed > 0 ? 
         ((playerStats.wins / playerStats.gamesPlayed) * 100).toFixed(1) : "0.0";
+    const [playerCardData, setPlayerCardData] = useState(null);
+    const [showClaimModal, setShowClaimModal] = useState(false);
+    const fetchPlayerCardData = async () => {
+        try {
+            const allUsersSnapshot = await getDocs(collection(db, "users"));
+            let claimedData = null;
+            let userHasClaimedCard = false;
+
+            allUsersSnapshot.forEach(doc => {
+                const userData = doc.data();
+                const claimedPlayers = userData.claimedPlayers || [];
+
+                // Check if current user has any approved claims in this league
+                if (user && doc.id === user.uid) {
+                    userHasClaimedCard = claimedPlayers.some(
+                        claim => claim.leagueId === currentLeagueId && claim.status === 'approved'
+                    );
+                }
+
+                const playerClaim = claimedPlayers.find(
+                    claim => claim.leagueId === currentLeagueId &&
+                        claim.playerName.toLowerCase() === player.name.toLowerCase()
+                );
+
+                if (playerClaim && playerClaim.status === 'approved') {
+                    claimedData = {
+                        isClaimed: true,
+                        height: playerClaim.height || "",
+                        weight: playerClaim.weight || "",
+                        customPhotoURL: playerClaim.customPhotoURL,
+                        claimedByUid: doc.id,
+                        claimedByName: userData.displayName || userData.email,
+                        claimedAt: playerClaim.claimedAt,
+                        status: playerClaim.status
+                    };
+                }
+            });
+
+            setPlayerCardData(claimedData || {
+                isClaimed: false,
+                userHasClaimedCard: userHasClaimedCard
+            });
+        } catch (error) {
+            console.error("Error fetching player card data:", error);
+            setPlayerCardData({ isClaimed: false, userHasClaimedCard: false });
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen && player && currentLeagueId && db) {
+            fetchPlayerCardData();
+        }
+    }, [isOpen, player, currentLeagueId]);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -142,7 +199,81 @@ export default function PlayerDetailModal({
                                     ))}
                                 </div>
                             </div>
+                            {/* Player Card Claim Section */}
+                            {playerCardData && (
+                                <div className="bg-gray-700 p-4 rounded-lg">
+                                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+                                        <span className="mr-2">👤</span>
+                                        Player Card
+                                    </h3>
 
+                                    {playerCardData.isClaimed ? (
+                                        <div className="space-y-3">
+                                            {/* Custom Photo */}
+                                            {playerCardData.customPhotoURL && (
+                                                <div className="flex justify-center">
+                                                    <img
+                                                        src={playerCardData.customPhotoURL}
+                                                        alt={`${playerCardData.preferredName || player.name}`}
+                                                        className="w-20 h-20 rounded-full object-cover border-2 border-blue-500"
+                                                        onError={(e) => {
+                                                            e.target.style.display = 'none';
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {/* Height and Weight */}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {playerCardData.height && (
+                                                    <div>
+                                                        <span className="text-gray-400 text-sm">Height:</span>
+                                                        <div className="text-white font-medium">{playerCardData.height}</div>
+                                                    </div>
+                                                )}
+                                                {playerCardData.weight && (
+                                                    <div>
+                                                        <span className="text-gray-400 text-sm">Weight:</span>
+                                                        <div className="text-white font-medium">{playerCardData.weight}</div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Claimed by indicator */}
+                                            <div className="text-xs text-green-400 flex items-center">
+                                                <span className="mr-1">✓</span>
+                                                Card claimed by {playerCardData.claimedByName}
+                                            </div>
+
+                                            {/* Edit button for owner */}
+                                            {user && playerCardData.claimedByUid === user.uid && (
+                                                <button
+                                                    onClick={() => setShowClaimModal(true)}
+                                                    className="text-sm text-blue-400 hover:text-blue-300 underline"
+                                                >
+                                                    Edit Card
+                                                </button>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-4">
+                                            <div className="text-gray-400 mb-3">
+                                                This player card is unclaimed
+                                            </div>
+                                            {/* Only show claim button if user hasn't claimed any player card in this league */}
+                                            {user && !playerCardData.userHasClaimedCard && (
+                                                <button
+                                                    onClick={() => setShowClaimModal(true)}
+                                                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors"
+                                                >
+                                                    Claim This Card
+                                                </button>
+                                            )}
+
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             {/* Recent Badges */}
                             {Object.keys(badges).length > 0 && (
                                 <div className="bg-gray-700 p-4 rounded-lg">
@@ -381,9 +512,24 @@ export default function PlayerDetailModal({
                                 </div>
                             )}
                         </div>
+
                     )}
                 </div>
             </div>
+            <PlayerCardClaimModal
+                isOpen={showClaimModal}
+                onClose={() => setShowClaimModal(false)}
+                playerName={player?.name}
+                user={user}
+                currentLeagueId={currentLeagueId}
+                db={db}
+                onClaimSuccess={() => {
+                    fetchPlayerCardData();
+                    setShowClaimModal(false);
+                }}
+            />
+            );
         </div>
+
     );
 }

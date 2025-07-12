@@ -17,7 +17,7 @@ import EditPlayerModal from "./components/EditPlayerModal";
 import LeagueLandingPage from "./components/LeagueLandingPage";
 import UserMenu from "./components/UserMenu";
 import ConfirmationModal from "./components/ConfirmationModal";
-import { auth } from "./firebase";
+import { auth, db } from "./firebase";
 import MatchResultsModal from "./components/MatchResultsModal";
 import {
     onAuthStateChanged,
@@ -36,8 +36,10 @@ import AwardsTab from "./components/awardsTab";
 import PlayerDetailModal from "./components/playerDetailModal";
 import PlayerBadges from "./components/playerBadges";
 import LeagueSelector from "./components/LeagueSelector";
+import PlayerNameMatcher from './components/PlayerNameMatcher';
+import AdminNotifications from './components/AdminNotifications';
+import PlayerCardClaimModal from './components/PlayerCardClaimModal';
 
-const db = getFirestore();
 // This helps hide the default scrollbar while maintaining scroll functionality
 const scrollbarHideStyles = `
   .scrollbar-hide {
@@ -112,6 +114,8 @@ export default function App() {
     const [showReviewerNames, setShowReviewerNames] = useState(false);
     const [isAdminEdit, setIsAdminEdit] = useState(false);
     const [userLeagues, setUserLeagues] = useState([]);
+    const [showPlayerClaimModal, setShowPlayerClaimModal] = useState(false);
+    const [selectedPlayerToClaim, setSelectedPlayerToClaim] = useState(null);
 
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -1751,6 +1755,51 @@ export default function App() {
         }
     };
 
+    const enhancePlayersWithClaimData = async (players) => {
+        if (!players || players.length === 0) return players;
+
+        try {
+            const allUsersSnapshot = await getDocs(collection(db, "users"));
+            const claimMap = new Map();
+
+            allUsersSnapshot.forEach(doc => {
+                const userData = doc.data();
+                const claimedPlayers = userData.claimedPlayers || [];
+
+                claimedPlayers.forEach(claim => {
+                    if (claim.leagueId === currentLeagueId && claim.status === 'approved') { // Add status check
+                        claimMap.set(claim.playerName.toLowerCase(), {
+                            isCardClaimed: true,
+                            claimedByName: userData.displayName || userData.email,
+                            preferredName: userData.profile?.preferredName || userData.displayName,
+                            customPhotoURL: claim.customPhotoURL
+                        });
+                    }
+                });
+            });
+
+            return players.map(player => ({
+                ...player,
+                displayName: claimMap.get(player.name.toLowerCase())?.preferredName || player.name,
+                isCardClaimed: claimMap.has(player.name.toLowerCase()),
+                customPhotoURL: claimMap.get(player.name.toLowerCase())?.customPhotoURL
+            }));
+        } catch (error) {
+            console.error("Error enhancing players with claim data:", error);
+            return players;
+        }
+    };
+
+    const handlePlayerClaimRequest = (playerName) => {
+        setSelectedPlayerToClaim(playerName);
+        setShowPlayerClaimModal(true);
+    };
+
+    const openPlayerDetailModal = (player) => {
+        setSelectedPlayerForDetail(player);
+        setShowPlayerDetailModal(true);
+    };
+
     useEffect(() => {
         if (!currentLeagueId) return;
 
@@ -2034,7 +2083,8 @@ export default function App() {
                     avgStats.submissions = submissions;
                     return avgStats;
                 });
-
+                const enhancedPlayers = await enhancePlayersWithClaimData(averagedPlayers);
+                setPlayers(enhancedPlayers);
                 setPlayers(averagedPlayers);
                 setMvpVotes(data.mvpVotes || []);
                 setScores(data.scores || []);
@@ -2555,9 +2605,28 @@ export default function App() {
                             isAdmin={isAdmin}
                             resetLeaderboardData={resetLeaderboardData}
                             db={db}
+                            players={players}
+                            onPlayerClaimRequest={handlePlayerClaimRequest}
                         />
                     </div>
+ {user && currentLeague && (
+    <PlayerNameMatcher
+        user={user}
+        players={players}
+        currentLeagueId={currentLeagueId}
+        db={db}
+        onPlayerClaimRequest={handlePlayerClaimRequest}
+    />
+)} 
 
+ {user && currentLeague && (
+    <AdminNotifications
+        user={user}
+        currentLeague={currentLeague}
+        currentLeagueId={currentLeagueId}
+        db={db}
+    />
+)} 
                     {/* Rematch Prompt */}
                     {showRematchPrompt && (
                         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -2683,6 +2752,7 @@ export default function App() {
                             players={players}
                             playerOVRs={playerOVRs}
                             onUpdateLeaderboard={handleManualLeaderboardUpdate}
+                            openPlayerDetailModal={openPlayerDetailModal}
                         />
                     )}
                     {activeTab === "awards" && (
@@ -2738,8 +2808,28 @@ export default function App() {
                         playerOVRs={playerOVRs}
                         showReviewerNames={showReviewerNames}
                         isAdmin={isAdmin}
+                        currentLeagueId={currentLeagueId} 
+                        db={db} 
+                        user={user}
                     />
                 )}
+                {/* Player Claim Modal here */}
+                <PlayerCardClaimModal
+                    isOpen={showPlayerClaimModal}
+                    onClose={() => {
+                        setShowPlayerClaimModal(false);
+                        setSelectedPlayerToClaim(null);
+                    }}
+                    playerName={selectedPlayerToClaim}
+                    user={user}
+                    currentLeagueId={currentLeagueId}
+                    currentLeague={currentLeague}
+                    db={db}
+                    onClaimSuccess={() => {
+                        // Refresh player data to show updated claim status
+                        window.location.reload();
+                    }}
+                />
 
                 {/* Bottom Navigation */}
                 <div className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 z-10">
@@ -2826,10 +2916,12 @@ export default function App() {
                             <span className={`text-xs mt-1 text-${activeTab === "logs" ? "blue-400" : "gray-400"}`}>
                                 Logs
                             </span>
+
                         </div>
                     </div>
                 </div>
             </div>
+
         </DarkContainer>
     );
 }

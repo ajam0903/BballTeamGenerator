@@ -1,8 +1,9 @@
-// UserMenu.jsx
+﻿// UserMenu.jsx
 import React, { useState, useRef, useEffect } from "react";
+import AdminNotifications from './AdminNotifications';
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs, query, where } from "firebase/firestore";
 
 export default function UserMenu({
     user,
@@ -13,16 +14,18 @@ export default function UserMenu({
     isAdmin = false,
     resetLeaderboardData,
     db,
+    players = [],
+    onPlayerClaimRequest,
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [showPreferences, setShowPreferences] = useState(false);
     const [showUserManagement, setShowUserManagement] = useState(false);
     const [leagueUsers, setLeagueUsers] = useState([]);
+    const [showAdminNotifications, setShowAdminNotifications] = useState(false);
     const menuRef = useRef(null);
     const toggleMenu = () => {
         setIsOpen(!isOpen);
     };
-
     const copyInviteCodeToClipboard = (e) => {
         e.stopPropagation();
         if (currentLeague?.inviteCode) {
@@ -370,7 +373,103 @@ export default function UserMenu({
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                             </svg>
                                         </button>
+                                        {/* Admin Notifications Modal */}
+                                        {showAdminNotifications && (
+                                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                                                <div className="bg-gray-800 p-6 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                                                    <div className="flex justify-between items-center mb-4">
+                                                        <h3 className="text-lg font-bold text-white">
+                                                            Admin Notifications
+                                                        </h3>
+                                                        <button
+                                                            onClick={() => setShowAdminNotifications(false)}
+                                                            className="text-gray-400 hover:text-white"
+                                                        >
+                                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
 
+                                                    <div className="bg-gray-700 p-4 rounded mb-4">
+                                                        <h4 className="text-white mb-3">All Notifications</h4>
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    // Find your user document and update the claim status
+                                                                    const userRef = doc(db, "users", user.uid);
+                                                                    const userDoc = await getDoc(userRef);
+
+                                                                    if (userDoc.exists()) {
+                                                                        const userData = userDoc.data();
+                                                                        const claimedPlayers = userData.claimedPlayers || [];
+
+                                                                        const updatedClaimedPlayers = claimedPlayers.map(claim => {
+                                                                            if (claim.leagueId === currentLeague.id &&
+                                                                                claim.playerName === "Ali Jamali") {
+                                                                                return { ...claim, status: 'approved' };
+                                                                            }
+                                                                            return claim;
+                                                                        });
+
+                                                                        await setDoc(userRef, {
+                                                                            ...userData,
+                                                                            claimedPlayers: updatedClaimedPlayers
+                                                                        });
+
+                                                                        console.log("Updated claim status to approved");
+                                                                    }
+                                                                } catch (error) {
+                                                                    console.error("Error updating claim:", error);
+                                                                }
+                                                            }}
+                                                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
+                                                        >
+                                                            Fix My Claim Status
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                console.log("Checking notifications...");
+                                                                try {
+                                                                    const notificationsRef = collection(db, "leagues", currentLeague.id, "notifications");
+                                                                    const snapshot = await getDocs(notificationsRef);
+
+                                                                    const allNotifications = [];
+                                                                    snapshot.forEach(doc => {
+                                                                        allNotifications.push({
+                                                                            id: doc.id,
+                                                                            ...doc.data()
+                                                                        });
+                                                                    });
+
+                                                                    // Display notifications in the UI
+                                                                    const notificationsList = document.getElementById('notifications-list');
+                                                                    if (notificationsList) {
+                                                                        notificationsList.innerHTML = allNotifications.map(notification => `
+                        <div class="bg-gray-600 p-3 rounded mb-2">
+                            <div class="text-white font-medium">${notification.claimedByName} → ${notification.playerName}</div>
+                            <div class="text-sm text-gray-300">Status: ${notification.status}</div>
+                            <div class="text-xs text-gray-400">Created: ${new Date(notification.createdAt).toLocaleDateString()}</div>
+                        </div>
+                    `).join('');
+                                                                    }
+
+                                                                } catch (error) {
+                                                                    console.error("Database error:", error);
+                                                                }
+                                                            }}
+                                                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded mb-3"
+                                                        >
+                                                            Load All Notifications
+                                                        </button>
+
+                                                        <div id="notifications-list" className="space-y-2">
+                                                            <div className="text-gray-400 text-sm">Click "Load All Notifications" to see the list</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                         {/* Add a separator and new section for dangerous actions */}
                                         <div className="px-2 py-1 text-xs text-gray-400 border-b border-gray-700 mb-2 mt-3">
                                         </div>
@@ -592,7 +691,6 @@ export default function UserMenu({
                                 </div>
                             )}
                         </div>
-
                         {/* Modal Footer */}
                         <div className="flex justify-end p-4 border-t border-gray-700">
                             <button
