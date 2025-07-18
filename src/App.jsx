@@ -1681,11 +1681,8 @@ export default function App() {
         if (!currentLeagueId || !oldName || !newName || oldName === newName) return;
 
         try {
-            console.log(`🔄 STARTING updatePlayerNameInClaims: "${oldName}" → "${newName}"`);
-
             // Get all users
             const allUsersSnapshot = await getDocs(collection(db, "users"));
-            let totalUpdated = 0;
 
             for (const userDoc of allUsersSnapshot.docs) {
                 const userData = userDoc.data();
@@ -1695,13 +1692,6 @@ export default function App() {
                 const updatedClaimedPlayers = claimedPlayers.map(claim => {
                     if (claim.leagueId === currentLeagueId &&
                         claim.playerName.toLowerCase() === oldName.toLowerCase()) {
-                        console.log(`✅ FOUND CLAIM: ${oldName} → ${newName}`, {
-                            status: claim.status,
-                            customPhotoURL: claim.customPhotoURL ? 'HAS PHOTO' : 'NO PHOTO',
-                            height: claim.height,
-                            weight: claim.weight
-                        });
-                        totalUpdated++;
                         return { ...claim, playerName: newName };
                     }
                     return claim;
@@ -1717,11 +1707,8 @@ export default function App() {
                         ...userData,
                         claimedPlayers: updatedClaimedPlayers
                     });
-                    console.log(`💾 UPDATED USER DOCUMENT: ${userData.displayName || userData.email}`);
                 }
             }
-
-            console.log(`✅ updatePlayerNameInClaims COMPLETED: ${totalUpdated} claims updated`);
 
             // Also update notifications if any exist
             const notificationsRef = collection(db, "leagues", currentLeagueId, "notifications");
@@ -1735,17 +1722,15 @@ export default function App() {
                         ...notificationData,
                         playerName: newName
                     });
-                    console.log(`🔔 Updated notification for ${oldName} to ${newName}`);
                 }
             }
-
         } catch (error) {
-            console.error("❌ Error updating player name in claims:", error);
+            console.error("Error updating player name in claims:", error);
         }
     };
+
     // Modified to use league structure
     const saveEditedPlayerFromModal = async (updatedPlayer, originalName) => {
-        console.log(`🔍 EDIT FUNCTION CALLED: "${originalName}" → "${updatedPlayer.name}"`);
         if (!currentLeagueId) return;
 
         const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
@@ -1796,38 +1781,84 @@ export default function App() {
 
                     log("Updated leaderboard after name change:", updatedLeaderboard);
                 }
-                // Handle name change: update claims FIRST, then enhance players
-                if (originalName !== updatedPlayer.name) {
-                    console.log(`🚨 NAME CHANGE DETECTED: "${originalName}" → "${updatedPlayer.name}"`);
-                    console.log("Player name changed, updating claims and refreshing data...");
 
-                    // Update player name in all claims to preserve profile data
-                    await updatePlayerNameInClaims(originalName, updatedPlayer.name);
+                // Handle name change in belt votes
+                let updatedBeltVotes = { ...data.beltVotes };
+                let updatedBeltHolders = { ...data.beltHolders };
 
-                    // Wait a moment for the database updates to propagate
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                if (originalName !== updatedPlayer.name && data.beltVotes) {
+                    // Update belt votes
+                    Object.values(updatedBeltVotes).forEach(userVotes => {
+                        Object.keys(userVotes).forEach(beltId => {
+                            if (userVotes[beltId] === originalName) {
+                                userVotes[beltId] = updatedPlayer.name;
+                            }
+                        });
+                    });
 
-                    // Re-enhance players with updated claim data
-                    console.log("Re-enhancing player data after name change...");
-                    const enhancedPlayers = await enhancePlayersWithClaimData(updatedPlayers);
-
-                    // Update local state with enhanced data
-                    setPlayers(enhancedPlayers);
-                    setLeaderboard(updatedLeaderboard);
-
-                    console.log("Enhanced players after name change:", enhancedPlayers.find(p => p.name === updatedPlayer.name));
-                } else {
-                    console.log("🔄 NO NAME CHANGE - enhancing normally");
-                    // No name change, just enhance and update normally
-                    const enhancedPlayers = await enhancePlayersWithClaimData(updatedPlayers);
-                    setPlayers(enhancedPlayers);
-                    setLeaderboard(updatedLeaderboard);
+                    // Update belt holders
+                    Object.keys(updatedBeltHolders).forEach(beltId => {
+                        if (updatedBeltHolders[beltId] && updatedBeltHolders[beltId].playerName === originalName) {
+                            updatedBeltHolders[beltId].playerName = updatedPlayer.name;
+                        }
+                    });
                 }
+
+                // Handle name change in match history
+                let updatedMatchHistory = [...(data.matchHistory || [])];
+
+                if (originalName !== updatedPlayer.name && data.matchHistory) {
+                    updatedMatchHistory = data.matchHistory.map(match => {
+                        const updatedMatch = { ...match };
+
+                        // Handle different match formats
+                        if (Array.isArray(match.teams) && match.teams.length >= 2) {
+                            // App format: teams array
+                            updatedMatch.teams = match.teams.map(team =>
+                                team.map(player => {
+                                    if (player.name === originalName) {
+                                        return { ...player, name: updatedPlayer.name };
+                                    }
+                                    return player;
+                                })
+                            );
+                        } else if (match.teamA && match.teamB) {
+                            // Firestore format: teamA/teamB properties
+                            updatedMatch.teamA = match.teamA.map(player => {
+                                if (player.name === originalName) {
+                                    return { ...player, name: updatedPlayer.name };
+                                }
+                                return player;
+                            });
+
+                            updatedMatch.teamB = match.teamB.map(player => {
+                                if (player.name === originalName) {
+                                    return { ...player, name: updatedPlayer.name };
+                                }
+                                return player;
+                            });
+                        }
+
+                        // Update MVP if it matches the old name
+                        if (match.mvp === originalName) {
+                            updatedMatch.mvp = updatedPlayer.name;
+                        }
+
+                        return updatedMatch;
+                    });
+
+                    // Update local match history state
+                    setMatchHistory(updatedMatchHistory);
+                }
+
                 // Save to Firestore
                 await firestoreSetDoc(docRef, {
                     ...data,
                     players: updatedPlayers,
-                    leaderboard: updatedLeaderboard
+                    leaderboard: updatedLeaderboard,
+                    beltVotes: updatedBeltVotes,
+                    beltHolders: updatedBeltHolders,
+                    matchHistory: updatedMatchHistory,
                 });
 
                 await logActivity(
@@ -1845,8 +1876,6 @@ export default function App() {
 
                 // Handle name change: update claims FIRST, then enhance players
                 if (originalName !== updatedPlayer.name) {
-                    console.log("Player name changed, updating claims and refreshing data...");
-
                     // Update player name in all claims to preserve profile data
                     await updatePlayerNameInClaims(originalName, updatedPlayer.name);
 
@@ -1854,14 +1883,11 @@ export default function App() {
                     await new Promise(resolve => setTimeout(resolve, 500));
 
                     // Re-enhance players with updated claim data
-                    console.log("Re-enhancing player data after name change...");
                     const enhancedPlayers = await enhancePlayersWithClaimData(updatedPlayers);
 
                     // Update local state with enhanced data
                     setPlayers(enhancedPlayers);
                     setLeaderboard(updatedLeaderboard);
-
-                    console.log("Enhanced players after name change:", enhancedPlayers.find(p => p.name === updatedPlayer.name));
                 } else {
                     // No name change, just enhance and update normally
                     const enhancedPlayers = await enhancePlayersWithClaimData(updatedPlayers);
@@ -1877,12 +1903,10 @@ export default function App() {
         // Close the modal
         closeEditModal();
     };
-
     const enhancePlayersWithClaimData = async (players) => {
         if (!players || players.length === 0) return players;
 
         try {
-            console.log(`🔄 STARTING enhancePlayersWithClaimData for ${players.length} players`);
             const allUsersSnapshot = await getDocs(collection(db, "users"));
             const claimMap = new Map();
 
@@ -1892,11 +1916,6 @@ export default function App() {
 
                 claimedPlayers.forEach(claim => {
                     if (claim.leagueId === currentLeagueId && claim.status === 'approved') {
-                        console.log(`📋 FOUND APPROVED CLAIM: ${claim.playerName}`, {
-                            customPhotoURL: claim.customPhotoURL ? 'HAS PHOTO' : 'NO PHOTO',
-                            height: claim.height,
-                            weight: claim.weight
-                        });
                         claimMap.set(claim.playerName.toLowerCase(), {
                             isCardClaimed: true,
                             claimedByName: userData.displayName || userData.email,
@@ -1911,7 +1930,8 @@ export default function App() {
 
             const enhancedPlayers = players.map(player => {
                 const claimData = claimMap.get(player.name.toLowerCase());
-                const enhanced = {
+
+                return {
                     ...player,
                     displayName: claimData?.preferredName || player.name,
                     isCardClaimed: claimMap.has(player.name.toLowerCase()),
@@ -1919,21 +1939,11 @@ export default function App() {
                     height: claimData?.height,
                     weight: claimData?.weight
                 };
-
-                console.log(`🏀 ENHANCED PLAYER: ${player.name}`, {
-                    hasClaimData: !!claimData,
-                    customPhotoURL: enhanced.customPhotoURL ? 'HAS PHOTO' : 'NO PHOTO',
-                    height: enhanced.height,
-                    weight: enhanced.weight
-                });
-
-                return enhanced;
             });
 
-            console.log(`✅ enhancePlayersWithClaimData COMPLETED`);
             return enhancedPlayers;
         } catch (error) {
-            console.error("❌ Error enhancing players with claim data:", error);
+            console.error("Error enhancing players with claim data:", error);
             return players;
         }
     };
@@ -2139,7 +2149,6 @@ export default function App() {
 
     // Modify the tab switching function to check for pending matchups
     const handleTabChange = (newTab) => {
-        log("handleTabChange called:", { newTab, activeTab, hasPendingMatchups, forceTabChange });
 
         // If we're forcing a tab change, just do it
         if (forceTabChange) {

@@ -355,14 +355,6 @@ export default function RankingTab({
         setSortedPlayers(sorted);
     }, [players, sortKey, sortDirection]);
 
-    useEffect(() => {
-        console.log("Players updated in RankingTab:", players.map(p => ({
-            name: p.name,
-            customPhotoURL: p.customPhotoURL,
-            isCardClaimed: p.isCardClaimed
-        })));
-    }, [players]);
-
     return (
         <div className="space-y-1">
             <UnratedPlayersNotification
@@ -430,8 +422,6 @@ export default function RankingTab({
                             <div className="flex items-stretch min-h-[80px]">
                                 {/* Player Image or Initials - Full Height */}
                                 <div className="flex-shrink-0 w-20 relative">
-                                    {/* Add some debugging */}
-                                    {console.log(`Player ${player.name} customPhotoURL:`, player.customPhotoURL)}
 
                                     {player.customPhotoURL ? (
                                         <img
