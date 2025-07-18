@@ -355,6 +355,13 @@ export default function RankingTab({
         setSortedPlayers(sorted);
     }, [players, sortKey, sortDirection]);
 
+    useEffect(() => {
+        console.log("Players updated in RankingTab:", players.map(p => ({
+            name: p.name,
+            customPhotoURL: p.customPhotoURL,
+            isCardClaimed: p.isCardClaimed
+        })));
+    }, [players]);
 
     return (
         <div className="space-y-1">
@@ -415,19 +422,24 @@ export default function RankingTab({
 
                     return (
                         <div
-                            key={player.name}
+                            key={`${player.name}-${index}`} // CHANGE THIS: Use name + index instead of just name
                             className={`${bgColorClass} rounded overflow-hidden cursor-pointer hover:bg-gray-700 transition-colors`}
                             onClick={() => onPlayerClick && onPlayerClick(player)}
                         >
+
                             <div className="flex items-stretch min-h-[80px]">
                                 {/* Player Image or Initials - Full Height */}
                                 <div className="flex-shrink-0 w-20 relative">
+                                    {/* Add some debugging */}
+                                    {console.log(`Player ${player.name} customPhotoURL:`, player.customPhotoURL)}
+
                                     {player.customPhotoURL ? (
                                         <img
                                             src={player.customPhotoURL}
                                             alt={player.name}
                                             className="w-full h-full object-cover"
                                             onError={(e) => {
+                                                console.log(`Image failed to load for ${player.name}:`, player.customPhotoURL);
                                                 // Fallback to initials if image fails to load
                                                 e.target.style.display = 'none';
                                                 e.target.nextSibling.style.display = 'flex';

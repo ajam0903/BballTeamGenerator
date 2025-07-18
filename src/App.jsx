@@ -5,8 +5,9 @@ import {
     collection,
     doc,
     getDoc,
+    setDoc,
     setDoc as firestoreSetDoc,
-    getDocs
+    getDocs,
 } from "firebase/firestore";
 import { StyledButton } from "./components/UIComponents";
 import RankingTab from "./components/RankingTab";
@@ -1680,10 +1681,11 @@ export default function App() {
         if (!currentLeagueId || !oldName || !newName || oldName === newName) return;
 
         try {
-            console.log(`Updating player name in claims from "${oldName}" to "${newName}"`);
+            console.log(`🔄 STARTING updatePlayerNameInClaims: "${oldName}" → "${newName}"`);
 
             // Get all users
             const allUsersSnapshot = await getDocs(collection(db, "users"));
+            let totalUpdated = 0;
 
             for (const userDoc of allUsersSnapshot.docs) {
                 const userData = userDoc.data();
@@ -1693,7 +1695,13 @@ export default function App() {
                 const updatedClaimedPlayers = claimedPlayers.map(claim => {
                     if (claim.leagueId === currentLeagueId &&
                         claim.playerName.toLowerCase() === oldName.toLowerCase()) {
-                        console.log(`Found claim for ${oldName}, updating to ${newName}`);
+                        console.log(`✅ FOUND CLAIM: ${oldName} → ${newName}`, {
+                            status: claim.status,
+                            customPhotoURL: claim.customPhotoURL ? 'HAS PHOTO' : 'NO PHOTO',
+                            height: claim.height,
+                            weight: claim.weight
+                        });
+                        totalUpdated++;
                         return { ...claim, playerName: newName };
                     }
                     return claim;
@@ -1709,9 +1717,11 @@ export default function App() {
                         ...userData,
                         claimedPlayers: updatedClaimedPlayers
                     });
-                    console.log(`Updated claims for user ${userDoc.id}`);
+                    console.log(`💾 UPDATED USER DOCUMENT: ${userData.displayName || userData.email}`);
                 }
             }
+
+            console.log(`✅ updatePlayerNameInClaims COMPLETED: ${totalUpdated} claims updated`);
 
             // Also update notifications if any exist
             const notificationsRef = collection(db, "leagues", currentLeagueId, "notifications");
@@ -1725,18 +1735,17 @@ export default function App() {
                         ...notificationData,
                         playerName: newName
                     });
-                    console.log(`Updated notification for ${oldName} to ${newName}`);
+                    console.log(`🔔 Updated notification for ${oldName} to ${newName}`);
                 }
             }
 
-            console.log(`Successfully updated all claims from "${oldName}" to "${newName}"`);
         } catch (error) {
-            console.error("Error updating player name in claims:", error);
+            console.error("❌ Error updating player name in claims:", error);
         }
     };
-
     // Modified to use league structure
     const saveEditedPlayerFromModal = async (updatedPlayer, originalName) => {
+        console.log(`🔍 EDIT FUNCTION CALLED: "${originalName}" → "${updatedPlayer.name}"`);
         if (!currentLeagueId) return;
 
         const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
@@ -1787,7 +1796,33 @@ export default function App() {
 
                     log("Updated leaderboard after name change:", updatedLeaderboard);
                 }
+                // Handle name change: update claims FIRST, then enhance players
+                if (originalName !== updatedPlayer.name) {
+                    console.log(`🚨 NAME CHANGE DETECTED: "${originalName}" → "${updatedPlayer.name}"`);
+                    console.log("Player name changed, updating claims and refreshing data...");
 
+                    // Update player name in all claims to preserve profile data
+                    await updatePlayerNameInClaims(originalName, updatedPlayer.name);
+
+                    // Wait a moment for the database updates to propagate
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Re-enhance players with updated claim data
+                    console.log("Re-enhancing player data after name change...");
+                    const enhancedPlayers = await enhancePlayersWithClaimData(updatedPlayers);
+
+                    // Update local state with enhanced data
+                    setPlayers(enhancedPlayers);
+                    setLeaderboard(updatedLeaderboard);
+
+                    console.log("Enhanced players after name change:", enhancedPlayers.find(p => p.name === updatedPlayer.name));
+                } else {
+                    console.log("🔄 NO NAME CHANGE - enhancing normally");
+                    // No name change, just enhance and update normally
+                    const enhancedPlayers = await enhancePlayersWithClaimData(updatedPlayers);
+                    setPlayers(enhancedPlayers);
+                    setLeaderboard(updatedLeaderboard);
+                }
                 // Save to Firestore
                 await firestoreSetDoc(docRef, {
                     ...data,
@@ -1847,6 +1882,7 @@ export default function App() {
         if (!players || players.length === 0) return players;
 
         try {
+            console.log(`🔄 STARTING enhancePlayersWithClaimData for ${players.length} players`);
             const allUsersSnapshot = await getDocs(collection(db, "users"));
             const claimMap = new Map();
 
@@ -1855,29 +1891,52 @@ export default function App() {
                 const claimedPlayers = userData.claimedPlayers || [];
 
                 claimedPlayers.forEach(claim => {
-                    if (claim.leagueId === currentLeagueId && claim.status === 'approved') { // Add status check
+                    if (claim.leagueId === currentLeagueId && claim.status === 'approved') {
+                        console.log(`📋 FOUND APPROVED CLAIM: ${claim.playerName}`, {
+                            customPhotoURL: claim.customPhotoURL ? 'HAS PHOTO' : 'NO PHOTO',
+                            height: claim.height,
+                            weight: claim.weight
+                        });
                         claimMap.set(claim.playerName.toLowerCase(), {
                             isCardClaimed: true,
                             claimedByName: userData.displayName || userData.email,
                             preferredName: userData.profile?.preferredName || userData.displayName,
-                            customPhotoURL: claim.customPhotoURL
+                            customPhotoURL: claim.customPhotoURL,
+                            height: claim.height,
+                            weight: claim.weight
                         });
                     }
                 });
             });
 
-            return players.map(player => ({
-                ...player,
-                displayName: claimMap.get(player.name.toLowerCase())?.preferredName || player.name,
-                isCardClaimed: claimMap.has(player.name.toLowerCase()),
-                customPhotoURL: claimMap.get(player.name.toLowerCase())?.customPhotoURL
-            }));
+            const enhancedPlayers = players.map(player => {
+                const claimData = claimMap.get(player.name.toLowerCase());
+                const enhanced = {
+                    ...player,
+                    displayName: claimData?.preferredName || player.name,
+                    isCardClaimed: claimMap.has(player.name.toLowerCase()),
+                    customPhotoURL: claimData?.customPhotoURL,
+                    height: claimData?.height,
+                    weight: claimData?.weight
+                };
+
+                console.log(`🏀 ENHANCED PLAYER: ${player.name}`, {
+                    hasClaimData: !!claimData,
+                    customPhotoURL: enhanced.customPhotoURL ? 'HAS PHOTO' : 'NO PHOTO',
+                    height: enhanced.height,
+                    weight: enhanced.weight
+                });
+
+                return enhanced;
+            });
+
+            console.log(`✅ enhancePlayersWithClaimData COMPLETED`);
+            return enhancedPlayers;
         } catch (error) {
-            console.error("Error enhancing players with claim data:", error);
+            console.error("❌ Error enhancing players with claim data:", error);
             return players;
         }
     };
-
     const handlePlayerClaimRequest = (playerName) => {
         setSelectedPlayerToClaim(playerName);
         setShowPlayerClaimModal(true);
@@ -2947,7 +3006,7 @@ export default function App() {
                 {editPlayerModalOpen && (
                     <EditPlayerModal
                         player={selectedPlayerToEdit}
-                        onSave={handlePlayerSaveFromModal}
+                        onSave={saveEditedPlayerFromModal}
                         onClose={closeEditModal}
                         isAdminEdit={isAdminEdit}
                     />
