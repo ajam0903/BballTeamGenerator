@@ -4,6 +4,7 @@ import AdminNotifications from './AdminNotifications';
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { doc, getDoc, setDoc, collection, getDocs, query, where } from "firebase/firestore";
+import PlayerNameRecoveryTool from './PlayerNameRecoveryTool';
 
 export default function UserMenu({
     user,

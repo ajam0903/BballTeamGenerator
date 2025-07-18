@@ -384,20 +384,8 @@ export default function LogTab({
         });
 
         if (matchIndex !== -1) {
-            // Instead of removing, mark as deleted/void to preserve chronological order
-            // Use the date from the log entry instead of current time
-            const originalMatchDate = logData.details?.date || logData.details?.matchDate || updatedMatchHistory[matchIndex].date;
-
-            updatedMatchHistory[matchIndex] = {
-                ...updatedMatchHistory[matchIndex],
-                isDeleted: true,
-                deletedDate: new Date().toISOString(),
-                deletedBy: user?.uid || "unknown",
-                deletionReason: "Match result deleted from logs",
-                originalDate: originalMatchDate // Preserve the original match date
-            };
-
-            console.log("Marked match as deleted at index:", matchIndex, "with original date:", originalMatchDate);
+            updatedMatchHistory.splice(matchIndex, 1);
+            console.log("Removed match from history at index:", matchIndex);
 
             // NEW: Update local state immediately
             if (typeof updateMatchHistory === 'function') {
@@ -411,8 +399,7 @@ export default function LogTab({
                         teams: [match.teamA || [], match.teamB || []],
                         score: match.score,
                         mvp: match.mvp || "",
-                        date: match.originalDate || match.date, // Use original date if available
-                        isDeleted: match.isDeleted || false // Include deletion status
+                        date: match.date
                     };
                 });
                 updateMatchHistory(appFormatHistory);
@@ -430,46 +417,7 @@ export default function LogTab({
 
         console.log("Reversed match result in leaderboard and removed from match history");
     };
-    // Add this function to LogTab.jsx or your admin tools
-    const restoreMatchFromLog = async (logData) => {
-        if (!logData.details) return;
 
-        const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
-        const docSnap = await getDoc(docRef);
-
-        if (!docSnap.exists()) return;
-
-        const data = docSnap.data();
-        let updatedMatchHistory = [...(data.matchHistory || [])];
-
-        // Find the deleted match and restore it
-        const matchIndex = updatedMatchHistory.findIndex(match => {
-            // Same matching logic as before
-            // ... (use the existing team matching logic)
-        });
-
-        if (matchIndex !== -1 && updatedMatchHistory[matchIndex].isDeleted) {
-            // Restore the match by removing the deletion flags
-            const restoredMatch = { ...updatedMatchHistory[matchIndex] };
-            delete restoredMatch.isDeleted;
-            delete restoredMatch.deletedDate;
-            delete restoredMatch.deletedBy;
-            delete restoredMatch.deletionReason;
-
-            // Use the original date from when the match was played
-            restoredMatch.date = restoredMatch.originalDate || logData.details.date || logData.details.matchDate;
-
-            updatedMatchHistory[matchIndex] = restoredMatch;
-
-            // Update Firestore
-            await setDoc(docRef, {
-                ...data,
-                matchHistory: updatedMatchHistory
-            });
-
-            console.log("Restored match with original date:", restoredMatch.date);
-        }
-    };
     const reversePlayerRating = async (logData) => {
         // Skip if essential data is missing
         if (!logData.details?.playerName && !logData.details?.name) {

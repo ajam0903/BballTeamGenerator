@@ -56,26 +56,6 @@ export default function TeamsTab({
     const [selectAll, setSelectAll] = useState(false);
     const [recentlyActivated, setRecentlyActivated] = useState(new Set());
     const playerListRef = useRef(null);
-    const [matchDateTime, setMatchDateTime] = useState(new Date().toISOString().slice(0, 16));
-
-
-    const validateMatchDate = (dateString) => {
-        const selectedDate = new Date(dateString);
-        const now = new Date();
-
-        // Don't allow future dates
-        if (selectedDate > now) {
-            return "Match date cannot be in the future";
-        }
-
-        // Don't allow dates too far in the past (optional - adjust as needed)
-        const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-        if (selectedDate < thirtyDaysAgo) {
-            return "Match date cannot be more than 30 days ago";
-        }
-
-        return null;
-    };
 
     // Check for unsaved changes
     useEffect(() => {
@@ -142,8 +122,6 @@ export default function TeamsTab({
             return currentScore > bestScore ? current : best;
         }, playersToConsider[0]);
     };
-
-
 
     const teamNameCache = new Map();
 
@@ -322,7 +300,6 @@ export default function TeamsTab({
         const rating = Math.min(raw, 10);
         return rating;
     };
-
 
     const generateRandomTeams = async () => {
         if (!currentLeagueId) {
@@ -561,18 +538,6 @@ export default function TeamsTab({
         setManualTeams(Array.from({ length: finalNumTeams }, () => []));
     }, [teamSize, activePlayerCount]);
 
-    useEffect(() => {
-        const now = new Date();
-        // Format for datetime-local input (YYYY-MM-DDTHH:MM in local time)
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-
-        const localDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
-        setMatchDateTime(localDateTime);
-    }, []);
     // Handle adding a player to a specific team
     const addPlayerToTeam = (player, teamIndex) => {
         // Check if player is already on any team
@@ -1239,26 +1204,6 @@ export default function TeamsTab({
                                         </div>
                                     </div>
                                 )}
-                                {/* Date/Time Input - only for unsaved matches */}
-                                {!scores[i]?.processed && (
-                                    <div className="flex items-center space-x-3 mb-3">
-                                        <label className="text-xs text-gray-400 min-w-[80px]">Match Date:</label>
-                                        <div className="flex-grow">
-                                            <input
-                                                type="datetime-local"
-                                                value={matchDateTime}
-                                                onChange={(e) => setMatchDateTime(e.target.value)}
-                                                className="w-full px-3 py-1 bg-gray-700 text-white text-sm rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-                                            />
-                                            {(() => {
-                                                const dateError = validateMatchDate(matchDateTime);
-                                                return dateError && (
-                                                    <p className="text-red-400 text-xs mt-1">{dateError}</p>
-                                                );
-                                            })()}
-                                        </div>
-                                    </div>
-                                )}
 
                                 {/* MVP section - only for unsaved matches */}
                                 {!scores[i]?.processed && (
@@ -1389,12 +1334,12 @@ export default function TeamsTab({
                                                         onChange={(e) => handleScoreChange(i, 'b', e.target.value)}
                                                     />
                                                 </div>
-                                                <button
-                                                    onClick={() => saveMatchResults(i, matchDateTime)}
-                                                    className="px-3 py-1.5 text-sm text-white bg-green-600 rounded-md hover:bg-green-500 font-medium transition-colors"
-                                                >
-                                                    Save Result
-                                                </button>
+                                            <button
+                                                onClick={() => saveMatchResults(i)}
+                                                className="px-3 py-1.5 text-sm text-white bg-green-600 rounded-md hover:bg-green-500 font-medium transition-colors"
+                                            >
+                                                Save Result
+                                            </button>
                                         </>
                                     )}
                                 </div>

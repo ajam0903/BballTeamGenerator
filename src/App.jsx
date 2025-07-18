@@ -884,7 +884,7 @@ export default function App() {
                             })),
                             score: scores[idx],
                             mvp: mvpVotes[idx] || "",
-                            date: new Date().toISOString(),
+                            date: scores[idx].customDate || new Date().toISOString(),
                             teamSize: teamSize
                         };
                     });
@@ -1539,7 +1539,7 @@ export default function App() {
                         })) : [],
                         score: scores[index],
                         mvp: mvpVotes[index] || "",
-                        date: new Date().toISOString(),
+                        date: scores[index].customDate || new Date().toISOString(),
                         teamSize: teamSize
                     };
                 }
@@ -1675,6 +1675,66 @@ export default function App() {
         (currentLeague.admins && currentLeague.admins.includes(user?.uid))
     );
 
+    // Add this function to App.jsx (before saveEditedPlayerFromModal)
+    const updatePlayerNameInClaims = async (oldName, newName) => {
+        if (!currentLeagueId || !oldName || !newName || oldName === newName) return;
+
+        try {
+            console.log(`Updating player name in claims from "${oldName}" to "${newName}"`);
+
+            // Get all users
+            const allUsersSnapshot = await getDocs(collection(db, "users"));
+
+            for (const userDoc of allUsersSnapshot.docs) {
+                const userData = userDoc.data();
+                const claimedPlayers = userData.claimedPlayers || [];
+
+                // Find and update claims that match the old name
+                const updatedClaimedPlayers = claimedPlayers.map(claim => {
+                    if (claim.leagueId === currentLeagueId &&
+                        claim.playerName.toLowerCase() === oldName.toLowerCase()) {
+                        console.log(`Found claim for ${oldName}, updating to ${newName}`);
+                        return { ...claim, playerName: newName };
+                    }
+                    return claim;
+                });
+
+                // Only update if there were changes
+                const hasChanges = claimedPlayers.some((claim, index) =>
+                    claim.playerName !== updatedClaimedPlayers[index].playerName
+                );
+
+                if (hasChanges) {
+                    await setDoc(userDoc.ref, {
+                        ...userData,
+                        claimedPlayers: updatedClaimedPlayers
+                    });
+                    console.log(`Updated claims for user ${userDoc.id}`);
+                }
+            }
+
+            // Also update notifications if any exist
+            const notificationsRef = collection(db, "leagues", currentLeagueId, "notifications");
+            const notificationsSnapshot = await getDocs(notificationsRef);
+
+            for (const notificationDoc of notificationsSnapshot.docs) {
+                const notificationData = notificationDoc.data();
+                if (notificationData.type === 'player_claim_request' &&
+                    notificationData.playerName.toLowerCase() === oldName.toLowerCase()) {
+                    await setDoc(notificationDoc.ref, {
+                        ...notificationData,
+                        playerName: newName
+                    });
+                    console.log(`Updated notification for ${oldName} to ${newName}`);
+                }
+            }
+
+            console.log(`Successfully updated all claims from "${oldName}" to "${newName}"`);
+        } catch (error) {
+            console.error("Error updating player name in claims:", error);
+        }
+    };
+
     // Modified to use league structure
     const saveEditedPlayerFromModal = async (updatedPlayer, originalName) => {
         if (!currentLeagueId) return;
@@ -1734,6 +1794,7 @@ export default function App() {
                     players: updatedPlayers,
                     leaderboard: updatedLeaderboard
                 });
+
                 await logActivity(
                     db,
                     currentLeagueId,
@@ -1746,14 +1807,40 @@ export default function App() {
                     user,
                     true
                 );
-                // Update local state
-                setPlayers(updatedPlayers);
-                setLeaderboard(updatedLeaderboard);
+
+                // Handle name change: update claims FIRST, then enhance players
+                if (originalName !== updatedPlayer.name) {
+                    console.log("Player name changed, updating claims and refreshing data...");
+
+                    // Update player name in all claims to preserve profile data
+                    await updatePlayerNameInClaims(originalName, updatedPlayer.name);
+
+                    // Wait a moment for the database updates to propagate
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Re-enhance players with updated claim data
+                    console.log("Re-enhancing player data after name change...");
+                    const enhancedPlayers = await enhancePlayersWithClaimData(updatedPlayers);
+
+                    // Update local state with enhanced data
+                    setPlayers(enhancedPlayers);
+                    setLeaderboard(updatedLeaderboard);
+
+                    console.log("Enhanced players after name change:", enhancedPlayers.find(p => p.name === updatedPlayer.name));
+                } else {
+                    // No name change, just enhance and update normally
+                    const enhancedPlayers = await enhancePlayersWithClaimData(updatedPlayers);
+                    setPlayers(enhancedPlayers);
+                    setLeaderboard(updatedLeaderboard);
+                }
 
                 setToastMessage("✅ Player completely updated!");
                 setTimeout(() => setToastMessage(""), 3000);
             }
         }
+
+        // Close the modal
+        closeEditModal();
     };
 
     const enhancePlayersWithClaimData = async (players) => {
@@ -2462,7 +2549,7 @@ export default function App() {
     };
 
 
-    const saveMatchResults = async (matchIndex) => {
+    const saveMatchResults = async (matchIndex, customDate = null) => {
         if (!currentLeagueId) return;
 
         // Validate the match index exists and has score data
@@ -2471,7 +2558,8 @@ export default function App() {
             setTimeout(() => setToastMessage(""), 3000);
             return;
         }
-
+        // Use custom date if provided, otherwise use current time
+        const matchDate = customDate ? new Date(customDate).toISOString() : new Date().toISOString();
         // Check if this match has already been processed
         if (scores[matchIndex].processed) {
             setToastMessage("⚠️ This match has already been saved!");
@@ -2490,7 +2578,8 @@ export default function App() {
             updatedScores[matchIndex] = {
                 ...updatedScores[matchIndex],
                 processed: true,
-                teamSize: teamSize
+                teamSize: teamSize,
+                customDate: matchDate,
             };
 
             setScores(updatedScores);
@@ -2554,7 +2643,7 @@ export default function App() {
                         team0: matchups[matchIndex][0].map(player => player.name),
                         team1: matchups[matchIndex][1].map(player => player.name)
                     },
-                    date: new Date().toISOString()
+                    date: matchDate
                 },
                 user,
                 true

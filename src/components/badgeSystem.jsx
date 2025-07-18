@@ -164,7 +164,7 @@ export const calculatePlayerStats = (playerName, leaderboard = {}, matchHistory 
         winStreaks: 0
     };
 
-    // Calculate win streaks from match history
+    // Use longest streak for badge earning
     if (matchHistory && matchHistory.length > 0) {
         stats.winStreaks = calculateLongestWinStreak(playerName, matchHistory);
     }
@@ -172,15 +172,15 @@ export const calculatePlayerStats = (playerName, leaderboard = {}, matchHistory 
     return stats;
 };
 
-// Calculate longest win streak for a player
 export const calculateLongestWinStreak = (playerName, matchHistory) => {
     if (!matchHistory || matchHistory.length === 0) return 0;
 
-    // Sort matches by date (newest to oldest for current streak calculation)
+    // Sort matches by date (oldest to newest for proper streak calculation)
     const sortedMatches = [...matchHistory].sort((a, b) =>
-        new Date(b.date) - new Date(a.date)
+        new Date(a.date) - new Date(b.date)
     );
 
+    let longestStreak = 0;
     let currentStreak = 0;
 
     for (const match of sortedMatches) {
@@ -218,22 +218,90 @@ export const calculateLongestWinStreak = (playerName, matchHistory) => {
         // Normalize the player name we're searching for
         const normalizedPlayerName = playerName ? playerName.trim().toLowerCase() : '';
 
-        // Check if player participated and won
-        const playerInTeamA = teamA.includes(normalizedPlayerName);
-        const playerInTeamB = teamB.includes(normalizedPlayerName);
+        // Determine which team the player was on
+        const isOnTeamA = teamA.includes(normalizedPlayerName);
+        const isOnTeamB = teamB.includes(normalizedPlayerName);
 
-        if (playerInTeamA || playerInTeamB) {
-            const playerWon = (playerInTeamA && scoreA > scoreB) ||
-                (playerInTeamB && scoreB > scoreA);
+        // Skip if player wasn't in this match
+        if (!isOnTeamA && !isOnTeamB) {
+            continue;
+        }
 
-            if (playerWon) {
-                currentStreak++;
-            } else {
-                // Player lost - current streak ends (since we're going newest to oldest)
-                break;
-            }
+        // Determine if player's team won
+        const playerWon = (isOnTeamA && scoreA > scoreB) || (isOnTeamB && scoreB > scoreA);
+
+        if (playerWon) {
+            // Player won, increment current streak
+            currentStreak++;
+            // Update longest streak if current is longer
+            longestStreak = Math.max(longestStreak, currentStreak);
         } else {
-            // Player didn't participate in this match - current streak ends
+            // Player lost, reset current streak
+            currentStreak = 0;
+        }
+    }
+
+    return longestStreak;
+};
+
+// Add this complete function to badgeSystem.jsx
+export const calculateCurrentWinStreak = (playerName, matchHistory) => {
+    if (!matchHistory || matchHistory.length === 0) return 0;
+
+    // Sort matches by date (newest to oldest)
+    const sortedMatches = [...matchHistory].sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return dateB.getTime() - dateA.getTime();
+    });
+
+    let currentStreak = 0;
+
+    for (const match of sortedMatches) {
+        let teamA = [];
+        let teamB = [];
+        let scoreA = 0;
+        let scoreB = 0;
+
+        // Handle different match formats and normalize player names
+        if (Array.isArray(match.teams) && match.teams.length >= 2) {
+            teamA = match.teams[0].map(p => {
+                const name = typeof p === 'string' ? p : p.name;
+                return name ? name.trim().toLowerCase() : '';
+            });
+            teamB = match.teams[1].map(p => {
+                const name = typeof p === 'string' ? p : p.name;
+                return name ? name.trim().toLowerCase() : '';
+            });
+        } else if (match.teamA && match.teamB) {
+            teamA = match.teamA.map(p => {
+                const name = typeof p === 'string' ? p : p.name;
+                return name ? name.trim().toLowerCase() : '';
+            });
+            teamB = match.teamB.map(p => {
+                const name = typeof p === 'string' ? p : p.name;
+                return name ? name.trim().toLowerCase() : '';
+            });
+        }
+
+        if (match.score) {
+            scoreA = parseInt(match.score.a) || 0;
+            scoreB = parseInt(match.score.b) || 0;
+        }
+
+        const normalizedPlayerName = playerName ? playerName.trim().toLowerCase() : '';
+        const isOnTeamA = teamA.includes(normalizedPlayerName);
+        const isOnTeamB = teamB.includes(normalizedPlayerName);
+
+        if (!isOnTeamA && !isOnTeamB) {
+            continue;
+        }
+
+        const playerWon = (isOnTeamA && scoreA > scoreB) || (isOnTeamB && scoreB > scoreA);
+
+        if (playerWon) {
+            currentStreak++;
+        } else {
             break;
         }
     }
@@ -274,7 +342,13 @@ export const getBadgeProgress = (playerName, leaderboard = {}, matchHistory = []
     const progress = {};
 
     Object.entries(badgeCategories).forEach(([categoryId, category]) => {
-        const playerValue = stats[categoryId] || 0;
+        let playerValue = stats[categoryId] || 0;
+
+        // Special case: use current streak for winStreaks progress instead of longest streak
+        if (categoryId === 'winStreaks') {
+            playerValue = calculateCurrentWinStreak(playerName, matchHistory);
+        }
+
         const tiers = Object.entries(category.tiers);
 
         // Find next tier to achieve

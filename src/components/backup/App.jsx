@@ -116,6 +116,7 @@ export default function App() {
     const [userLeagues, setUserLeagues] = useState([]);
     const [showPlayerClaimModal, setShowPlayerClaimModal] = useState(false);
     const [selectedPlayerToClaim, setSelectedPlayerToClaim] = useState(null);
+    const [enhancedPlayers, setEnhancedPlayers] = useState([]);
 
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -1674,6 +1675,66 @@ export default function App() {
         (currentLeague.admins && currentLeague.admins.includes(user?.uid))
     );
 
+    // Add this function to App.jsx (before saveEditedPlayerFromModal)
+    const updatePlayerNameInClaims = async (oldName, newName) => {
+        if (!currentLeagueId || !oldName || !newName || oldName === newName) return;
+
+        try {
+            console.log(`Updating player name in claims from "${oldName}" to "${newName}"`);
+
+            // Get all users
+            const allUsersSnapshot = await getDocs(collection(db, "users"));
+
+            for (const userDoc of allUsersSnapshot.docs) {
+                const userData = userDoc.data();
+                const claimedPlayers = userData.claimedPlayers || [];
+
+                // Find and update claims that match the old name
+                const updatedClaimedPlayers = claimedPlayers.map(claim => {
+                    if (claim.leagueId === currentLeagueId &&
+                        claim.playerName.toLowerCase() === oldName.toLowerCase()) {
+                        console.log(`Found claim for ${oldName}, updating to ${newName}`);
+                        return { ...claim, playerName: newName };
+                    }
+                    return claim;
+                });
+
+                // Only update if there were changes
+                const hasChanges = claimedPlayers.some((claim, index) =>
+                    claim.playerName !== updatedClaimedPlayers[index].playerName
+                );
+
+                if (hasChanges) {
+                    await setDoc(userDoc.ref, {
+                        ...userData,
+                        claimedPlayers: updatedClaimedPlayers
+                    });
+                    console.log(`Updated claims for user ${userDoc.id}`);
+                }
+            }
+
+            // Also update notifications if any exist
+            const notificationsRef = collection(db, "leagues", currentLeagueId, "notifications");
+            const notificationsSnapshot = await getDocs(notificationsRef);
+
+            for (const notificationDoc of notificationsSnapshot.docs) {
+                const notificationData = notificationDoc.data();
+                if (notificationData.type === 'player_claim_request' &&
+                    notificationData.playerName.toLowerCase() === oldName.toLowerCase()) {
+                    await setDoc(notificationDoc.ref, {
+                        ...notificationData,
+                        playerName: newName
+                    });
+                    console.log(`Updated notification for ${oldName} to ${newName}`);
+                }
+            }
+
+            console.log(`Successfully updated all claims from "${oldName}" to "${newName}"`);
+        } catch (error) {
+            console.error("Error updating player name in claims:", error);
+        }
+    };
+
     // Modified to use league structure
     const saveEditedPlayerFromModal = async (updatedPlayer, originalName) => {
         if (!currentLeagueId) return;
@@ -1733,6 +1794,7 @@ export default function App() {
                     players: updatedPlayers,
                     leaderboard: updatedLeaderboard
                 });
+
                 await logActivity(
                     db,
                     currentLeagueId,
@@ -1745,14 +1807,40 @@ export default function App() {
                     user,
                     true
                 );
-                // Update local state
-                setPlayers(updatedPlayers);
-                setLeaderboard(updatedLeaderboard);
+
+                // Handle name change: update claims FIRST, then enhance players
+                if (originalName !== updatedPlayer.name) {
+                    console.log("Player name changed, updating claims and refreshing data...");
+
+                    // Update player name in all claims to preserve profile data
+                    await updatePlayerNameInClaims(originalName, updatedPlayer.name);
+
+                    // Wait a moment for the database updates to propagate
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Re-enhance players with updated claim data
+                    console.log("Re-enhancing player data after name change...");
+                    const enhancedPlayers = await enhancePlayersWithClaimData(updatedPlayers);
+
+                    // Update local state with enhanced data
+                    setPlayers(enhancedPlayers);
+                    setLeaderboard(updatedLeaderboard);
+
+                    console.log("Enhanced players after name change:", enhancedPlayers.find(p => p.name === updatedPlayer.name));
+                } else {
+                    // No name change, just enhance and update normally
+                    const enhancedPlayers = await enhancePlayersWithClaimData(updatedPlayers);
+                    setPlayers(enhancedPlayers);
+                    setLeaderboard(updatedLeaderboard);
+                }
 
                 setToastMessage("✅ Player completely updated!");
                 setTimeout(() => setToastMessage(""), 3000);
             }
         }
+
+        // Close the modal
+        closeEditModal();
     };
 
     const enhancePlayersWithClaimData = async (players) => {
@@ -2165,6 +2253,79 @@ export default function App() {
 
         fetchUserLeagues();
     }, [user, currentLeagueId]); // Re-fetch when user or currentLeagueId changes
+
+    useEffect(() => {
+        const enhanceAndSetPlayers = async () => {
+            if (players.length > 0 && currentLeagueId) {
+                const enhanced = await enhancePlayersWithClaimData(players);
+                setEnhancedPlayers(enhanced);
+            } else {
+                setEnhancedPlayers(players);
+            }
+        };
+
+        enhanceAndSetPlayers();
+    }, [players, currentLeagueId]); // Re-run when players or league changes
+
+    useEffect(() => {
+        // Create a global refresh function that can be called from LogTab
+        window.refreshPlayersData = async () => {
+            if (currentLeagueId) {
+                const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    // Process players the same way as in the original fetch
+                    const averagedPlayers = (data.players || []).map((player) => {
+                        const submissions = Array.isArray(player.submissions) ? player.submissions : [];
+                        if (submissions.length === 0) {
+                            return {
+                                ...player,
+                                submissions: []
+                            };
+                        }
+
+                        // Calculate averages from submissions
+                        const avgStats = {
+                            name: player.name || "Unknown",
+                            active: player.active !== undefined ? player.active : true,
+                            scoring: 0,
+                            defense: 0,
+                            rebounding: 0,
+                            playmaking: 0,
+                            stamina: 0,
+                            physicality: 0,
+                            xfactor: 0,
+                        };
+                        submissions.forEach((s) => {
+                            avgStats.scoring += s.scoring;
+                            avgStats.defense += s.defense;
+                            avgStats.rebounding += s.rebounding;
+                            avgStats.playmaking += s.playmaking;
+                            avgStats.stamina += s.stamina;
+                            avgStats.physicality += s.physicality;
+                            avgStats.xfactor += s.xfactor;
+                        });
+                        const len = submissions.length || 1;
+                        Object.keys(avgStats).forEach((key) => {
+                            if (typeof avgStats[key] === "number") {
+                                avgStats[key] = parseFloat((avgStats[key] / len).toFixed(2));
+                            }
+                        });
+                        avgStats.submissions = submissions;
+                        return avgStats;
+                    });
+
+                    setPlayers(averagedPlayers);
+                }
+            }
+        };
+
+        // Cleanup
+        return () => {
+            delete window.refreshPlayersData;
+        };
+    }, [currentLeagueId, currentSet]);
 
     // Get team rank string showing position out of total
     const getTeamRankString = (teamIndex) => {
@@ -2724,7 +2885,7 @@ export default function App() {
                         <div className="space-y-4">
                             {playersSubTab === "rankings" && (
                                 <RankingTab
-                                    players={players}
+                                    players={enhancedPlayers}
                                     newRating={newRating}
                                     setNewRating={setNewRating}
                                     handleRatingSubmit={handleRatingSubmit}
