@@ -15,7 +15,7 @@ export const beltCategories = {
     },
     hog: {
         name: "Ball Hog",
-        icon: "🐷",
+        icon: "0",
         description: "For a player who hogs the ball",
         isNegative: true
     },

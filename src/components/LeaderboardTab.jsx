@@ -4,7 +4,7 @@ import { StyledButton, StyledInput } from "./UIComponents";
 
 
 
-export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAdmin, matchHistory, players, playerOVRs, onUpdateLeaderboard, openPlayerDetailModal }) {
+export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAdmin, matchHistory, players, playerOVRs, onUpdateLeaderboard, openPlayerDetailModal, minGamesFilter = 0, }) {
     const [sortBy, setSortBy] = useState("ovr");
     const [sortDirection, setSortDirection] = useState("desc");
     const [scrollPosition, setScrollPosition] = useState(0);
@@ -216,16 +216,13 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
     const processedData = Object.entries(filteredStats || {}).map(([name, stats]) => {
         // Find player data in players array
         const playerData = players.find(p => p.name === name) || {};
-
         // Get last 10 games record
         const recentForm = getRecentForm(name);
         const last10Wins = recentForm.filter(game => game.won).length;
         const last10Losses = recentForm.length - last10Wins;
-
         // If match history is incomplete compared to leaderboard, show total record
         const totalGamesFromLeaderboard = (stats._w || 0) + (stats._l || 0);
         const totalGamesFromHistory = recentForm.length;
-
         let last10Record;
         if (totalGamesFromHistory < totalGamesFromLeaderboard && totalGamesFromLeaderboard <= 10) {
             // Show total record if we have incomplete match history but ≤10 total games
@@ -234,7 +231,6 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             // Show last 10 from match history
             last10Record = (last10Wins + last10Losses) > 0 ? `${last10Wins}-${last10Losses}` : "0-0";
         }
-
         return {
             name,
             ovr: playerOVRs[name] || 5,
@@ -244,19 +240,26 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             mvps: stats.MVPs || 0,
             pct: stats._w + stats._l > 0 ? ((stats._w / (stats._w + stats._l)) * 100).toFixed(1) : "0.0",
             last10Record: last10Record,
-            // Player abilities
             scoring: playerData.scoring || 5,
             defense: playerData.defense || 5,
             rebounding: playerData.rebounding || 5,
             playmaking: playerData.playmaking || 5,
             stamina: playerData.stamina || 5,
             physicality: playerData.physicality || 5,
-            xfactor: playerData.xfactor || 5
+            xfactor: playerData.xfactor || 5,
+            totalGames: (stats._w || 0) + (stats._l || 0),
         };
-    });
+    }).filter(player => player.totalGames >= minGamesFilter);
 
-    // Sort the data
-    const sortedData = [...processedData].sort((a, b) => {
+    // First, create OVR rankings (highest OVR = rank 1)
+    const ovrRankedData = [...processedData].sort((a, b) => b.ovr - a.ovr);
+    const dataWithOvrRank = ovrRankedData.map((player, index) => ({
+        ...player,
+        ovrRank: index + 1
+    }));
+
+    // Then sort by current sort criteria for display
+    const sortedData = [...dataWithOvrRank].sort((a, b) => {
         let aValue = a[sortBy];
         let bValue = b[sortBy];
 
@@ -409,6 +412,12 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
 
         <div className="space-y-6">
 
+            {/* Minimum Games Filter Disclaimer - Small and subtle */}
+            {minGamesFilter > 0 && (
+                <div className="text-xs text-gray-500 italic text-center -mt-2 mb-4">
+                    * Showing stats for players with at least {minGamesFilter} game{minGamesFilter !== 1 ? 's' : ''} played
+                </div>
+            )}
             <div className="flex items-center mb-4 overflow-x-auto scrollbar-hide pb-2 justify-center">
                 <div className="text-center px-3">
                     <button
@@ -519,12 +528,16 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                         <table className="min-w-full divide-y divide-gray-700">
                                 <thead className="bg-gray-800 sticky top-0 z-10">
                                     <tr>
+                                        {/* New Rank column */}
+                                        <th className="px-2 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider sticky left-0 bg-gray-800 border-r border-gray-700 z-20">
+                                            #
+                                        </th>
                                         {/* Fixed columns */}
                                         <th
-                                            className="px-2 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider sticky left-0 bg-gray-800 cursor-pointer border-r border-gray-700"
+                                            className="px-2 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider sticky left-8 bg-gray-800 cursor-pointer border-r border-gray-700 z-10"
                                             onClick={() => handleSort("name")}
                                         >
-                                            Player {sortBy === "name" && (sortDirection === "asc" ? "▲" : "▼")}
+                                            Player {sortBy === "name" && (sortDirection === "asc" ? "↑" : "↓")}
                                         </th>
                                         <th
                                             className="px-1 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer min-w-[10px] whitespace-nowrap border-r border-gray-700"
@@ -614,10 +627,14 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-700 bg-gray-900">
+                                <tbody className="bg-gray-900 divide-y divide-gray-700">
                                     {sortedData.map((player, index) => (
-                                        <tr key={player.name} className={index % 2 === 0 ? "bg-gray-900" : "bg-gray-800"}>
-                                            <td className="px-2 py-3 whitespace-nowrap text-sm font-medium text-white sticky left-0 z-5 bg-inherit text-center border-r border-gray-700">
+                                        <tr key={player.name} className={`hover:bg-gray-600 ${index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-900'}`}>
+                                            <td className={`px-2 py-3 whitespace-nowrap text-sm font-medium text-white sticky left-0 z-5 ${index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-900'} text-center border-r border-gray-700`}>
+                                                {player.ovrRank}
+                                            </td>
+                                            <td className={`px-2 py-3 whitespace-nowrap text-sm font-medium text-white sticky left-8 z-5 ${index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-900'} text-left border-r border-gray-700`}>
+
                                                 <button
                                                     onClick={() => openPlayerDetailModal(player)}
                                                 >

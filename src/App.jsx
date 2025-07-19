@@ -118,6 +118,7 @@ export default function App() {
     const [showPlayerClaimModal, setShowPlayerClaimModal] = useState(false);
     const [selectedPlayerToClaim, setSelectedPlayerToClaim] = useState(null);
     const [enhancedPlayers, setEnhancedPlayers] = useState([]);
+    const [minGamesFilter, setMinGamesFilter] = useState(0);
 
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -153,6 +154,10 @@ export default function App() {
 
             return matchesExactly;
         });
+    };
+
+    const handleMinGamesFilterChange = (newValue) => {
+        setMinGamesFilter(newValue);
     };
 
     const handleLogout = () => {
@@ -1968,6 +1973,7 @@ export default function App() {
                 if (leagueDoc.exists()) {
                     const leagueData = leagueDoc.data();
                     setShowReviewerNames(leagueData.preferences?.showReviewerNames || false);
+                    setMinGamesFilter(leagueData.preferences?.minGamesFilter || 0);  // Add this line
                 }
             } catch (error) {
                 console.error("Error fetching league preferences:", error);
@@ -2838,6 +2844,8 @@ export default function App() {
                             db={db}
                             players={players}
                             onPlayerClaimRequest={handlePlayerClaimRequest}
+                            minGamesFilter={minGamesFilter}
+                            onMinGamesFilterChange={handleMinGamesFilterChange}
                         />
                     </div>
  {user && currentLeague && (
@@ -2984,6 +2992,7 @@ export default function App() {
                             playerOVRs={playerOVRs}
                             onUpdateLeaderboard={handleManualLeaderboardUpdate}
                             openPlayerDetailModal={openPlayerDetailModal}
+                            minGamesFilter={minGamesFilter}
                         />
                     )}
                     {activeTab === "awards" && (

@@ -17,6 +17,8 @@ export default function UserMenu({
     db,
     players = [],
     onPlayerClaimRequest,
+    minGamesFilter,
+    onMinGamesFilterChange,
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [showPreferences, setShowPreferences] = useState(false);
@@ -121,6 +123,31 @@ export default function UserMenu({
             }
         } catch (error) {
             console.error("Error updating user permissions:", error);
+        }
+    };
+
+    const handleMinGamesFilterChange = async (newValue) => {
+        if (!currentLeague?.id || !isAdmin) return;
+
+        try {
+            const leagueRef = doc(db, "leagues", currentLeague.id);
+            const leagueDoc = await getDoc(leagueRef);
+
+            if (leagueDoc.exists()) {
+                const leagueData = leagueDoc.data();
+
+                await setDoc(leagueRef, {
+                    ...leagueData,
+                    preferences: {
+                        ...leagueData.preferences,
+                        minGamesFilter: newValue
+                    }
+                });
+
+                onMinGamesFilterChange(newValue);
+            }
+        } catch (error) {
+            console.error("Error updating min games filter:", error);
         }
     };
 
@@ -334,6 +361,30 @@ export default function UserMenu({
                                         </button>
                                         <div className="px-2 py-1 text-xs text-gray-500">
                                             When enabled, reviewers' names are visible to admins in player reviews
+                                        </div>
+
+                                        {/* Minimum Games Filter */}
+                                        <div className="px-2 py-1 text-xs text-gray-400 border-b border-gray-700 mb-2 mt-3">
+                                        </div>
+                                        <div className="px-2 py-1 space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-gray-300 text-xs">Stats Tab Min Games</span>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    value={minGamesFilter || 0}
+                                                    onChange={(e) => {
+                                                        const value = parseInt(e.target.value) || 0;
+                                                        handleMinGamesFilterChange(value);
+                                                    }}
+                                                    className="w-12 h-6 px-1 text-xs bg-gray-700 border border-gray-600 rounded text-white text-center"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                />
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                                Only show players in Stats tab with at least this many games played
+                                            </div>
                                         </div>
 
                                         {/* User Management Section */}
