@@ -798,18 +798,13 @@ export default function LogTab({
         // Helper function to abbreviate long names
         const abbreviateName = (fullName) => {
             if (!fullName) return fullName;
-
             const nameParts = fullName.trim().split(/\s+/);
-
             // If only one name (or empty), return it
             if (nameParts.length <= 1) return fullName;
-
             const firstName = nameParts[0];
-
             // Get last name and abbreviate if needed
             let lastName = nameParts[nameParts.length - 1];
             let lastInitial = lastName[0] || '';
-
             // Add a period to the initial
             return `${firstName} ${lastInitial}.`;
         };
@@ -839,6 +834,7 @@ export default function LogTab({
 
             return playerName;
         };
+
         // Only render for match-related logs
         if (!["match_result_saved", "match_completed"].includes(log.action)) {
             return null;
@@ -847,9 +843,14 @@ export default function LogTab({
         // Get team data from the appropriate location in details
         const teamA = log.details?.teams?.[0] || log.details?.teamA || [];
         const teamB = log.details?.teams?.[1] || log.details?.teamB || [];
-        const scoreA = log.details?.scoreA || 0;
-        const scoreB = log.details?.scoreB || 0;
+        const scoreA = parseInt(log.details?.scoreA) || 0;  // Make sure it's a number
+        const scoreB = parseInt(log.details?.scoreB) || 0;  // Make sure it's a number
         const mvp = log.details?.mvp || "";
+
+        // Determine which team won
+        const teamAWon = scoreA > scoreB;
+        const teamBWon = scoreB > scoreA;
+        const isTie = scoreA === scoreB;
 
         // Helper function to get team display name
         const getTeamDisplayName = (team, teamLetter) => {
@@ -876,7 +877,7 @@ export default function LogTab({
             <div className="mt-2 pt-2 border-t border-gray-700">
                 <div className="grid grid-cols-2 gap-4">
                     {/* Team A */}
-                    <div className={`p-2 rounded ${scoreA > scoreB ? 'bg-green-900 bg-opacity-20' : 'bg-red-900 bg-opacity-20'}`}>
+                    <div className={`p-2 rounded ${teamAWon ? 'bg-green-900 bg-opacity-20' : teamBWon ? 'bg-red-900 bg-opacity-20' : 'bg-gray-900 bg-opacity-20'}`}>
                         <div className="flex justify-between items-center mb-1">
                             <div className="flex items-center flex-1">
                                 <span className="text-sm font-medium text-gray-300">{teamAName}</span>
@@ -916,7 +917,7 @@ export default function LogTab({
                     </div>
 
                     {/* Team B */}
-                    <div className={`p-2 rounded ${scoreB > scoreA ? 'bg-green-900 bg-opacity-20' : 'bg-red-900 bg-opacity-20'}`}>
+                    <div className={`p-2 rounded ${teamBWon ? 'bg-green-900 bg-opacity-20' : teamAWon ? 'bg-red-900 bg-opacity-20' : 'bg-gray-900 bg-opacity-20'}`}>
                         <div className="flex justify-between items-center mb-1">
                             <div className="flex items-center flex-1">
                                 <span className="text-sm font-medium text-gray-300">{teamBName}</span>
@@ -958,7 +959,6 @@ export default function LogTab({
             </div>
         );
     };
-
     const renderRatingDetails = (log) => {
         // For rating changes, the data is stored in log.details.ratingData
         const ratings = log.details?.ratingData || log.details?.ratings || log.details?.playerData;
