@@ -22,10 +22,13 @@ const Badge = React.memo(function Badge({
     useEffect(() => {
         let timer;
         if (isClicked) {
-            timer = setTimeout(() => setIsClicked(false), 3000);
+            timer = setTimeout(() => setIsClicked(false), 2000);
         }
         return () => clearTimeout(timer);
     }, [isClicked]);
+
+    const [isHovered, setIsHovered] = useState(false);
+    const hoverTimeoutRef = React.useRef(null);
 
     const sizeConfig = {
         xs: { container: "w-4 h-4", iconSize: 16 },
@@ -41,17 +44,32 @@ const Badge = React.memo(function Badge({
         <div className={`relative group ${className}`}>
             <div
                 className={`
-                    ${config.container} 
-                    rounded-lg bg-gradient-to-br ${badge.bgGradient}
-                    border-2 ${badge.borderColor}
-                    flex items-center justify-center cursor-pointer
-                    transform transition-all duration-300
-                    hover:scale-110 hover:${badge.glowColor}
-                    shadow-lg hover:shadow-xl relative overflow-hidden
-                `}
+        ${config.container} 
+        rounded-lg bg-gradient-to-br ${badge.bgGradient}
+        border-2 ${badge.borderColor}
+        flex items-center justify-center cursor-pointer
+        transform transition-all duration-300
+        hover:scale-110 hover:${badge.glowColor}
+        shadow-lg hover:shadow-xl relative overflow-hidden
+    `}
                 onClick={(e) => {
                     e.stopPropagation();
                     setIsClicked(!isClicked);
+                }}
+                onMouseEnter={() => {
+                    if (hoverTimeoutRef.current) {
+                        clearTimeout(hoverTimeoutRef.current);
+                    }
+                    setIsHovered(true);
+                    hoverTimeoutRef.current = setTimeout(() => {
+                        setIsHovered(false);
+                    }, 2000);
+                }}
+                onMouseLeave={() => {
+                    if (hoverTimeoutRef.current) {
+                        clearTimeout(hoverTimeoutRef.current);
+                    }
+                    setIsHovered(false);
                 }}
             >
                 <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -69,9 +87,9 @@ const Badge = React.memo(function Badge({
                 <div className={`absolute z-50 px-3 py-2 text-xs font-medium text-white rounded-lg shadow-lg
                     bg-gray-900 border border-gray-600
                     bottom-full left-1/2 transform -translate-x-1/2 mb-2 whitespace-nowrap
-                    transition-opacity duration-300 ${isClicked
+transition-opacity duration-300 ${(isClicked || isHovered)
                         ? 'opacity-100 pointer-events-auto'
-                        : 'opacity-0 group-hover:opacity-100 pointer-events-none'
+                        : 'opacity-0 pointer-events-none'
                     }`}>
                     <div className="flex items-center">
                         <div>

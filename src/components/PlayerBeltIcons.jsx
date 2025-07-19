@@ -1,9 +1,19 @@
 // PlayerBeltIcons.jsx
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { beltCategories } from "./BeltsSystem";
 
 export default React.memo(function PlayerBeltIcons({ playerName, currentBelts, size }) {
     const [showTooltip, setShowTooltip] = useState(null);
+    const timeoutRef = useRef(null);
+
+    // Clear timeout when component unmounts
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
 
     // Find all belts this player holds
     const playerBelts = Object.entries(currentBelts)
@@ -34,17 +44,42 @@ export default React.memo(function PlayerBeltIcons({ playerName, currentBelts, s
     const config = sizeConfig[size] || sizeConfig.normal;
 
     const handleIconClick = (beltId) => {
+        // Clear any existing timeout
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+
         // Toggle tooltip on mobile click
         setShowTooltip(showTooltip === beltId ? null : beltId);
+
+        // Auto-hide after 2 seconds
+        if (showTooltip !== beltId) {
+            timeoutRef.current = setTimeout(() => {
+                setShowTooltip(null);
+            }, 2000);
+        }
     };
 
     const handleMouseEnter = (beltId) => {
+        // Clear any existing timeout
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+
         // Show tooltip on desktop hover
         setShowTooltip(beltId);
+
+        // Auto-hide after 2 seconds on hover
+        timeoutRef.current = setTimeout(() => {
+            setShowTooltip(null);
+        }, 2000);
     };
 
     const handleMouseLeave = () => {
-        // Hide tooltip when mouse leaves
+        // Clear timeout and hide immediately on mouse leave
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
         setShowTooltip(null);
     };
 

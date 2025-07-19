@@ -414,8 +414,8 @@ export default function RankingTab({
 
                     return (
                         <div
-                            key={`${player.name}-${index}`} // CHANGE THIS: Use name + index instead of just name
-                            className={`${bgColorClass} rounded overflow-hidden cursor-pointer hover:bg-gray-700 transition-colors`}
+                            key={`${player.name}-${index}`}
+                            className={`${bgColorClass} rounded cursor-pointer hover:bg-gray-700 transition-colors`}
                             onClick={() => onPlayerClick && onPlayerClick(player)}
                         >
 
@@ -454,11 +454,13 @@ export default function RankingTab({
 
                                         {/* Belt Icons aligned right */}
                                         <div className="flex items-center gap-2 flex-shrink-0">
-                                            <PlayerBeltIcons
-                                                playerName={player.name}
-                                                currentBelts={currentBelts}
-                                                size="small"
-                                            />
+                                            <div onClick={(e) => e.stopPropagation()}>
+                                                <PlayerBeltIcons
+                                                    playerName={player.name}
+                                                    currentBelts={currentBelts}
+                                                    size="normal"
+                                                />
+                                            </div>
                                             <span className="text-sm sm:text-base font-medium text-blue-400">
                                                 {rating}
                                             </span>
