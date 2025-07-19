@@ -419,10 +419,9 @@ export default function RankingTab({
                             onClick={() => onPlayerClick && onPlayerClick(player)}
                         >
 
-                            <div className="flex items-stretch min-h-[80px]">
+                            <div className="flex items-stretch min-h-[60px] sm:min-h-[80px]">
                                 {/* Player Image or Initials - Full Height */}
-                                <div className="flex-shrink-0 w-20 relative">
-
+                                <div className="flex-shrink-0 w-16 sm:w-20 relative">
                                     {player.customPhotoURL ? (
                                         <img
                                             src={player.customPhotoURL}
@@ -430,71 +429,79 @@ export default function RankingTab({
                                             className="w-full h-full object-cover"
                                             onError={(e) => {
                                                 console.log(`Image failed to load for ${player.name}:`, player.customPhotoURL);
-                                                // Fallback to initials if image fails to load
                                                 e.target.style.display = 'none';
                                                 e.target.nextSibling.style.display = 'flex';
                                             }}
                                         />
                                     ) : null}
                                     <div
-                                        className={`absolute inset-0 bg-gray-600 flex items-center justify-center text-white font-semibold text-lg ${player.customPhotoURL ? 'hidden' : 'flex'}`}
+                                        className={`absolute inset-0 bg-gray-600 flex items-center justify-center text-white font-semibold text-sm sm:text-lg ${player.customPhotoURL ? 'hidden' : 'flex'
+                                            }`}
                                     >
                                         {getPlayerInitials(player.name)}
                                     </div>
                                 </div>
 
                                 {/* Player Info */}
-                                <div className="flex-1 min-w-0 p-2 flex flex-col justify-between">
-                                    <div>
-                                        <div className="flex justify-between items-center mb-0.5">
-                                            <div className="flex items-center">
-                                                <span className="text-base text-white truncate">{player.name}</span>
-                                                <PlayerBeltIcons playerName={player.name} currentBelts={currentBelts} />
-                                                <PlayerBadges
-                                                    playerName={player.name}
-                                                    leaderboard={leaderboard}
-                                                    matchHistory={matchHistory}
-                                                    size="small"
-                                                    maxDisplay={2}
-                                                />
-                                            </div>
-                                            <span className="text-base font-medium text-blue-400 flex-shrink-0">
-                                                {rating}
+                                <div className="flex-1 min-w-0 p-2 flex flex-col justify-center">
+                                    {/* Name and Rating Row */}
+                                    <div className="flex justify-between items-center mb-1">
+                                        <div className="flex items-center min-w-0 flex-1">
+                                            <span className="text-sm sm:text-base text-white truncate">
+                                                {player.name}
                                             </span>
                                         </div>
 
-                                        <div className="mb-1">
-                                            <div className="text-xs text-gray-400">Ratings: {player.submissions?.length || 0}</div>
-                                            <div className="mt-0.5 bg-gray-700 h-1 rounded w-full">
-                                                <div
-                                                    className="bg-blue-500 h-1 rounded"
-                                                    style={{ width: `${getPercentage(parseFloat(rating))}%` }}
-                                                />
-                                            </div>
+                                        {/* Belt Icons aligned right */}
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                            <PlayerBeltIcons
+                                                playerName={player.name}
+                                                currentBelts={currentBelts}
+                                                size="small"
+                                            />
+                                            <span className="text-sm sm:text-base font-medium text-blue-400">
+                                                {rating}
+                                            </span>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                openRatingModal(index);
-                                            }}
-                                            className="px-1.5 py-0.5 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 mr-1"
-                                        >
-                                            Rate
-                                        </button>
+                                    {/* Badges Row */}
+                                    <div className="mb-1">
+                                        <PlayerBadges
+                                            playerName={player.name}
+                                            leaderboard={leaderboard}
+                                            matchHistory={matchHistory}
+                                            size="xs"
+                                            maxDisplay={3}
+                                        />
+                                    </div>
 
-                                        <div className={`flex items-center px-1.5 py-0.5 rounded text-xs ${userSubmission
-                                            ? "bg-green-600 text-white"
-                                            : "bg-gray-600 text-gray-300"
-                                            }`}>
-                                            <span className="mr-1">●</span>
-                                            {userSubmission ? "Rated" : "Not Rated"}
+                                    {/* Action Buttons Row */}
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openRatingModal(index);
+                                                }}
+                                                className="px-2 py-0.5 text-xs text-white bg-blue-600 rounded hover:bg-blue-700"
+                                            >
+                                                Rate
+                                            </button>
+
+                                            <span className="text-xs text-gray-400">
+                                                {player.submissions?.length || 0} ratings
+                                            </span>
+
+                                            <div className={`flex items-center text-xs ${userSubmission ? "text-green-400" : "text-gray-400"
+                                                }`}>
+                                                <span className="mr-1">●</span>
+                                                {userSubmission ? "Rated" : "Not Rated"}
+                                            </div>
                                         </div>
 
                                         {isAdmin && (
-                                            <div className="ml-auto flex space-x-0.5">
+                                            <div className="flex gap-1">
                                                 <StyledButton
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -504,18 +511,18 @@ export default function RankingTab({
                                                         };
                                                         openEditModal(playerToEdit, true, true);
                                                     }}
-                                                    className="px-1.5 py-0.5 text-xs bg-yellow-600 hover:bg-yellow-700"
+                                                    className="!px-1 !py-0.5 text-xs bg-yellow-600 hover:bg-yellow-700"
                                                 >
                                                     Edit
                                                 </StyledButton>
                                                 <StyledButton
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        if (confirm(`Are you sure you want to delete ${player.name}? This will permanently remove all player data including ratings, match history, and statistics. This action cannot be undone.`)) {
+                                                        if (confirm(`Are you sure you want to delete ${player.name}?`)) {
                                                             handleDeletePlayer(player.name);
                                                         }
                                                     }}
-                                                    className="px-1.5 py-0.5 text-xs bg-red-600 hover:bg-red-700"
+                                                    className="!px-1 !py-0.5 text-xs bg-red-600 hover:bg-red-700"
                                                 >
                                                     Delete
                                                 </StyledButton>

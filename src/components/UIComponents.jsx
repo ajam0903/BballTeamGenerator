@@ -100,3 +100,13 @@ export const TableCell = ({ children }) => (
 export const TableRow = ({ children }) => (
     <tr>{children}</tr>
 );
+
+export const ResponsivePlayerName = ({ name, className = "" }) => {
+    return (
+        <div className={`flex items-center min-w-0 ${className}`}>
+            <span className="truncate text-sm sm:text-base md:text-lg">
+                {name}
+            </span>
+        </div>
+    );
+};

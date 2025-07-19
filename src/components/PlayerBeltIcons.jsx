@@ -14,14 +14,19 @@ export default React.memo(function PlayerBeltIcons({ playerName, currentBelts, s
 
     // Size configurations
     const sizeConfig = {
+        xs: {
+            container: "w-4 h-4 sm:w-5 sm:h-5",
+            icon: "text-[10px] sm:text-xs",
+            gap: "gap-0.5"
+        },
         small: {
-            container: "w-5 h-5",
-            icon: "text-xs",
+            container: "w-5 h-5 sm:w-6 sm:h-6",
+            icon: "text-xs sm:text-sm",
             gap: "gap-0.5"
         },
         normal: {
-            container: "w-7 h-7",
-            icon: "text-sm",
+            container: "w-6 h-6 sm:w-7 sm:h-7",
+            icon: "text-sm sm:text-base",
             gap: "gap-1"
         }
     };
