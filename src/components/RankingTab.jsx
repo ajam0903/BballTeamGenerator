@@ -493,11 +493,12 @@ export default function RankingTab({
                                                 {player.submissions?.length || 0} ratings
                                             </span>
 
-                                            <div className={`flex items-center text-xs ${userSubmission ? "text-green-400" : "text-gray-400"
-                                                }`}>
-                                                <span className="mr-1">●</span>
-                                                {userSubmission ? "Rated" : "Not Rated"}
-                                            </div>
+                                            {!userSubmission && (
+                                                <div className="flex items-center text-xs text-gray-400">
+                                                    <span className="mr-1">●</span>
+                                                    Not Rated
+                                                </div>
+                                            )}
                                         </div>
 
                                         {isAdmin && (
