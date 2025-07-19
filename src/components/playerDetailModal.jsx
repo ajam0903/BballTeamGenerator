@@ -31,6 +31,9 @@ export default function PlayerDetailModal({
     user, 
 }) {
     const [activeTab, setActiveTab] = useState("overview");
+    const [playerCardData, setPlayerCardData] = useState(null);
+    const [showClaimModal, setShowClaimModal] = useState(false);
+
     if (!isOpen || !player) return null;
 
     const playerStats = calculatePlayerStats(player.name, leaderboard, matchHistory);
@@ -41,8 +44,6 @@ export default function PlayerDetailModal({
 
     const winPercentage = playerStats.gamesPlayed > 0 ? 
         ((playerStats.wins / playerStats.gamesPlayed) * 100).toFixed(1) : "0.0";
-    const [playerCardData, setPlayerCardData] = useState(null);
-    const [showClaimModal, setShowClaimModal] = useState(false);
     const fetchPlayerCardData = async () => {
         try {
             const allUsersSnapshot = await getDocs(collection(db, "users"));
@@ -167,6 +168,24 @@ export default function PlayerDetailModal({
                                             </div>
                                         )}
 
+                                        {/* Pencil Icon for Editing - only show if user owns this card */}
+                                        {playerCardData?.isClaimed && playerCardData?.claimedByUid === user?.uid && (
+                                            <button
+                                                onClick={() => setShowClaimModal(true)}
+                                                className="absolute top-1 right-1 bg-gray-900 bg-opacity-80 hover:bg-opacity-100 rounded-full p-2 transition-all duration-200 hover:scale-110"
+                                                title="Edit player card"
+                                            >
+                                                <svg
+                                                    className="w-3 h-3 text-white"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                </svg>
+                                            </button>
+                                        )}
+
                                         {/* OVR Badge */}
                                         <div className="absolute top-0 left-0 bg-gray-800 rounded-br-lg px-2 py-1 border-r border-b border-gray-600 shadow-lg">
                                             <div className="text-xs text-gray-400 text-center leading-tight">OVR</div>
@@ -252,7 +271,6 @@ export default function PlayerDetailModal({
                                         <span className="mr-2">👤</span>
                                         Player Card Status
                                     </h3>
-
                                     {playerCardData.isClaimed ? (
                                         <div className="space-y-2">
                                             <div className="flex items-center justify-between">
@@ -264,6 +282,14 @@ export default function PlayerDetailModal({
                                             {playerCardData.status === 'pending' && (
                                                 <div className="text-yellow-400 text-sm">
                                                     ⏳ Approval pending
+                                                </div>
+                                            )}
+                                            {/* Hint for card owners */}
+                                            {playerCardData?.claimedByUid === user?.uid && (
+                                                <div className="mt-3 pt-3 border-t border-gray-700">
+                                                    <div className="text-xs text-gray-400">
+                                                        💡 Use the pencil icon on your photo to edit your card details
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -526,6 +552,7 @@ export default function PlayerDetailModal({
                     )}
                 </div>
             </div>
+            {/* Regular claim/edit modal */}
             <PlayerCardClaimModal
                 isOpen={showClaimModal}
                 onClose={() => setShowClaimModal(false)}

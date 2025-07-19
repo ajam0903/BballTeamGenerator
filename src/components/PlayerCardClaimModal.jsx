@@ -14,7 +14,8 @@ export default function PlayerCardClaimModal({
     currentLeagueId,
     currentLeague,
     db,
-    onClaimSuccess
+    onClaimSuccess,
+    isImageEditMode = false
 }) {
     // Unit system toggle
     const [useMetric, setUseMetric] = useState(false);
@@ -424,170 +425,176 @@ export default function PlayerCardClaimModal({
                     </div>
                 )}
 
+                {/* Only show height/weight fields if not in image edit mode */}
                 {/* Unit Toggle */}
-                <div className="mb-4">
-                    <div className="flex items-center justify-center space-x-4 p-2 bg-gray-700 rounded-lg">
-                        <button
-                            onClick={() => setUseMetric(false)}
-                            className={`px-3 py-1 rounded text-sm transition-colors ${!useMetric ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white'
-                                }`}
-                        >
-                            Imperial
-                        </button>
-                        <button
-                            onClick={() => setUseMetric(true)}
-                            className={`px-3 py-1 rounded text-sm transition-colors ${useMetric ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white'
-                                }`}
-                        >
-                            Metric
-                        </button>
-                    </div>
-                </div>
-
-                <div className="space-y-4">
-                    {/* Height Fields */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Height
-                        </label>
-                        {useMetric ? (
-                            <StyledInput
-                                type="number"
-                                value={heightCm}
-                                onChange={(e) => setHeightCm(e.target.value)}
-                                placeholder="e.g., 188"
-                                min="100"
-                                max="250"
-                            />
-                        ) : (
-                            <div className="flex space-x-2">
-                                <div className="flex-1">
+                {!isImageEditMode && (
+                    <>
+                        {/* Unit Toggle */}
+                        <div className="mb-4">
+                            <div className="flex items-center justify-center space-x-4 p-2 bg-gray-700 rounded-lg">
+                                <button
+                                    onClick={() => setUseMetric(false)}
+                                    className={`px-3 py-1 rounded text-sm transition-colors ${!useMetric ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white'
+                                        }`}
+                                >
+                                    Imperial
+                                </button>
+                                <button
+                                    onClick={() => setUseMetric(true)}
+                                    className={`px-3 py-1 rounded text-sm transition-colors ${useMetric ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white'
+                                        }`}
+                                >
+                                    Metric
+                                </button>
+                            </div>
+                        </div>
+                        <div className="space-y-4">
+                            {/* Height Fields */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">
+                                    Height
+                                </label>
+                                {useMetric ? (
                                     <StyledInput
                                         type="number"
-                                        value={heightFeet}
-                                        onChange={(e) => setHeightFeet(e.target.value)}
-                                        placeholder="Feet"
-                                        min="3"
-                                        max="8"
+                                        value={heightCm}
+                                        onChange={(e) => setHeightCm(e.target.value)}
+                                        placeholder="e.g., 188"
+                                        min="100"
+                                        max="250"
                                     />
-                                </div>
-                                <div className="flex-1">
-                                    <StyledInput
-                                        type="number"
-                                        value={heightInches}
-                                        onChange={(e) => setHeightInches(e.target.value)}
-                                        placeholder="Inches"
-                                        min="0"
-                                        max="11"
-                                    />
-                                </div>
+                                ) : (
+                                    <div className="flex space-x-2">
+                                        <div className="flex-1">
+                                            <StyledInput
+                                                type="number"
+                                                value={heightFeet}
+                                                onChange={(e) => setHeightFeet(e.target.value)}
+                                                placeholder="Feet"
+                                                min="3"
+                                                max="8"
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <StyledInput
+                                                type="number"
+                                                value={heightInches}
+                                                onChange={(e) => setHeightInches(e.target.value)}
+                                                placeholder="Inches"
+                                                min="0"
+                                                max="11"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
-
-                    {/* Weight Field */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Weight
-                        </label>
-                        <StyledInput
-                            type="text"
-                            value={weight}
-                            onChange={(e) => setWeight(e.target.value)}
-                            placeholder={useMetric ? "e.g., 84 kg" : "e.g., 185 lbs"}
-                        />
-                    </div>
-
-                    {/* Photo Section - File Upload with Cropping */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Photo (optional)
-                        </label>
-
-                        <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handlePhotoFileChange}
-                            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-blue-600 file:text-white hover:file:bg-blue-700"
-                        />
-
-                        {uploadProgress > 0 && uploadProgress < 100 && (
-                            <div className="mt-2">
-                                <div className="bg-gray-600 rounded-full h-2">
-                                    <div
-                                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                                        style={{ width: `${uploadProgress}%` }}
-                                    ></div>
-                                </div>
-                                <p className="text-xs text-gray-400 mt-1">Uploading... {uploadProgress}%</p>
-                            </div>
-                        )}
-
-                        {/* Photo Preview */}
-                        {photoPreview && (
-                            <div className="mt-2 flex justify-center">
-                                <img
-                                    src={photoPreview}
-                                    alt="Preview"
-                                    className="w-20 h-20 rounded-full object-cover border-2 border-gray-600"
-                                    onError={() => setPhotoPreview("")}
+                            {/* Weight Field */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">
+                                    Weight
+                                </label>
+                                <StyledInput
+                                    type="text"
+                                    value={weight}
+                                    onChange={(e) => setWeight(e.target.value)}
+                                    placeholder={useMetric ? "e.g., 84 kg" : "e.g., 185 lbs"}
                                 />
                             </div>
-                        )}
+                        </div>
+                    </>
+                )}
 
-                        <p className="text-xs text-gray-400 mt-1">
-                            Upload an image file (max 5MB). You can crop it after selection.
-                        </p>
-                        {showCropModal && (
-                            <div className="fixed inset-0 z-60 flex items-center justify-center bg-black bg-opacity-75">
-                                <div className="bg-gray-800 p-6 rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-                                    <h3 className="text-lg font-bold mb-4 text-white">
-                                        Crop Your Photo
-                                    </h3>
+                {/* Photo Section - File Upload with Cropping */}
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Photo (optional)
+                    </label>
 
-                                    <div className="mb-4">
-                                        <ReactCrop
-                                            crop={crop}
-                                            onChange={onCropChange}
-                                            onComplete={onCropComplete}
-                                            aspect={1} // Square crop
-                                            circularCrop={true} // Makes it a circle crop
-                                        >
-                                            <img
-                                                id="crop-image"
-                                                src={imageToCrop}
-                                                onLoad={onImageLoaded}
-                                                style={{ maxWidth: '100%', maxHeight: '400px' }}
-                                                alt="Crop preview"
-                                            />
-                                        </ReactCrop>
-                                    </div>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoFileChange}
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+                    />
 
-                                    <p className="text-sm text-gray-300 mb-4">
-                                        Drag the corners to adjust the crop area. The image will be cropped to a circle for your profile.
-                                    </p>
-
-                                    <div className="flex justify-end space-x-3">
-                                        <StyledButton
-                                            onClick={() => {
-                                                setShowCropModal(false);
-                                                setImageToCrop(null);
-                                            }}
-                                        >
-                                            Cancel
-                                        </StyledButton>
-                                        <StyledButton
-                                            onClick={handleCropSave}
-                                            disabled={!completedCrop}
-                                        >
-                                            Use Cropped Image
-                                        </StyledButton>
-                                    </div>
-                                </div>
+                    {uploadProgress > 0 && uploadProgress < 100 && (
+                        <div className="mt-2">
+                            <div className="bg-gray-600 rounded-full h-2">
+                                <div
+                                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                    style={{ width: `${uploadProgress}%` }}
+                                ></div>
                             </div>
-                        )}
-                    </div>
+                            <p className="text-xs text-gray-400 mt-1">Uploading... {uploadProgress}%</p>
+                        </div>
+                    )}
+
+                    {/* Photo Preview */}
+                    {photoPreview && (
+                        <div className="mt-2 flex justify-center">
+                            <img
+                                src={photoPreview}
+                                alt="Preview"
+                                className="w-20 h-20 rounded-full object-cover border-2 border-gray-600"
+                                onError={() => setPhotoPreview("")}
+                            />
+                        </div>
+                    )}
+
+                    <p className="text-xs text-gray-400 mt-1">
+                        Upload an image file (max 5MB). You can crop it after selection.
+                    </p>
                 </div>
+
+                {/* Crop Modal */}
+                {showCropModal && (
+                    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black bg-opacity-75">
+                        <div className="bg-gray-800 p-6 rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                            <h3 className="text-lg font-bold mb-4 text-white">
+                                Crop Your Photo
+                            </h3>
+
+                            <div className="mb-4">
+                                <ReactCrop
+                                    crop={crop}
+                                    onChange={onCropChange}
+                                    onComplete={onCropComplete}
+                                    aspect={1} // Square crop
+                                    circularCrop={true} // Makes it a circle crop
+                                >
+                                    <img
+                                        id="crop-image"
+                                        src={imageToCrop}
+                                        onLoad={onImageLoaded}
+                                        style={{ maxWidth: '100%', maxHeight: '400px' }}
+                                        alt="Crop preview"
+                                    />
+                                </ReactCrop>
+                            </div>
+
+                            <p className="text-sm text-gray-300 mb-4">
+                                Drag the corners to adjust the crop area. The image will be cropped to a circle for your profile.
+                            </p>
+
+                            <div className="flex justify-end space-x-3">
+                                <StyledButton
+                                    onClick={() => {
+                                        setShowCropModal(false);
+                                        setImageToCrop(null);
+                                    }}
+                                >
+                                    Cancel
+                                </StyledButton>
+                                <StyledButton
+                                    onClick={handleCropSave}
+                                    disabled={!completedCrop}
+                                >
+                                    Use Cropped Image
+                                </StyledButton>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex justify-end space-x-3 mt-6">
                     <StyledButton onClick={onClose} disabled={isLoading}>
