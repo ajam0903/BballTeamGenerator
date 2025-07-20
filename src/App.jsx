@@ -8,6 +8,8 @@ import {
     setDoc,
     setDoc as firestoreSetDoc,
     getDocs,
+    updateDoc, 
+    arrayUnion,
 } from "firebase/firestore";
 import { StyledButton } from "./components/UIComponents";
 import RankingTab from "./components/RankingTab";
@@ -936,20 +938,22 @@ export default function App() {
                         setHasGeneratedTeams(false);
                     }
 
-                    // Update Firestore with the modified structure
-                    firestoreSetDoc(docRef, {
-                        ...data,
-                        matchHistory: updatedHistory
-                    }).then(() => {
-                        // Clear the current matchups
-                        return firestoreSetDoc(docRef, {
-                            ...data,
-                            matchHistory: updatedHistory,
+                    // Use arrayUnion to safely add completed matches to history
+                    const addMatchesToHistory = completedMatches.map(match =>
+                        updateDoc(docRef, {
+                            matchHistory: arrayUnion(match)
+                        })
+                    );
+
+                    Promise.all(addMatchesToHistory).then(() => {
+                        // Clear the current matchups using updateDoc
+                        return updateDoc(docRef, {
                             matchups: [],
                             scores: [],
                             mvpVotes: []
                         });
-                    }).then(() => {
+                    })
+                        .then(() => {
                         // If there are remaining matchups, save them in the proper format
                         if (remainingMatchups.length > 0) {
                             const firestoreData = prepareDataForFirestore({
@@ -1112,8 +1116,7 @@ export default function App() {
             // Save to Firestore
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                await firestoreSetDoc(docRef, {
-                    ...data,
+                await updateDoc(docRef, {
                     leaderboard: updatedLeaderboard
                 });
             }
@@ -2632,8 +2635,9 @@ export default function App() {
             setTimeout(() => setToastMessage(""), 3000);
             return;
         }
-        // Use custom date if provided, otherwise use current time
+
         const matchDate = customDate ? new Date(customDate).toISOString() : new Date().toISOString();
+
         // Check if this match has already been processed
         if (scores[matchIndex].processed) {
             setToastMessage("⚠️ This match has already been saved!");
@@ -2642,12 +2646,19 @@ export default function App() {
         }
 
         const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
-        const docSnap = await getDoc(docRef);
 
-        if (docSnap.exists()) {
-            const data = docSnap.data();
+        try {
+            // Use updateDoc for atomic field updates
+            await updateDoc(docRef, {
+                [`scores.${matchIndex}.processed`]: true,
+                [`scores.${matchIndex}.teamSize`]: teamSize,
+                [`scores.${matchIndex}.customDate`]: matchDate,
+                [`scores.${matchIndex}.a`]: scores[matchIndex].a,
+                [`scores.${matchIndex}.b`]: scores[matchIndex].b,
+                [`mvpVotes.${matchIndex}`]: mvpVotes[matchIndex] || ""
+            });
 
-            // Mark this specific match as processed
+            // Update local state
             const updatedScores = [...scores];
             updatedScores[matchIndex] = {
                 ...updatedScores[matchIndex],
@@ -2655,7 +2666,6 @@ export default function App() {
                 teamSize: teamSize,
                 customDate: matchDate,
             };
-
             setScores(updatedScores);
 
             // Check if all matches with scores are processed now
@@ -2666,16 +2676,6 @@ export default function App() {
             if (allProcessed) {
                 setHasPendingMatchups(false);
             }
-
-            // Update Firestore with the updated scores ONLY (don't add to matchHistory yet)
-            const firestoreData = prepareDataForFirestore({
-                ...data,
-                mvpVotes: mvpVotes,
-                scores: updatedScores
-                // Remove matchHistory update from here
-            });
-
-            await firestoreSetDoc(docRef, firestoreData);
 
             // Calculate leaderboard updates from this match only AFTER saving
             await calculateMatchLeaderboard(matchIndex);
@@ -2724,6 +2724,11 @@ export default function App() {
             );
 
             setToastMessage("✅ Match result saved!");
+            setTimeout(() => setToastMessage(""), 3000);
+
+        } catch (error) {
+            console.error("Error saving match result:", error);
+            setToastMessage("❌ Error saving match result");
             setTimeout(() => setToastMessage(""), 3000);
         }
     };
