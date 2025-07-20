@@ -46,12 +46,9 @@ export default function TeamsTab({
     getUserPlayerPreference,
 }) {
     const getActivePlayersForUser = () => {
-        if (!getUserPlayerPreference || !user) {
-            // Fallback to original behavior if functions not available
-            return players.filter(p => p.active);
-        }
-        return players.filter(player => getUserPlayerPreference(player.name));
+        return players.filter(p => p.active);  // Use global active
     };
+
     const [teamGenerationMethod, setTeamGenerationMethod] = useState(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [showTeamSelector, setShowTeamSelector] = useState(false);
@@ -217,6 +214,11 @@ export default function TeamsTab({
 
     const handleSelectAll = () => {
         const newSelectAllState = !selectAll;
+        console.log("=== SELECT ALL DEBUG ===");
+        console.log("Current selectAll state:", selectAll);
+        console.log("New selectAll state:", newSelectAllState);
+        console.log("Number of players:", players.length);
+
         setSelectAll(newSelectAllState);
 
         // Create updates for all players
@@ -225,14 +227,21 @@ export default function TeamsTab({
             active: newSelectAllState
         }));
 
+        console.log("Updates being created:", updates);
+        console.log("handleBatchPlayerActiveToggle function exists:", !!handleBatchPlayerActiveToggle);
+
         // Use batch update if available, otherwise fall back to individual updates
         if (handleBatchPlayerActiveToggle) {
+            console.log("Calling handleBatchPlayerActiveToggle");
             handleBatchPlayerActiveToggle(updates);
         } else {
+            console.log("Calling individual handlePlayerActiveToggle for each player");
             players.forEach(player => {
                 handlePlayerActiveToggle(player.name, newSelectAllState);
             });
         }
+
+        console.log("=== END SELECT ALL DEBUG ===");
     };
 
     // Helper function to get player OVR from leaderboard
@@ -454,10 +463,7 @@ export default function TeamsTab({
     }, [teams, calculatePlayerScore]);
 
     const sortedPlayers = useMemo(() => {
-        return [...players].map(player => ({
-            ...player,
-            active: getUserPlayerPreference ? getUserPlayerPreference(player.name) : player.active
-        })).sort((a, b) => {
+        return [...players].sort((a, b) => {
             if (a.active !== b.active) {
                 return a.active ? -1 : 1;
             }
@@ -486,7 +492,7 @@ export default function TeamsTab({
 
             return playerSortDirection === "asc" ? aValue - bValue : bValue - aValue;
         });
-    }, [players, playerSortBy, playerSortDirection, playerOVRs, getUserPlayerPreference]);
+    }, [players, playerSortBy, playerSortDirection, playerOVRs]);;
     
     // Count active players
     const activePlayerCount = getActivePlayersForUser().length;
@@ -516,6 +522,7 @@ export default function TeamsTab({
             }, 2000);
         }
 
+        // Call the SINGLE player toggle function
         handlePlayerActiveToggle(playerName, isActive);
 
         setTimeout(() => {
@@ -572,22 +579,17 @@ export default function TeamsTab({
     }, []);
 
     useEffect(() => {
-        // Check if all active players are selected by this user
-        const userActiveCount = players.filter(p =>
-            getUserPlayerPreference ? getUserPlayerPreference(p.name) : p.active
-        ).length;
+        const allActive = players.every(p => p.active);
+        const allInactive = players.every(p => !p.active);
 
-        const allPlayersSelected = players.length > 0 && userActiveCount === players.length;
-        const noPlayersSelected = userActiveCount === 0;
-
-        if (allPlayersSelected) {
+        if (allActive) {
             setSelectAll(true);
-        } else if (noPlayersSelected) {
+        } else if (allInactive) {
             setSelectAll(false);
         } else {
-            setSelectAll(false); // Indeterminate state - show as unchecked
+            setSelectAll(false);
         }
-    }, [players, getUserPlayerPreference, user]);
+    }, [players]);
 
     // Handle adding a player to a specific team
     const addPlayerToTeam = (player, teamIndex) => {
@@ -1497,8 +1499,7 @@ export default function TeamsTab({
                             return (
                                 <div
                                     key={player.name}
-                                    className={`flex items-center border-b border-gray-800 py-2 cursor-pointer hover:bg-gray-700 transition-all duration-500 ${isRecentlyActivated ? 'bg-green-600 bg-opacity-20 border-green-500' : ''
-                                        }`}
+                                    className={`flex items-center border-b border-gray-800 py-2 cursor-pointer hover:bg-gray-700 transition-all duration-500 ${isRecentlyActivated ? 'bg-green-600 bg-opacity-20 border-green-500' : ''}`}
                                     onClick={() => onPlayerClick && onPlayerClick(player)}
                                 >
                                     {/* Active checkbox */}
@@ -1508,8 +1509,30 @@ export default function TeamsTab({
                                             className="form-checkbox h-4 w-4 text-blue-600"
                                             checked={player.active}
                                             onChange={(e) => {
-                                                handlePlayerActiveToggleWithScrollPreservation(player.name, e.target.checked);
-                                                // ... existing selectAll logic ...
+                                                const scrollPosition = playerListRef.current?.scrollTop || 0;
+
+                                                // If player is being activated, add to recently activated set
+                                                if (e.target.checked) {
+                                                    setRecentlyActivated(prev => new Set([...prev, player.name]));
+                                                    // Remove from set after animation duration
+                                                    setTimeout(() => {
+                                                        setRecentlyActivated(prev => {
+                                                            const newSet = new Set(prev);
+                                                            newSet.delete(player.name);
+                                                            return newSet;
+                                                        });
+                                                    }, 2000);
+                                                }
+
+                                                // Call the toggle function
+                                                handlePlayerActiveToggle(player.name, e.target.checked);
+
+                                                // Restore scroll position
+                                                setTimeout(() => {
+                                                    if (playerListRef.current) {
+                                                        playerListRef.current.scrollTop = scrollPosition;
+                                                    }
+                                                }, 0);
                                             }}
                                             onClick={(e) => e.stopPropagation()}
                                         />

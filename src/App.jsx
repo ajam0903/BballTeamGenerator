@@ -694,11 +694,58 @@ export default function App() {
         return data;
     };
     const handleBatchPlayerActiveToggle = async (updates) => {
-        await updateUserPlayerPreferencesBatch(updates);
+        console.log("=== BATCH UPDATE DEBUG ===");
+        console.log("Received updates:", updates);
+        console.log("Current players before update:", players.map(p => ({ name: p.name, active: p.active })));
+
+        // Update local state
+        const updatedPlayers = players.map((player) => {
+            const update = updates.find(u => u.name === player.name);
+            if (update) {
+                console.log(`Updating ${player.name}: ${player.active} → ${update.active}`);
+                return { ...player, active: update.active };
+            }
+            return player;
+        });
+
+        console.log("Updated players after mapping:", updatedPlayers.map(p => ({ name: p.name, active: p.active })));
+
+        setPlayers(updatedPlayers);
+        console.log("Called setPlayers with updatedPlayers");
+
+        // Then save to Firestore
+        if (currentLeagueId) {
+            console.log("Saving to Firestore...");
+            const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const firestoreUpdatedPlayers = data.players.map((player) => {
+                    const update = updates.find(u => u.name === player.name);
+                    if (update) {
+                        return { ...player, active: update.active };
+                    }
+                    return player;
+                });
+                await firestoreSetDoc(docRef, { ...data, players: firestoreUpdatedPlayers });
+                console.log("Firestore update completed");
+            }
+        }
+        console.log("=== END BATCH UPDATE DEBUG ===");
     };
 
     // Updated function that will save the active state to the database
     const handlePlayerActiveToggle = async (name, value) => {
+        // Update local state immediately for responsive UI
+        setPlayers(prevPlayers =>
+            prevPlayers.map(player =>
+                player.name === name
+                    ? { ...player, active: value }
+                    : player
+            )
+        );
+
+        // Update database
         await updateUserPlayerPreference(name, value);
     };
 
@@ -2012,6 +2059,86 @@ export default function App() {
         }
     };
 
+    const recalculateLeaderboardFromHistory = async () => {
+        if (!currentLeagueId || !matchHistory || matchHistory.length === 0) {
+            setToastMessage("No match history to recalculate from");
+            return;
+        }
+
+        const newLeaderboard = {};
+
+        // Process EVERY match in history - no filtering by user preferences
+        matchHistory.forEach(match => {
+            let teamA = [];
+            let teamB = [];
+            let scoreA = 0;
+            let scoreB = 0;
+            let mvp = "";
+
+            // Handle different match formats
+            if (Array.isArray(match.teams) && match.teams.length >= 2) {
+                teamA = match.teams[0].map(p => typeof p === 'string' ? p : p.name);
+                teamB = match.teams[1].map(p => typeof p === 'string' ? p : p.name);
+            } else if (match.teamA && match.teamB) {
+                teamA = match.teamA.map(p => typeof p === 'string' ? p : p.name);
+                teamB = match.teamB.map(p => typeof p === 'string' ? p : p.name);
+            }
+
+            if (match.score) {
+                scoreA = parseInt(match.score.a) || 0;
+                scoreB = parseInt(match.score.b) || 0;
+            }
+
+            mvp = match.mvp || "";
+
+            // Initialize ALL players in this match
+            [...teamA, ...teamB].forEach(playerName => {
+                if (playerName && !newLeaderboard[playerName]) {
+                    newLeaderboard[playerName] = { _w: 0, _l: 0, MVPs: 0 };
+                }
+            });
+
+            // Process winners and losers
+            if (scoreA !== scoreB) {
+                const winners = scoreA > scoreB ? teamA : teamB;
+                const losers = scoreA > scoreB ? teamB : teamA;
+
+                winners.forEach(playerName => {
+                    if (playerName && newLeaderboard[playerName]) {
+                        newLeaderboard[playerName]._w += 1;
+                    }
+                });
+
+                losers.forEach(playerName => {
+                    if (playerName && newLeaderboard[playerName]) {
+                        newLeaderboard[playerName]._l += 1;
+                    }
+                });
+            }
+
+            // Award MVP
+            if (mvp && newLeaderboard[mvp]) {
+                newLeaderboard[mvp].MVPs += 1;
+            }
+        });
+
+        // Save to Firestore
+        const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            await firestoreSetDoc(docRef, {
+                ...data,
+                leaderboard: newLeaderboard
+            });
+
+            setLeaderboard(newLeaderboard);
+            setToastMessage("✅ Leaderboard recalculated from match history!");
+            setTimeout(() => setToastMessage(""), 3000);
+        }
+    };
+
     useEffect(() => {
         if (!currentLeagueId) return;
 
@@ -2256,19 +2383,36 @@ export default function App() {
 
     // Modified to use league structure
     useEffect(() => {
-        if (!currentLeagueId) return;
+        if (!currentLeagueId || !user) return;
 
         const fetchSet = async () => {
             const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 const data = convertFirestoreDataToAppFormat(docSnap.data());
-                log("Raw leaderboard data from Firestore - players:", Object.keys(data.leaderboard || {}).length);
+
+                // Wait for user preferences to be loaded first
+                let userPrefs = userPlayerPreferences[user.uid];
+                if (!userPrefs) {
+                    // If preferences aren't loaded yet, load them now
+                    const prefsDocRef = doc(db, "leagues", currentLeagueId, "userPreferences", user.uid);
+                    const prefsDocSnap = await getDoc(prefsDocRef);
+                    if (prefsDocSnap.exists()) {
+                        userPrefs = prefsDocSnap.data().playerPreferences || {};
+                        setUserPlayerPreferences(prev => ({
+                            ...prev,
+                            [user.uid]: userPrefs
+                        }));
+                    } else {
+                        userPrefs = {};
+                    }
+                }
+
                 const averagedPlayers = (data.players || []).map((player) => {
                     const submissions = player.submissions || [];
                     const avgStats = {
                         name: player.name,
-                        active: player.active !== undefined ? player.active : true,
+                        active: userPrefs[player.name] || false, // Use loaded user preference
                         scoring: 0,
                         defense: 0,
                         rebounding: 0,
@@ -2295,24 +2439,22 @@ export default function App() {
                     avgStats.submissions = submissions;
                     return avgStats;
                 });
+
                 const enhancedPlayers = await enhancePlayersWithClaimData(averagedPlayers);
                 setPlayers(enhancedPlayers);
-                setPlayers(averagedPlayers);
                 setMvpVotes(data.mvpVotes || []);
                 setScores(data.scores || []);
 
                 if (data.leaderboard && Object.keys(data.leaderboard).length > 0) {
-                    log("Setting leaderboard with players:", Object.keys(data.leaderboard || {}).length);
                     setLeaderboard(data.leaderboard);
                 } else if ((data.scores?.length || 0) > 0 && (data.matchups?.length || 0) > 0) {
-                    log("No leaderboard data found, calculating from scores and matchups");
                     setTimeout(() => calculateLeaderboard(), 100);
                 }
             }
         };
 
         fetchSet();
-    }, [currentLeagueId, currentSet]);
+    }, [currentLeagueId, currentSet, user]); // Remove userPlayerPreferences dependency to avoid loops
 
     useEffect(() => {
         if (teams && teams.length > 0) {
@@ -2464,10 +2606,20 @@ export default function App() {
 
                 if (docSnap.exists()) {
                     const data = docSnap.data();
+                    const prefs = data.playerPreferences || {};
                     setUserPlayerPreferences(prev => ({
                         ...prev,
-                        [user.uid]: data.playerPreferences || {}
+                        [user.uid]: prefs
                     }));
+
+                    // If we have players but they don't have the right active states, update them
+                    if (players.length > 0) {
+                        const updatedPlayers = players.map(player => ({
+                            ...player,
+                            active: prefs[player.name] || false
+                        }));
+                        setPlayers(updatedPlayers);
+                    }
                 } else {
                     // Initialize empty preferences for this user
                     setUserPlayerPreferences(prev => ({
@@ -2930,6 +3082,7 @@ export default function App() {
                             onPlayerClaimRequest={handlePlayerClaimRequest}
                             minGamesFilter={minGamesFilter}
                             onMinGamesFilterChange={handleMinGamesFilterChange}
+                            recalculateLeaderboardFromHistory={recalculateLeaderboardFromHistory}
                         />
                     </div>
  {user && currentLeague && (

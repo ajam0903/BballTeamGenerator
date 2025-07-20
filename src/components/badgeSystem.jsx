@@ -184,6 +184,11 @@ export const calculateLongestWinStreak = (playerName, matchHistory) => {
     let currentStreak = 0;
 
     for (const match of sortedMatches) {
+        // Skip deleted/voided matches
+        if (match.isDeleted) {
+            continue;
+        }
+
         let teamA = [];
         let teamB = [];
         let scoreA = 0;
@@ -258,6 +263,11 @@ export const calculateCurrentWinStreak = (playerName, matchHistory) => {
     let currentStreak = 0;
 
     for (const match of sortedMatches) {
+        // Skip deleted/voided matches
+        if (match.isDeleted) {
+            continue;
+        }
+
         let teamA = [];
         let teamB = [];
         let scoreA = 0;
@@ -342,35 +352,57 @@ export const getBadgeProgress = (playerName, leaderboard = {}, matchHistory = []
     const progress = {};
 
     Object.entries(badgeCategories).forEach(([categoryId, category]) => {
-        let playerValue = stats[categoryId] || 0;
+        let displayValue = stats[categoryId] || 0;
+        let comparisonValue = stats[categoryId] || 0;
 
-        // Special case: use current streak for winStreaks progress instead of longest streak
+        // Special case: use current streak for winStreaks progress display
         if (categoryId === 'winStreaks') {
-            playerValue = calculateCurrentWinStreak(playerName, matchHistory);
+            displayValue = calculateCurrentWinStreak(playerName, matchHistory);
+            comparisonValue = stats[categoryId] || 0; // longest streak for tier determination
+            
+            // Debug logging
+            if (playerName.toLowerCase().includes('murtaza')) {
+                console.log('=== MURTAZA WIN STREAK DEBUG ===');
+                console.log('Current streak (display):', displayValue);
+                console.log('Longest streak (for tiers):', comparisonValue);
+                console.log('Recent matches:', matchHistory.slice(0, 5));
+            }
         }
 
         const tiers = Object.entries(category.tiers);
 
-        // Find next tier to achieve
-        let nextTier = null;
+        // Find current tier (based on longest streak for win streaks)
         let currentTier = null;
+        let nextTier = null;
 
         for (const [tierId, tier] of tiers) {
-            if (playerValue >= tier.threshold) {
+            if (comparisonValue >= tier.threshold) {
                 currentTier = { ...tier, tierId };
-            } else if (!nextTier) {
+            }
+        }
+
+        // Find next tier after the current earned tier
+        for (const [tierId, tier] of tiers) {
+            if (comparisonValue < tier.threshold) {
                 nextTier = { ...tier, tierId };
                 break;
             }
         }
 
+        if (categoryId === 'winStreaks' && playerName.toLowerCase().includes('murtaza')) {
+            console.log('Current tier:', currentTier);
+            console.log('Next tier:', nextTier);
+            console.log('Display value (current streak):', displayValue);
+            console.log('Comparison value (longest streak):', comparisonValue);
+        }
+
         progress[categoryId] = {
             categoryName: category.name,
-            currentValue: playerValue,
+            currentValue: displayValue, // Show current streak for win streaks
             currentTier,
             nextTier,
             progressPercent: nextTier ?
-                Math.min((playerValue / nextTier.threshold) * 100, 100) : 100
+                Math.min((displayValue / nextTier.threshold) * 100, 100) : 100
         };
     });
 

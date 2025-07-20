@@ -213,7 +213,13 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
     };
 
     // Process leaderboard data for display
-    const processedData = Object.entries(filteredStats || {}).map(([name, stats]) => {
+    const processedData = Object.entries(filteredStats || {})
+        .filter(([name, stats]) => {
+            // Add minimum games filter
+            const totalGames = (stats._w || 0) + (stats._l || 0);
+            return totalGames >= (minGamesFilter || 0);
+        })
+        .map(([name, stats]) => {
         // Find player data in players array
         const playerData = players.find(p => p.name === name) || {};
         // Get last 10 games record

@@ -19,6 +19,7 @@ export default function UserMenu({
     onPlayerClaimRequest,
     minGamesFilter,
     onMinGamesFilterChange,
+    recalculateLeaderboardFromHistory,
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [showPreferences, setShowPreferences] = useState(false);
@@ -295,6 +296,14 @@ export default function UserMenu({
                     )}
 
                     {/* Preferences Section - Only for Admins */}
+                    {isAdmin && (
+                        <button
+                            onClick={recalculateLeaderboardFromHistory}
+                            className="block px-4 py-2 text-sm text-white hover:bg-gray-700 w-full text-left"
+                        >
+                            Recalculate All Stats
+                        </button>
+                    )}
                     {isAdmin && (
                         <>
                             <div className="py-0.5">
