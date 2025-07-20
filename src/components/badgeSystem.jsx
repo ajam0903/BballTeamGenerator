@@ -319,21 +319,18 @@ export const calculateCurrentWinStreak = (playerName, matchHistory) => {
     return currentStreak;
 };
 
-export const getPlayerBadges = (playerName, leaderboard = {}, matchHistory = []) => {
-    const stats = calculatePlayerStats(playerName, leaderboard, matchHistory);
+export const getPlayerBadges = (playerName, leaderboard = {}, matchHistory = [], correctedStats = null) => {
+    const stats = correctedStats || calculatePlayerStats(playerName, leaderboard, matchHistory);
     const earnedBadges = {};
-
     Object.entries(badgeCategories).forEach(([categoryId, category]) => {
         const playerValue = stats[categoryId] || 0;
         let highestTier = null;
-
         // Find the highest tier achieved
         Object.entries(category.tiers).forEach(([tierId, tier]) => {
             if (playerValue >= tier.threshold) {
                 highestTier = { ...tier, tierId };
             }
         });
-
         if (highestTier) {
             earnedBadges[categoryId] = {
                 ...highestTier,
@@ -342,24 +339,23 @@ export const getPlayerBadges = (playerName, leaderboard = {}, matchHistory = [])
             };
         }
     });
-
     return earnedBadges;
 };
 
 // Get progress towards next badge tier
-export const getBadgeProgress = (playerName, leaderboard = {}, matchHistory = []) => {
-    const stats = calculatePlayerStats(playerName, leaderboard, matchHistory);
-    const progress = {};
+export const getBadgeProgress = (playerName, leaderboard = {}, matchHistory = [], correctedStats = null) => {
+    const calculatedStats = calculatePlayerStats(playerName, leaderboard, matchHistory);
+    // Merge corrected stats with calculated stats (corrected stats take priority)
+    const stats = correctedStats ? { ...calculatedStats, ...correctedStats } : calculatedStats;
 
+    const progress = {};
     Object.entries(badgeCategories).forEach(([categoryId, category]) => {
         let displayValue = stats[categoryId] || 0;
         let comparisonValue = stats[categoryId] || 0;
-
         // Special case: use current streak for winStreaks progress display
         if (categoryId === 'winStreaks') {
             displayValue = calculateCurrentWinStreak(playerName, matchHistory);
             comparisonValue = stats[categoryId] || 0; // longest streak for tier determination
-            
             // Debug logging
             if (playerName.toLowerCase().includes('murtaza')) {
                 console.log('=== MURTAZA WIN STREAK DEBUG ===');
@@ -368,19 +364,15 @@ export const getBadgeProgress = (playerName, leaderboard = {}, matchHistory = []
                 console.log('Recent matches:', matchHistory.slice(0, 5));
             }
         }
-
         const tiers = Object.entries(category.tiers);
-
         // Find current tier (based on longest streak for win streaks)
         let currentTier = null;
         let nextTier = null;
-
         for (const [tierId, tier] of tiers) {
             if (comparisonValue >= tier.threshold) {
                 currentTier = { ...tier, tierId };
             }
         }
-
         // Find next tier after the current earned tier
         for (const [tierId, tier] of tiers) {
             if (comparisonValue < tier.threshold) {
@@ -388,14 +380,12 @@ export const getBadgeProgress = (playerName, leaderboard = {}, matchHistory = []
                 break;
             }
         }
-
         if (categoryId === 'winStreaks' && playerName.toLowerCase().includes('murtaza')) {
             console.log('Current tier:', currentTier);
             console.log('Next tier:', nextTier);
             console.log('Display value (current streak):', displayValue);
             console.log('Comparison value (longest streak):', comparisonValue);
         }
-
         progress[categoryId] = {
             categoryName: category.name,
             currentValue: displayValue, // Show current streak for win streaks
@@ -405,6 +395,5 @@ export const getBadgeProgress = (playerName, leaderboard = {}, matchHistory = []
                 Math.min((displayValue / nextTier.threshold) * 100, 100) : 100
         };
     });
-
     return progress;
 };

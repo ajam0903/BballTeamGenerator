@@ -133,8 +133,6 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
         // Use the same filtering logic as the main stats
         let historyToUse;
         if (gameTypeFilter === "all") {
-            // When "all" is selected, we should use all match history
-            // but the stats come from leaderboard, so we need to be consistent
             historyToUse = matchHistory;
         } else {
             historyToUse = filterMatchHistoryByGameType(matchHistory, gameTypeFilter);
@@ -144,6 +142,21 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
         const sortedHistory = [...historyToUse].sort((a, b) =>
             new Date(b.date) - new Date(a.date)
         );
+
+        // Helper function to check if a name matches (handles variations)
+        const isPlayerMatch = (nameInMatch, targetName) => {
+            if (nameInMatch === targetName) return true;
+
+            // Handle specific name variations
+            const nameVariations = {
+                'Husein Kapadia': ['Husain Kapadia', 'Husain kapadia'],
+                'Husain Kapadia': ['Husein Kapadia', 'Husain kapadia'],
+                // Add other name variations here if needed
+            };
+
+            const variations = nameVariations[targetName] || [];
+            return variations.includes(nameInMatch);
+        };
 
         // Get last 10 games where this player participated
         const playerGames = [];
@@ -166,15 +179,20 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                 continue;
             }
 
-            const playerTeam = teamA.includes(playerName) ? 'A' :
-                teamB.includes(playerName) ? 'B' : null;
+            // Check if player is in either team (using name matching)
+            const playerInTeamA = teamA.some(name => isPlayerMatch(name, playerName));
+            const playerInTeamB = teamB.some(name => isPlayerMatch(name, playerName));
+
+            const playerTeam = playerInTeamA ? 'A' : playerInTeamB ? 'B' : null;
 
             if (playerTeam) {
                 const scoreA = parseInt(match.score?.a) || 0;
                 const scoreB = parseInt(match.score?.b) || 0;
                 const won = (playerTeam === 'A' && scoreA > scoreB) ||
                     (playerTeam === 'B' && scoreB > scoreA);
-                const isMVP = match.mvp === playerName;
+
+                // Check if player is MVP (also using name matching)
+                const isMVP = isPlayerMatch(match.mvp || '', playerName);
 
                 playerGames.push({ won, isMVP });
 
@@ -350,23 +368,34 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             return;
         }
 
-        if (gameTypeFilter === "all") {
-            setFilteredStats(leaderboard);
-            return;
-        }
-
-        const filteredHistory = filterMatchHistoryByGameType(matchHistory, gameTypeFilter);
+        // Always recalculate from match history to ensure accuracy
+        const historyToUse = gameTypeFilter === "all" ? matchHistory : filterMatchHistoryByGameType(matchHistory, gameTypeFilter);
 
         // If no filtered matches, show empty stats
-        if (filteredHistory.length === 0) {
+        if (historyToUse.length === 0) {
             setFilteredStats({});
             return;
         }
 
+        // Helper function to check if a name matches (handles variations)
+        const isPlayerMatch = (nameInMatch, targetName) => {
+            if (nameInMatch === targetName) return true;
+
+            // Handle specific name variations
+            const nameVariations = {
+                'Husein Kapadia': ['Husain Kapadia', 'Husain kapadia'],
+                'Husain Kapadia': ['Husein Kapadia', 'Husain kapadia'],
+                // Add other name variations here if needed
+            };
+
+            const variations = nameVariations[targetName] || [];
+            return variations.includes(nameInMatch);
+        };
+
         // Create filtered stats based on the filtered match history
         const newStats = {};
 
-        filteredHistory.forEach(match => {
+        historyToUse.forEach(match => {
             let teamA = [];
             let teamB = [];
             let scoreA = 0;
@@ -393,20 +422,51 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             const winnersTeam = scoreA > scoreB ? teamA : teamB;
             const losersTeam = scoreA > scoreB ? teamB : teamA;
 
-            // Update stats for each player
-            [...teamA, ...teamB].forEach(playerName => {
-                if (!newStats[playerName]) {
-                    newStats[playerName] = { _w: 0, _l: 0, MVPs: 0 };
+            // Get all unique player names from both teams
+            const allPlayers = [...teamA, ...teamB];
+
+            // Group players by their canonical name (handling variations)
+            const playerGroups = {};
+            allPlayers.forEach(playerName => {
+                // Find canonical name for this player
+                let canonicalName = playerName;
+
+                // Check if this name is a variation of an existing canonical name
+                for (const [canonical, variations] of Object.entries({
+                    'Husein Kapadia': ['Husain Kapadia', 'Husain kapadia'],
+                    // Add other name variations here
+                })) {
+                    if (variations.includes(playerName)) {
+                        canonicalName = canonical;
+                        break;
+                    }
                 }
 
-                if (winnersTeam.includes(playerName)) {
-                    newStats[playerName]._w += 1;
-                } else if (losersTeam.includes(playerName)) {
-                    newStats[playerName]._l += 1;
+                if (!playerGroups[canonicalName]) {
+                    playerGroups[canonicalName] = [];
+                }
+                playerGroups[canonicalName].push(playerName);
+            });
+
+            // Update stats for each canonical player
+            Object.entries(playerGroups).forEach(([canonicalName, nameVariations]) => {
+                if (!newStats[canonicalName]) {
+                    newStats[canonicalName] = { _w: 0, _l: 0, MVPs: 0 };
                 }
 
-                if (playerName === mvp) {
-                    newStats[playerName].MVPs += 1;
+                // Check if any variation of this player is in the winning or losing team
+                const playerInWinningTeam = nameVariations.some(name => winnersTeam.includes(name));
+                const playerInLosingTeam = nameVariations.some(name => losersTeam.includes(name));
+
+                if (playerInWinningTeam) {
+                    newStats[canonicalName]._w += 1;
+                } else if (playerInLosingTeam) {
+                    newStats[canonicalName]._l += 1;
+                }
+
+                // Check if any variation of this player is MVP
+                if (nameVariations.some(name => name === mvp)) {
+                    newStats[canonicalName].MVPs += 1;
                 }
             });
         });

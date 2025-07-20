@@ -6,6 +6,7 @@ import { getPlayerBadges, getBadgeProgress, badgeCategories, calculatePlayerStat
 import Badge from "./Badge";
 import PlayerCardClaimModal from './PlayerCardClaimModal';
 import { StyledButton } from './UIComponents';
+import { calculatePlayerStatsFromHistory } from '../utils/playerStatsCalculator';
 
 function getCategoryIcon(categoryName) {
     const iconMap = {
@@ -36,13 +37,102 @@ export default function PlayerDetailModal({
 
     if (!isOpen || !player) return null;
 
-    const playerStats = calculatePlayerStats(player.name, leaderboard, matchHistory);
-    const badges = getPlayerBadges(player.name, leaderboard, matchHistory);
-    const progress = getBadgeProgress(player.name, leaderboard, matchHistory);
+    // Calculate stats the same way as LeaderboardTab
+    const calculateCorrectPlayerStats = (playerName) => {
+        // Helper function to check if a name matches (handles variations)
+        const isPlayerMatch = (nameInMatch, targetName) => {
+            if (nameInMatch === targetName) return true;
+
+            // Handle specific name variations
+            const nameVariations = {
+                'Husein Kapadia': ['Husain Kapadia', 'Husain kapadia'],
+                'Husain Kapadia': ['Husein Kapadia', 'Husain kapadia'],
+                // Add other name variations here if needed
+            };
+
+            const variations = nameVariations[targetName] || [];
+            return variations.includes(nameInMatch);
+        };
+
+        // Recalculate stats from match history (same logic as LeaderboardTab)
+        const newStats = { _w: 0, _l: 0, MVPs: 0 };
+
+        if (matchHistory && matchHistory.length > 0) {
+            matchHistory.forEach(match => {
+                let teamA = [];
+                let teamB = [];
+                let scoreA = 0;
+                let scoreB = 0;
+                let mvp = "";
+
+                // Extract teams and scores depending on the format
+                if (match.teams && Array.isArray(match.teams)) {
+                    teamA = match.teams[0].map(p => p.name);
+                    teamB = match.teams[1].map(p => p.name);
+                } else if (match.teamA && match.teamB) {
+                    teamA = match.teamA.map(p => p.name);
+                    teamB = match.teamB.map(p => p.name);
+                }
+
+                if (match.score) {
+                    scoreA = parseInt(match.score.a) || 0;
+                    scoreB = parseInt(match.score.b) || 0;
+                }
+
+                mvp = match.mvp || "";
+
+                // Check if player participated (using name matching)
+                const playerInTeamA = teamA.some(name => isPlayerMatch(name, playerName));
+                const playerInTeamB = teamB.some(name => isPlayerMatch(name, playerName));
+
+                if (playerInTeamA || playerInTeamB) {
+                    // Determine if player won
+                    const teamAWon = scoreA > scoreB;
+                    const playerWon = (playerInTeamA && teamAWon) || (playerInTeamB && !teamAWon);
+
+                    if (playerWon) {
+                        newStats._w += 1;
+                    } else {
+                        newStats._l += 1;
+                    }
+
+                    // Check if player is MVP (using name matching)
+                    if (isPlayerMatch(mvp, playerName)) {
+                        newStats.MVPs += 1;
+                    }
+                }
+            });
+        }
+
+        return {
+            gamesPlayed: newStats._w + newStats._l,
+            wins: newStats._w,
+            losses: newStats._l,
+            mvps: newStats.MVPs
+        };
+    };
+
+    const playerStats = calculateCorrectPlayerStats(player.name);
+
+    // For badges and progress, we need to be more selective about what we override
+    // Only override the stats that need name consolidation (wins, losses, mvps, gamesPlayed)
+    // but let the badge system calculate winStreaks itself
+    const statsForBadges = {
+        gamesPlayed: playerStats.gamesPlayed,
+        wins: playerStats.wins,
+        mvps: playerStats.mvps,
+        // Don't include winStreaks here - let the badge system calculate it
+    };
+
+    // Call the functions with partial corrected stats
+    // The badge functions will use corrected stats for wins/mvps/gamesPlayed 
+    // but calculate winStreaks normally
+    const badges = getPlayerBadges(player.name, leaderboard, matchHistory, statsForBadges);
+    const progress = getBadgeProgress(player.name, leaderboard, matchHistory, statsForBadges);
     const playerLeaderboardStats = leaderboard[player.name] || { _w: 0, _l: 0, MVPs: 0 };
     const overallRating = playerOVRs[player.name] || 5;
 
-    const winPercentage = playerStats.gamesPlayed > 0 ? 
+    const winPercentage = playerStats.gamesPlayed > 0 ?
         ((playerStats.wins / playerStats.gamesPlayed) * 100).toFixed(1) : "0.0";
     const fetchPlayerCardData = async () => {
         try {
