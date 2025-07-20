@@ -221,7 +221,7 @@ export default function PlayerDetailModal({
                                 {/* Wins Record - Full width */}
                                 <div className="text-center py-2 border-b border-gray-600">
                                     <div className="text-l font-bold text-white">
-                                        Record: {playerStats.wins}/{playerStats.gamesPlayed}
+                                        Record: <span className="text-green-400">{playerStats.wins} wins</span> - <span className="text-red-400">{playerStats.gamesPlayed - playerStats.wins} losses</span>
                                     </div>
                                 </div>
 
