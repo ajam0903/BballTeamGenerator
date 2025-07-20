@@ -121,6 +121,7 @@ export default function App() {
     const [selectedPlayerToClaim, setSelectedPlayerToClaim] = useState(null);
     const [enhancedPlayers, setEnhancedPlayers] = useState([]);
     const [minGamesFilter, setMinGamesFilter] = useState(0);
+    const [userPlayerPreferences, setUserPlayerPreferences] = useState({});
 
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -311,7 +312,7 @@ export default function App() {
 
             // Prepare player data for API (only send what's needed)
             const activePlayersData = players
-                .filter(p => p.active)
+                .filter(p => getUserPlayerPreference(p.name))
                 .map(player => ({
                     name: player.name,
                     scoring: player.scoring || 5,
@@ -693,59 +694,12 @@ export default function App() {
         return data;
     };
     const handleBatchPlayerActiveToggle = async (updates) => {
-        // Update local state
-        const updatedPlayers = players.map((player) => {
-            const update = updates.find(u => u.name === player.name);
-            if (update) {
-                return { ...player, active: update.active };
-            }
-            return player;
-        });
-        setPlayers(updatedPlayers);
-
-        // Then save to Firestore
-        if (currentLeagueId) {
-            const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
-            const docSnap = await getDoc(docRef);
-
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                const firestoreUpdatedPlayers = data.players.map((player) => {
-                    const update = updates.find(u => u.name === player.name);
-                    if (update) {
-                        return { ...player, active: update.active };
-                    }
-                    return player;
-                });
-
-                await firestoreSetDoc(docRef, { ...data, players: firestoreUpdatedPlayers });
-            }
-        }
+        await updateUserPlayerPreferencesBatch(updates);
     };
 
     // Updated function that will save the active state to the database
     const handlePlayerActiveToggle = async (name, value) => {
-        // Update local state
-        const updatedPlayers = players.map((p) =>
-            p.name === name ? { ...p, active: value } : p
-        );
-        setPlayers(updatedPlayers);
-
-        // Then save to Firestore
-        if (currentLeagueId) {
-            const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
-            const docSnap = await getDoc(docRef);
-
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                const firestoreUpdatedPlayers = data.players.map((p) =>
-                    p.name === name ? { ...p, active: value } : p
-                );
-
-                // Update the database
-                await firestoreSetDoc(docRef, { ...data, players: firestoreUpdatedPlayers });
-            }
-        }
+        await updateUserPlayerPreference(name, value);
     };
 
     const convertFirestoreDataToAppFormat = (data) => {
@@ -1965,6 +1919,99 @@ export default function App() {
         setShowPlayerDetailModal(true);
     };
 
+    // Get user's preference for a specific player
+    const getUserPlayerPreference = (playerName, userId = user?.uid) => {
+        if (!userId) return false; // Default to inactive if no user
+        return userPlayerPreferences[userId]?.[playerName] || false;
+    };
+
+    // Update user's preference for a specific player
+    const updateUserPlayerPreference = async (playerName, isActive, userId = user?.uid) => {
+        if (!userId || !currentLeagueId) return;
+
+        try {
+            const docRef = doc(db, "leagues", currentLeagueId, "userPreferences", userId);
+
+            // Update local state first
+            setUserPlayerPreferences(prev => ({
+                ...prev,
+                [userId]: {
+                    ...prev[userId],
+                    [playerName]: isActive
+                }
+            }));
+
+            // Save to Firestore using updateDoc for atomic operation
+            await updateDoc(docRef, {
+                [`playerPreferences.${playerName}`]: isActive
+            });
+
+        } catch (error) {
+            // If document doesn't exist, create it with setDoc
+            if (error.code === 'not-found') {
+                const docRef = doc(db, "leagues", currentLeagueId, "userPreferences", userId);
+                await setDoc(docRef, {
+                    playerPreferences: {
+                        [playerName]: isActive
+                    }
+                });
+
+                // Update local state
+                setUserPlayerPreferences(prev => ({
+                    ...prev,
+                    [userId]: {
+                        ...prev[userId],
+                        [playerName]: isActive
+                    }
+                }));
+            } else {
+                console.error("Error updating player preference:", error);
+            }
+        }
+    };
+
+    // Batch update for select all functionality
+    const updateUserPlayerPreferencesBatch = async (updates, userId = user?.uid) => {
+        if (!userId || !currentLeagueId) return;
+
+        try {
+            const docRef = doc(db, "leagues", currentLeagueId, "userPreferences", userId);
+
+            // Create update object for Firestore
+            const firestoreUpdates = {};
+            updates.forEach(update => {
+                firestoreUpdates[`playerPreferences.${update.name}`] = update.active;
+            });
+
+            // Update local state
+            const newUserPrefs = { ...userPlayerPreferences[userId] };
+            updates.forEach(update => {
+                newUserPrefs[update.name] = update.active;
+            });
+
+            setUserPlayerPreferences(prev => ({
+                ...prev,
+                [userId]: newUserPrefs
+            }));
+
+            // Save to Firestore
+            await updateDoc(docRef, firestoreUpdates);
+
+        } catch (error) {
+            if (error.code === 'not-found') {
+                const docRef = doc(db, "leagues", currentLeagueId, "userPreferences", userId);
+                const playerPreferences = {};
+                updates.forEach(update => {
+                    playerPreferences[update.name] = update.active;
+                });
+
+                await setDoc(docRef, { playerPreferences });
+            } else {
+                console.error("Error batch updating player preferences:", error);
+            }
+        }
+    };
+
     useEffect(() => {
         if (!currentLeagueId) return;
 
@@ -2403,6 +2450,38 @@ export default function App() {
             delete window.refreshPlayersData;
         };
     }, [currentLeagueId, currentSet]);
+
+    useEffect(() => {
+        const loadUserPlayerPreferences = async () => {
+            if (!user || !currentLeagueId) {
+                setUserPlayerPreferences({});
+                return;
+            }
+
+            try {
+                const docRef = doc(db, "leagues", currentLeagueId, "userPreferences", user.uid);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    setUserPlayerPreferences(prev => ({
+                        ...prev,
+                        [user.uid]: data.playerPreferences || {}
+                    }));
+                } else {
+                    // Initialize empty preferences for this user
+                    setUserPlayerPreferences(prev => ({
+                        ...prev,
+                        [user.uid]: {}
+                    }));
+                }
+            } catch (error) {
+                console.error("Error loading user player preferences:", error);
+            }
+        };
+
+        loadUserPlayerPreferences();
+    }, [user, currentLeagueId]);
 
     // Get team rank string showing position out of total
     const getTeamRankString = (teamIndex) => {
@@ -2958,6 +3037,7 @@ export default function App() {
                                     setToastMessage={setToastMessage}
                                     prepareDataForFirestore={prepareDataForFirestore}
                                     setHasPendingMatchups={setHasPendingMatchups}
+                                    getUserPlayerPreference={getUserPlayerPreference}
 
                                 />
                             </ErrorBoundary>

@@ -43,8 +43,15 @@ export default function TeamsTab({
     setToastMessage,
     prepareDataForFirestore,
     setHasPendingMatchups,
-
+    getUserPlayerPreference,
 }) {
+    const getActivePlayersForUser = () => {
+        if (!getUserPlayerPreference || !user) {
+            // Fallback to original behavior if functions not available
+            return players.filter(p => p.active);
+        }
+        return players.filter(player => getUserPlayerPreference(player.name));
+    };
     const [teamGenerationMethod, setTeamGenerationMethod] = useState(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [showTeamSelector, setShowTeamSelector] = useState(false);
@@ -329,6 +336,12 @@ export default function TeamsTab({
             console.error("No currentLeagueId set");
             return;
         }
+        const activePlayers = getActivePlayersForUser();
+
+        if (activePlayers.length < teamSize * 2) {
+            alert(`Need at least ${teamSize * 2} active players for ${teamSize}v${teamSize} games`);
+            return;
+        }
 
         // Check for unsaved results
         const hasUnsavedScores = scores.some(score =>
@@ -339,14 +352,6 @@ export default function TeamsTab({
             if (!confirm("You have unsaved match results. Creating new teams will discard these results. Continue?")) {
                 return;
             }
-        }
-
-        // Get active players
-        const activePlayers = players.filter(p => p.active);
-
-        if (activePlayers.length < teamSize * 2) {
-            alert(`Need at least ${teamSize * 2} active players for ${teamSize}v${teamSize} games`);
-            return;
         }
 
         // Calculate number of teams
@@ -449,7 +454,10 @@ export default function TeamsTab({
     }, [teams, calculatePlayerScore]);
 
     const sortedPlayers = useMemo(() => {
-        return [...players].sort((a, b) => {
+        return [...players].map(player => ({
+            ...player,
+            active: getUserPlayerPreference ? getUserPlayerPreference(player.name) : player.active
+        })).sort((a, b) => {
             if (a.active !== b.active) {
                 return a.active ? -1 : 1;
             }
@@ -478,10 +486,10 @@ export default function TeamsTab({
 
             return playerSortDirection === "asc" ? aValue - bValue : bValue - aValue;
         });
-    }, [players, playerSortBy, playerSortDirection, playerOVRs]);
+    }, [players, playerSortBy, playerSortDirection, playerOVRs, getUserPlayerPreference]);
     
     // Count active players
-    const activePlayerCount = players.filter(player => player.active).length;
+    const activePlayerCount = getActivePlayersForUser().length;
     const [teamRankings, setTeamRankings] = useState([]);
 
 
@@ -532,17 +540,6 @@ export default function TeamsTab({
     }, []);
 
     useEffect(() => {
-        const allActive = players.every(p => p.active);
-        const allInactive = players.every(p => !p.active);
-
-        if (allActive) {
-            setSelectAll(true);
-        } else if (allInactive) {
-            setSelectAll(false);
-        }
-    }, [players]);
-
-    useEffect(() => {
         // Reset generation method when teams are cleared
         if (teams.length === 0) {
             setTeamGenerationMethod(null);
@@ -573,6 +570,25 @@ export default function TeamsTab({
         const localDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
         setMatchDateTime(localDateTime);
     }, []);
+
+    useEffect(() => {
+        // Check if all active players are selected by this user
+        const userActiveCount = players.filter(p =>
+            getUserPlayerPreference ? getUserPlayerPreference(p.name) : p.active
+        ).length;
+
+        const allPlayersSelected = players.length > 0 && userActiveCount === players.length;
+        const noPlayersSelected = userActiveCount === 0;
+
+        if (allPlayersSelected) {
+            setSelectAll(true);
+        } else if (noPlayersSelected) {
+            setSelectAll(false);
+        } else {
+            setSelectAll(false); // Indeterminate state - show as unchecked
+        }
+    }, [players, getUserPlayerPreference, user]);
+
     // Handle adding a player to a specific team
     const addPlayerToTeam = (player, teamIndex) => {
         // Check if player is already on any team
