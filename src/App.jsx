@@ -3089,6 +3089,9 @@ export default function App() {
         }
 
         try {
+            // Normalize the player name before saving
+            const canonicalName = getCanonicalName(playerName);
+
             const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
             const docSnap = await getDoc(docRef);
 
@@ -3096,12 +3099,12 @@ export default function App() {
                 const data = docSnap.data();
                 const currentVotes = data.beltVotes || {};
 
-                // Update user's vote
+                // Update user's vote with the canonical name
                 const updatedVotes = {
                     ...currentVotes,
                     [user.uid]: {
                         ...(currentVotes[user.uid] || {}),
-                        [beltId]: playerName
+                        [beltId]: canonicalName  // Use canonical name here
                     }
                 };
 
@@ -3127,11 +3130,6 @@ export default function App() {
             setToastMessage("Error saving vote");
             setTimeout(() => setToastMessage(""), 3000);
         }
-    };
-
-    const handlePlayerCardClick = (player) => {
-        setSelectedPlayerForDetail(player);
-        setShowPlayerDetailModal(true);
     };
 
     // Otherwise show the team generator app
@@ -3265,7 +3263,7 @@ export default function App() {
                                     currentBelts={currentBelts}
                                     leaderboard={leaderboard}
                                     matchHistory={matchHistory}
-                                    onPlayerClick={handlePlayerCardClick}
+                                    onPlayerClick={openPlayerDetailModal}
                                     currentLeagueId={currentLeagueId}
                                     currentSet={currentSet}
                                     db={db}
@@ -3298,7 +3296,7 @@ export default function App() {
                                     currentBelts={currentBelts}
                                     leaderboard={leaderboard}
                                     matchHistory={matchHistory}
-                                    onPlayerClick={handlePlayerCardClick}
+                                    onPlayerClick={openPlayerDetailModal}
                                 />
                             )}
                         </div>

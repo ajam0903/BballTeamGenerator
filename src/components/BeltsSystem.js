@@ -1,4 +1,5 @@
-// BeltsSystem.js
+import { getCanonicalName } from '../utils/nameMapping';
+
 export const beltCategories = {
     // Negative belts
     snowflake: {
@@ -79,7 +80,7 @@ export const calculateBeltStandings = (allVotes, currentBeltHolders = {}) => {
         beltVotes[beltId] = {};
     });
 
-    // Count votes with safety checks
+    // Count votes with safety checks and name normalization
     Object.values(allVotes).forEach(userVotesObj => {
         if (!userVotesObj || typeof userVotesObj !== 'object') {
             return;
@@ -94,10 +95,13 @@ export const calculateBeltStandings = (allVotes, currentBeltHolders = {}) => {
                 return;
             }
 
-            if (!beltVotes[beltId][playerName]) {
-                beltVotes[beltId][playerName] = 0;
+            // Normalize the player name before counting
+            const canonicalName = getCanonicalName(playerName);
+
+            if (!beltVotes[beltId][canonicalName]) {
+                beltVotes[beltId][canonicalName] = 0;
             }
-            beltVotes[beltId][playerName]++;
+            beltVotes[beltId][canonicalName]++;
         });
     });
 

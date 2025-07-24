@@ -20,6 +20,7 @@ export default function UserMenu({
     minGamesFilter,
     onMinGamesFilterChange,
     recalculateLeaderboardFromHistory,
+    migrateBeltVotes,
 }) {
     const currentLeagueId = currentLeague?.id;
     const [isOpen, setIsOpen] = useState(false);
@@ -311,6 +312,15 @@ export default function UserMenu({
                             db={db}
                             isAdmin={isAdmin}
                         />
+                    )}
+
+                    {isAdmin && (
+                        <button
+                            onClick={() => migrateBeltVotes(db, currentLeagueId, currentSet)}
+                            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded mt-2"
+                        >
+                            Migrate Belt Votes (One-Time)
+                        </button>
                     )}
 
                     {isAdmin && (

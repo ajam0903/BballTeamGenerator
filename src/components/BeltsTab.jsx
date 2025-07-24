@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { beltCategories } from "./BeltsSystem";
 import BeltVotingModal from "./BeltVotingModal";
 import { StyledButton } from "./UIComponents";
+import { getCanonicalName } from '../utils/nameMapping';
 
 export default function BeltsTab({
     players = [],
@@ -50,11 +51,13 @@ export default function BeltsTab({
     const getBeltVoteBreakdown = (beltId) => {
         const votes = {};
 
-        // Count all votes for this belt
+        // Count all votes for this belt with name normalization
         Object.values(beltVotes).forEach(userVotesObj => {
             const vote = userVotesObj[beltId];
             if (vote) {
-                votes[vote] = (votes[vote] || 0) + 1;
+                // Normalize the player name before counting
+                const canonicalName = getCanonicalName(vote);
+                votes[canonicalName] = (votes[canonicalName] || 0) + 1;
             }
         });
 
@@ -62,6 +65,77 @@ export default function BeltsTab({
         return Object.entries(votes)
             .map(([playerName, count]) => ({ playerName, count }))
             .sort((a, b) => b.count - a.count);
+    };
+
+    const migrateBeltVotes = async (db, currentLeagueId, currentSet) => {
+        console.log("Starting belt votes migration...");
+
+        try {
+            // Get the current document
+            const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+            const docSnap = await getDoc(docRef);
+
+            if (!docSnap.exists()) {
+                console.log("No document found");
+                return;
+            }
+
+            const data = docSnap.data();
+            const beltVotes = data.beltVotes || {};
+
+            // Create normalized version of votes
+            const normalizedBeltVotes = {};
+            let changesCount = 0;
+
+            Object.entries(beltVotes).forEach(([userId, userVotes]) => {
+                normalizedBeltVotes[userId] = {};
+
+                Object.entries(userVotes).forEach(([beltId, playerName]) => {
+                    const canonicalName = getCanonicalName(playerName);
+                    normalizedBeltVotes[userId][beltId] = canonicalName;
+
+                    if (canonicalName !== playerName) {
+                        console.log(`Migrating vote: "${playerName}" → "${canonicalName}" (${beltId})`);
+                        changesCount++;
+                    }
+                });
+            });
+
+            // Also normalize current belt holders
+            const currentBelts = data.currentBelts || {};
+            const normalizedCurrentBelts = {};
+
+            Object.entries(currentBelts).forEach(([beltId, holder]) => {
+                if (holder && holder.playerName) {
+                    const canonicalName = getCanonicalName(holder.playerName);
+                    normalizedCurrentBelts[beltId] = {
+                        ...holder,
+                        playerName: canonicalName
+                    };
+
+                    if (canonicalName !== holder.playerName) {
+                        console.log(`Migrating belt holder: "${holder.playerName}" → "${canonicalName}" (${beltId})`);
+                        changesCount++;
+                    }
+                }
+            });
+
+            if (changesCount > 0) {
+                // Save the normalized data
+                await setDoc(docRef, {
+                    ...data,
+                    beltVotes: normalizedBeltVotes,
+                    currentBelts: normalizedCurrentBelts
+                });
+
+                console.log(`✅ Belt votes migration completed! ${changesCount} changes made.`);
+            } else {
+                console.log("✅ No belt vote migrations needed - all names already canonical");
+            }
+
+        } catch (error) {
+            console.error("Error migrating belt votes:", error);
+        }
     };
 
     const BeltCard = ({ belt }) => {
