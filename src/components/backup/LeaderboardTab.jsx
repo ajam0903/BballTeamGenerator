@@ -1,7 +1,6 @@
 ﻿// Updated LeaderboardTab.jsx with just number values for abilities
 import React, { useState, useEffect } from "react";
 import { StyledButton, StyledInput } from "./UIComponents";
-import { isPlayerMatch, nameVariations, getCanonicalName } from '../utils/nameMapping';
 
 
 
@@ -144,6 +143,21 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             new Date(b.date) - new Date(a.date)
         );
 
+        // Helper function to check if a name matches (handles variations)
+        const isPlayerMatch = (nameInMatch, targetName) => {
+            if (nameInMatch === targetName) return true;
+
+            // Handle specific name variations
+            const nameVariations = {
+                'Husein Kapadia': ['Husain Kapadia', 'Husain kapadia'],
+                'Husain Kapadia': ['Husein Kapadia', 'Husain kapadia'],
+                // Add other name variations here if needed
+            };
+
+            const variations = nameVariations[targetName] || [];
+            return variations.includes(nameInMatch);
+        };
+
         // Get last 10 games where this player participated
         const playerGames = [];
 
@@ -153,21 +167,21 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             let teamB = [];
 
             if (match.teams && Array.isArray(match.teams) && match.teams.length >= 2) {
-                // App format: teams[0] and teams[1] - NORMALIZE NAMES
-                teamA = match.teams[0].map(p => getCanonicalName(p.name));
-                teamB = match.teams[1].map(p => getCanonicalName(p.name));
+                // App format: teams[0] and teams[1]
+                teamA = match.teams[0].map(p => p.name);
+                teamB = match.teams[1].map(p => p.name);
             } else if (match.teamA && match.teamB) {
-                // Firestore format: teamA and teamB - NORMALIZE NAMES
-                teamA = match.teamA.map(p => getCanonicalName(p.name));
-                teamB = match.teamB.map(p => getCanonicalName(p.name));
+                // Firestore format: teamA and teamB
+                teamA = match.teamA.map(p => p.name);
+                teamB = match.teamB.map(p => p.name);
             } else {
                 // Skip if no valid team data
                 continue;
             }
 
-            // Check if player is in either team
-            const playerInTeamA = teamA.includes(playerName);
-            const playerInTeamB = teamB.includes(playerName);
+            // Check if player is in either team (using name matching)
+            const playerInTeamA = teamA.some(name => isPlayerMatch(name, playerName));
+            const playerInTeamB = teamB.some(name => isPlayerMatch(name, playerName));
 
             const playerTeam = playerInTeamA ? 'A' : playerInTeamB ? 'B' : null;
 
@@ -177,9 +191,8 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                 const won = (playerTeam === 'A' && scoreA > scoreB) ||
                     (playerTeam === 'B' && scoreB > scoreA);
 
-                // Check if player is MVP
-                const normalizedMvp = getCanonicalName(match.mvp || '');
-                const isMVP = normalizedMvp === playerName;
+                // Check if player is MVP (also using name matching)
+                const isMVP = isPlayerMatch(match.mvp || '', playerName);
 
                 playerGames.push({ won, isMVP });
 
@@ -355,8 +368,14 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             return;
         }
 
-        // Always recalculate from match history to ensure accuracy
-        const historyToUse = gameTypeFilter === "all" ? matchHistory : filterMatchHistoryByGameType(matchHistory, gameTypeFilter);
+        // For "all" games, use the database leaderboard (which has merged names)
+        if (gameTypeFilter === "all") {
+            setFilteredStats(leaderboard);
+            return;
+        }
+
+        // Only recalculate from match history for specific game type filters
+        const historyToUse = filterMatchHistoryByGameType(matchHistory, gameTypeFilter);
 
         // If no filtered matches, show empty stats
         if (historyToUse.length === 0) {
@@ -374,13 +393,13 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             let scoreB = 0;
             let mvp = "";
 
-            // Extract teams and scores depending on the format - USE getCanonicalName
+            // Extract teams and scores depending on the format
             if (match.teams && Array.isArray(match.teams)) {
-                teamA = match.teams[0].map(p => getCanonicalName(p.name));
-                teamB = match.teams[1].map(p => getCanonicalName(p.name));
+                teamA = match.teams[0].map(p => p.name);
+                teamB = match.teams[1].map(p => p.name);
             } else if (match.teamA && match.teamB) {
-                teamA = match.teamA.map(p => getCanonicalName(p.name));
-                teamB = match.teamB.map(p => getCanonicalName(p.name));
+                teamA = match.teamA.map(p => p.name);
+                teamB = match.teamB.map(p => p.name);
             }
 
             if (match.score) {
@@ -388,41 +407,45 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                 scoreB = parseInt(match.score.b) || 0;
             }
 
-            mvp = getCanonicalName(match.mvp || "");
+            mvp = match.mvp || "";
 
-            // Initialize ALL players in this match
-            [...teamA, ...teamB].forEach(playerName => {
-                if (playerName && !newStats[playerName]) {
-                    newStats[playerName] = { _w: 0, _l: 0, MVPs: 0 };  // Fixed: _w and _l
+            // Determine winners and losers
+            const winnersTeam = scoreA > scoreB ? teamA : teamB;
+            const losersTeam = scoreA > scoreB ? teamB : teamA;
+
+            // Get all unique player names from both teams
+            const allPlayers = [...teamA, ...teamB];
+
+            // Process each player directly (no more name variation grouping)
+            allPlayers.forEach(playerName => {
+                if (!newStats[playerName]) {
+                    newStats[playerName] = { _w: 0, _l: 0, MVPs: 0 };  // Fixed: _w and _l instead of *w and *l
+                }
+
+                // Check if player is in winning or losing team
+                if (winnersTeam.includes(playerName)) {
+                    newStats[playerName]._w += 1;
+                } else if (losersTeam.includes(playerName)) {
+                    newStats[playerName]._l += 1;
+                }
+
+                // Check if player is MVP
+                if (playerName === mvp) {
+                    newStats[playerName].MVPs += 1;
                 }
             });
-
-            // Process winners and losers
-            if (scoreA !== scoreB) {
-                const winners = scoreA > scoreB ? teamA : teamB;
-                const losers = scoreA > scoreB ? teamB : teamA;
-
-                winners.forEach(playerName => {
-                    if (playerName && newStats[playerName]) {
-                        newStats[playerName]._w += 1;
-                    }
-                });
-
-                losers.forEach(playerName => {
-                    if (playerName && newStats[playerName]) {
-                        newStats[playerName]._l += 1;
-                    }
-                });
-            }
-
-            // Award MVP
-            if (mvp && newStats[mvp]) {
-                newStats[mvp].MVPs += 1;
-            }
         });
 
         setFilteredStats(newStats);
     }, [gameTypeFilter, matchHistory, leaderboard]);
+
+    useEffect(() => {
+        console.log("LeaderboardTab received leaderboard:", Object.keys(leaderboard || {}));
+        console.log("Abizar entries:", Object.keys(leaderboard || {}).filter(name => name.toLowerCase().includes('abizar')));
+        console.log("Abeezer data:", Object.entries(leaderboard || {}).filter(([name]) =>
+            name.toLowerCase().includes('abeezer')
+        ));
+    }, [leaderboard]);
 
     return (
 

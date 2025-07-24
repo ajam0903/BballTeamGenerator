@@ -20,8 +20,10 @@ export default function UserMenu({
     minGamesFilter,
     onMinGamesFilterChange,
     recalculateLeaderboardFromHistory,
+    mergeKnownDuplicates,
+    updateMatchHistoryNames,
+    debugMatchHistoryNames,
 }) {
-    const currentLeagueId = currentLeague?.id;
     const [isOpen, setIsOpen] = useState(false);
     const [showPreferences, setShowPreferences] = useState(false);
     const [showUserManagement, setShowUserManagement] = useState(false);
@@ -306,11 +308,20 @@ export default function UserMenu({
                         </button>
                     )}
                     {isAdmin && (
-                        <PlayerNameRecoveryTool
-                            currentLeagueId={currentLeagueId}
-                            db={db}
-                            isAdmin={isAdmin}
-                        />
+                        <div className="flex flex-col gap-1">
+                            <button onClick={recalculateLeaderboardFromHistory} className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs">
+                                Recalculate All Stats
+                            </button>
+                            <button onClick={mergeKnownDuplicates} className="px-2 py-1 bg-orange-600 hover:bg-orange-500 text-white rounded text-xs">
+                                Merge Duplicates
+                            </button>
+                            <button onClick={updateMatchHistoryNames} className="px-2 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs">
+                                Fix Match History Names
+                            </button>
+                            <button onClick={debugMatchHistoryNames} className="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded text-xs">
+                                Debug Names
+                            </button>
+                        </div>
                     )}
 
                     {isAdmin && (

@@ -320,7 +320,10 @@ export const calculateCurrentWinStreak = (playerName, matchHistory) => {
 };
 
 export const getPlayerBadges = (playerName, leaderboard = {}, matchHistory = [], correctedStats = null) => {
-    const stats = correctedStats || calculatePlayerStats(playerName, leaderboard, matchHistory);
+    const calculatedStats = calculatePlayerStats(playerName, leaderboard, matchHistory);
+    // Merge corrected stats with calculated stats (corrected stats take priority)
+    const stats = correctedStats ? { ...calculatedStats, ...correctedStats } : calculatedStats;
+
     const earnedBadges = {};
     Object.entries(badgeCategories).forEach(([categoryId, category]) => {
         const playerValue = stats[categoryId] || 0;

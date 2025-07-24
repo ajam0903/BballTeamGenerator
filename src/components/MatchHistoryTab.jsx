@@ -1,7 +1,6 @@
-// Updated MatchHistoryTab.jsx with team naming changes
-
 import React, { useState } from "react";
-
+import { isPlayerMatch, nameVariations } from '../utils/nameMapping';
+import { getCanonicalName } from './utils/nameMapping';
 // Add team naming utility functions
 const getFormattedPlayerName = (fullName) => {
     if (!fullName) return "Team";
@@ -40,6 +39,41 @@ const getTeamName = (team, calculatePlayerScore) => {
     if (!bestPlayer || !bestPlayer.name) return "Team";
 
     return getFormattedPlayerName(bestPlayer.name);
+};
+
+const updateMatchHistoryNames = async () => {
+    // Fetch all matches
+    const matchesRef = collection(db, "leagues", currentLeagueId, "matches");
+    const snapshot = await getDocs(matchesRef);
+
+    for (const doc of snapshot.docs) {
+        const match = doc.data();
+        let updated = false;
+
+        // Update team names
+        if (match.teams) {
+            // Handle your team format
+        } else if (match.teamA && match.teamB) {
+            const updatedTeamA = match.teamA.map(p => ({
+                ...p,
+                name: getCanonicalName(p.name)
+            }));
+            const updatedTeamB = match.teamB.map(p => ({
+                ...p,
+                name: getCanonicalName(p.name)
+            }));
+
+            if (JSON.stringify(updatedTeamA) !== JSON.stringify(match.teamA) ||
+                JSON.stringify(updatedTeamB) !== JSON.stringify(match.teamB)) {
+                updated = true;
+                await updateDoc(doc.ref, {
+                    teamA: updatedTeamA,
+                    teamB: updatedTeamB,
+                    mvp: getCanonicalName(match.mvp)
+                });
+            }
+        }
+    }
 };
 
 export default function MatchHistoryTab({ matchHistory, calculatePlayerScore, weightings }) {

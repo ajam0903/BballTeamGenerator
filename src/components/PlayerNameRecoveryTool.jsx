@@ -1,29 +1,41 @@
-// Add this component temporarily to your admin interface
-// You can add it to AdminNotifications.jsx or create a separate component
 
 import React, { useState } from 'react';
 import { collection, getDocs, setDoc } from 'firebase/firestore';
 import { StyledButton } from './UIComponents';
+import { isPlayerMatch, nameVariations } from '../utils/nameMapping';
 
-export default function PlayerNameRecoveryTool({ 
-    currentLeagueId, 
-    db, 
-    isAdmin 
+export default function PlayerNameRecoveryTool({
+    currentLeagueId,
+    db,
+    isAdmin
 }) {
     const [isRecovering, setIsRecovering] = useState(false);
     const [recoveryLog, setRecoveryLog] = useState([]);
     const [showTool, setShowTool] = useState(false);
 
-    // Define the mapping of old names to new names
-    // UPDATE THIS ARRAY with your actual name changes
-    const nameChanges = [
-        { oldName: "Mansoor Poonwala", newName: "Mansoor Poonawala" },
-        { oldName: "Hussain Abbas", newName: "Shahzad Abbas" },
-        // Add more mappings as needed
-        // Example:
-        // { oldName: "Hussain Abbas", newName: "Shahzad Abbas" },
-        // { oldName: "Mansoor Poonwala", newName: "Mansoor Poonawala" },
-    ];
+    // Define nameChanges here
+    const nameChanges = Object.entries(nameVariations).map(([newName, oldNames]) =>
+        oldNames.map(oldName => ({ oldName, newName }))
+    ).flat();
+
+    // Keep your isNameMatch function here
+    const isNameMatch = (claimName, oldName) => {
+        // Exact match (case insensitive)
+        if (claimName.toLowerCase() === oldName.toLowerCase()) return true;
+
+        // Check if it's an abbreviated version
+        const claimParts = claimName.toLowerCase().split(' ');
+        const oldParts = oldName.toLowerCase().split(' ');
+
+        // Handle "Hussain A" matching "Hussain Abbas"
+        if (claimParts[0] === oldParts[0] &&
+            claimParts[1] && oldParts[1] &&
+            oldParts[1].startsWith(claimParts[1])) {
+            return true;
+        }
+
+        return false;
+    };
 
     const runRecovery = async () => {
         if (!currentLeagueId || nameChanges.length === 0) {
@@ -48,14 +60,14 @@ export default function PlayerNameRecoveryTool({
                 // Check each name change mapping
                 const updatedClaimedPlayers = claimedPlayers.map(claim => {
                     if (claim.leagueId === currentLeagueId) {
-                        // Find if this claim matches any of our old names
-                        const nameChange = nameChanges.find(change => 
-                            change.oldName.toLowerCase() === claim.playerName.toLowerCase()
+                        // Use isNameMatch instead of simple toLowerCase comparison
+                        const nameChange = nameChanges.find(change =>
+                            isNameMatch(claim.playerName, change.oldName)
                         );
 
                         if (nameChange) {
-                            setRecoveryLog(prev => [...prev, 
-                                `✅ Found claim for "${nameChange.oldName}" by ${userData.displayName || userData.email}, updating to "${nameChange.newName}"`
+                            setRecoveryLog(prev => [...prev,
+                            `✅ Found claim for "${claim.playerName}" by ${userData.displayName || userData.email}, updating to "${nameChange.newName}"`
                             ]);
                             userHasUpdates = true;
                             totalUpdates++;
@@ -72,8 +84,8 @@ export default function PlayerNameRecoveryTool({
                         claimedPlayers: updatedClaimedPlayers
                     });
                     usersUpdated++;
-                    setRecoveryLog(prev => [...prev, 
-                        `💾 Updated claims for user: ${userData.displayName || userData.email}`
+                    setRecoveryLog(prev => [...prev,
+                    `💾 Updated claims for user: ${userData.displayName || userData.email}`
                     ]);
                 }
             }
@@ -85,10 +97,11 @@ export default function PlayerNameRecoveryTool({
 
             for (const notificationDoc of notificationsSnapshot.docs) {
                 const notificationData = notificationDoc.data();
-                
+
                 if (notificationData.type === 'player_claim_request') {
-                    const nameChange = nameChanges.find(change => 
-                        change.oldName.toLowerCase() === notificationData.playerName.toLowerCase()
+                    // Use isNameMatch here too
+                    const nameChange = nameChanges.find(change =>
+                        isNameMatch(notificationData.playerName, change.oldName)
                     );
 
                     if (nameChange) {
@@ -97,20 +110,20 @@ export default function PlayerNameRecoveryTool({
                             playerName: nameChange.newName
                         });
                         notificationsUpdated++;
-                        setRecoveryLog(prev => [...prev, 
-                            `🔔 Updated notification for "${nameChange.oldName}" to "${nameChange.newName}"`
+                        setRecoveryLog(prev => [...prev,
+                        `🔔 Updated notification for "${notificationData.playerName}" to "${nameChange.newName}"`
                         ]);
                     }
                 }
             }
 
-            setRecoveryLog(prev => [...prev, 
+            setRecoveryLog(prev => [...prev,
                 "",
                 "🎉 Recovery completed!",
                 `📊 Summary:`,
-                `   • ${totalUpdates} player claims updated`,
-                `   • ${usersUpdated} users affected`,
-                `   • ${notificationsUpdated} notifications updated`,
+            `   • ${totalUpdates} player claims updated`,
+            `   • ${usersUpdated} users affected`,
+            `   • ${notificationsUpdated} notifications updated`,
                 "",
                 "⚠️ You can now remove this recovery tool from your code."
             ]);
