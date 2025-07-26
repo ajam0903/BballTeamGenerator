@@ -926,8 +926,8 @@ export default function TeamsTab({
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                        {/* Team containers with reduced gap and smaller text */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Team containers */}
                         {manualTeams.map((team, teamIndex) => {
                             // Define an array of team colors
                             const teamColors = [
@@ -939,162 +939,86 @@ export default function TeamsTab({
                                 { border: "border-pink-500", text: "text-pink-400", bg: "bg-pink-600", hover: "bg-pink-500" },
                             ];
 
+                            // Get color for current team (cycle through colors if more teams than colors)
                             const colorIndex = teamIndex % teamColors.length;
                             const teamColor = teamColors[colorIndex];
-                            const teamStrength = calculateTeamStrength(team).toFixed(1);
-                            const teamName = team.length === 1 ? team[0]?.name || "Player" : getTeamName(team, calculatePlayerScore || computeRating1to10);
 
                             return (
-                                <div
-                                    key={teamIndex}
-                                    className={`border ${teamColor.border} rounded-lg p-3 bg-gray-700`}
-                                    onDragOver={(e) => {
-                                        e.preventDefault();
-                                        e.currentTarget.classList.add('bg-gray-600');
-                                    }}
-                                    onDragLeave={(e) => {
-                                        e.currentTarget.classList.remove('bg-gray-600');
-                                    }}
-                                    onDrop={(e) => {
-                                        e.preventDefault();
-                                        e.currentTarget.classList.remove('bg-gray-600');
-
-                                        const draggedData = JSON.parse(e.dataTransfer.getData('text/plain'));
-                                        const { playerName, sourceTeamIndex } = draggedData;
-
-                                        if (sourceTeamIndex === teamIndex) return;
-
-                                        const sourceTeam = manualTeams[sourceTeamIndex];
-                                        const player = sourceTeam.find(p => p.name === playerName);
-                                        if (!player) return;
-
-                                        const updatedTeams = [...manualTeams];
-                                        updatedTeams[sourceTeamIndex] = sourceTeam.filter(p => p.name !== playerName);
-
-                                        const newPlayer = {
-                                            ...player,
-                                            isBench: updatedTeams[teamIndex].filter(p => !p.isBench).length >= teamSize
-                                        };
-                                        updatedTeams[teamIndex] = [...updatedTeams[teamIndex], newPlayer];
-
-                                        setManualTeams(updatedTeams);
-                                    }}
-                                >
-                                    {/* Team header with smaller text */}
-                                    <div className="text-center mb-3">
-                                        <div className="text-xs text-gray-400 mb-0">Team</div>
-                                        <div className="text-sm font-bold text-white mb-0">
-                                            {team.length === 1 ? teamName : `${teamName}`}
-                                        </div>
-                                        <div className="text-xs text-blue-400 mb-1">Strength {teamStrength}</div>
-                                        <div className="text-lg font-bold text-white mb-2">
-                                            {team.filter(p => !p.isBench).length}/{teamSize}
-                                        </div>
+                                <div key={teamIndex} className={`border ${teamColor.border} rounded-lg p-3 bg-gray-800`}>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h3 className={`font-medium ${teamColor.text}`}>Team {teamIndex + 1}</h3>
+                                        <span className={`text-xs px-2 py-1 rounded-full ${team.filter(p => !p.isBench).length === teamSize
+                                                ? "bg-green-900 text-green-400"
+                                                : "bg-yellow-900 text-yellow-400"
+                                            }`}>
+                                            {team.filter(p => !p.isBench).length}/{teamSize} players
+                                        </span>
                                     </div>
 
-                                    {/* Players section with drag and drop */}
-                                    <div className="space-y-1 min-h-16 mb-2">
+                                    {/* Selected players */}
+                                    <div className="space-y-2 min-h-20 mb-3">
                                         {/* Regular players (non-bench) */}
                                         {team.filter(p => !p.isBench).map((player, idx) => (
-                                            <div
-                                                key={idx}
-                                                className="text-xs rounded px-2 py-1 bg-gray-600 text-white flex justify-between items-center cursor-move hover:bg-gray-500 transition-colors"
-                                                draggable
-                                                onDragStart={(e) => {
-                                                    e.dataTransfer.setData('text/plain', JSON.stringify({
-                                                        playerName: player.name,
-                                                        sourceTeamIndex: teamIndex
-                                                    }));
-                                                    e.currentTarget.classList.add('opacity-50');
-                                                }}
-                                                onDragEnd={(e) => {
-                                                    e.currentTarget.classList.remove('opacity-50');
-                                                }}
-                                            >
-                                                <span>{player.name}</span>
+                                            <div key={idx} className="flex justify-between items-center bg-gray-700 rounded px-2 py-1">
+                                                <span className="text-sm text-white">{player.name}</span>
                                                 <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
+                                                    onClick={() => {
                                                         const updatedTeams = [...manualTeams];
                                                         updatedTeams[teamIndex] = team.filter((_, i) => i !== team.indexOf(player));
                                                         setManualTeams(updatedTeams);
                                                     }}
-                                                    className="text-red-400 hover:text-red-300 text-sm font-bold ml-2"
+                                                    className="text-red-400 hover:text-red-300 text-xs"
                                                 >
-                                                    ✕
+                                                    Remove
                                                 </button>
                                             </div>
                                         ))}
 
                                         {/* Bench players */}
                                         {team.filter(p => p.isBench).map((player, idx) => (
-                                            <div
-                                                key={idx}
-                                                className="text-xs rounded px-2 py-1 bg-gray-600 text-gray-300 flex justify-between items-center border-l-2 border-yellow-500 cursor-move hover:bg-gray-500 transition-colors"
-                                                draggable
-                                                onDragStart={(e) => {
-                                                    e.dataTransfer.setData('text/plain', JSON.stringify({
-                                                        playerName: player.name,
-                                                        sourceTeamIndex: teamIndex
-                                                    }));
-                                                    e.currentTarget.classList.add('opacity-50');
-                                                }}
-                                                onDragEnd={(e) => {
-                                                    e.currentTarget.classList.remove('opacity-50');
-                                                }}
-                                            >
-                                                <span>
+                                            <div key={idx} className="flex justify-between items-center bg-gray-600 rounded px-2 py-1 border-l-2 border-yellow-500">
+                                                <span className="text-sm text-gray-300">
                                                     <span className="text-yellow-500 text-xs mr-1">Bench:</span>
                                                     {player.name}
                                                 </span>
                                                 <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
+                                                    onClick={() => {
                                                         const updatedTeams = [...manualTeams];
                                                         updatedTeams[teamIndex] = team.filter((_, i) => i !== team.indexOf(player));
                                                         setManualTeams(updatedTeams);
                                                     }}
-                                                    className="text-red-400 hover:text-red-300 text-sm font-bold ml-2"
+                                                    className="text-red-400 hover:text-red-300 text-xs"
                                                 >
-                                                    ✕
+                                                    Remove
                                                 </button>
                                             </div>
                                         ))}
 
                                         {/* No players message */}
                                         {team.length === 0 && (
-                                            <div className="text-xs text-gray-500 italic text-center py-3">No players selected</div>
+                                            <div className="text-sm text-gray-500 italic">No players selected</div>
                                         )}
-                                    </div>
-
-                                    {/* Player count indicator at bottom */}
-                                    <div className="text-center">
-                                        <span className={`text-xs px-2 py-1 rounded-full ${team.filter(p => !p.isBench).length === teamSize
-                                            ? "bg-green-900 text-green-400"
-                                            : "bg-yellow-900 text-yellow-400"
-                                            }`}>
-                                            {team.filter(p => !p.isBench).length}/{teamSize} players
-                                        </span>
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
 
-                    {/* Available players section */}
+                    {/* Available players */}
                     <div className="mt-4">
                         <h4 className="text-sm font-medium text-gray-300 mb-2">Available Players</h4>
                         {getUnassignedPlayers().length === 0 ? (
-                            <div className="text-xs text-gray-500 italic text-center py-4">All active players assigned</div>
+                            <div className="text-sm text-gray-500 italic text-center py-4">All active players assigned</div>
                         ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                                 {getUnassignedPlayers().map((player) => (
                                     <div key={player.name} className="bg-gray-800 rounded p-2">
-                                        <div className="text-xs text-white mb-1">{player.name}</div>
+                                        <div className="text-sm text-white mb-1">{player.name}</div>
                                         <div className="flex flex-wrap gap-1">
                                             {manualTeams.map((team, teamIndex) => {
                                                 const wouldBeBench = team.filter(p => !p.isBench).length >= teamSize;
 
+                                                // Get color for current team (cycle through colors if more teams than colors)
                                                 const teamColors = [
                                                     { bg: "bg-blue-600", hover: "bg-blue-500" },
                                                     { bg: "bg-green-600", hover: "bg-green-500" },
@@ -1111,8 +1035,8 @@ export default function TeamsTab({
                                                         key={teamIndex}
                                                         onClick={() => addPlayerToTeam(player, teamIndex)}
                                                         className={`text-xs px-2 py-1 rounded ${wouldBeBench
-                                                            ? 'bg-amber-600 hover:bg-amber-500'
-                                                            : `${teamColor.bg} hover:${teamColor.hover}`
+                                                                ? 'bg-amber-600 hover:bg-amber-500'  // Bench styling
+                                                                : `${teamColor.bg} hover:${teamColor.hover}`  // Regular styling with team color
                                                             }`}
                                                     >
                                                         {wouldBeBench
@@ -1129,8 +1053,9 @@ export default function TeamsTab({
                         )}
                     </div>
 
-                    {/* Action buttons remain the same */}
+                    {/* Action buttons */}
                     <div className="flex justify-between items-center mt-4">
+                        {/* Fill buttons on the left */}
                         <div className="flex space-x-2">
                             {getUnassignedPlayers().length > 0 &&
                                 manualTeams.every(team => team.length > 0) && (
@@ -1155,10 +1080,13 @@ export default function TeamsTab({
                                 )}
                         </div>
 
+                        {/* Reset and Create buttons on the right */}
                         <div className="flex space-x-2">
                             <button
                                 onClick={() => {
+                                    // Calculate required number of teams to fit all active players
                                     const numTeams = Math.floor(activePlayerCount / teamSize);
+                                    // Always ensure we have at least 2 teams for matchup creation  
                                     const finalNumTeams = Math.max(2, numTeams);
                                     setManualTeams(Array.from({ length: finalNumTeams }, () => []));
                                 }}
@@ -1181,29 +1109,120 @@ export default function TeamsTab({
                 </div>
             )}
 
+            {/* Teams List */}
+            {hasGeneratedTeams && teams.length > 0 && !showTeamSelector && (
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-sm font-medium text-gray-300 uppercase tracking-wider mb-3">Teams</h2>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {teams.map((team, i) => {
+                            const teamStrength = calculateTeamStrength(team).toFixed(1);
+                            // For 1v1, use "Player 1", "Player 2", etc. instead of player name
+                            const teamName = team.length === 1 ? `Player ${i + 1}` : getTeamName(team, calculatePlayerScore || computeRating1to10);
+
+                            return (
+                                <div key={i} className="border border-gray-800 p-3 rounded">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs text-gray-400">
+                                            {team.length === 1 ? teamName : `Team ${teamName}`}
+                                        </span>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-xs text-blue-400">
+                                                Strength: {teamStrength}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                        {team.filter(p => !p.isBench).map((p) => (
+                                            <div
+                                                key={p.name}
+                                                className="bg-gray-800 text-gray-100 px-3 py-1 rounded-md text-xs font-medium border border-gray-600 flex items-center"
+                                            >
+                                                <span>{p.name}</span>
+                                                <PlayerBeltIcons playerName={p.name} currentBelts={currentBelts} size="xs" />
+                                                <PlayerBadges
+                                                    playerName={p.name}
+                                                    leaderboard={leaderboard}
+                                                    matchHistory={matchHistory}
+                                                    size="xs"
+                                                    maxDisplay={1}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* For bench players */}
+                                    {team.some(p => p.isBench) && (
+                                        <div className="mt-1">
+                                            <span className="text-xs text-yellow-500 mb-1">Bench: </span>
+                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                {team.filter(p => p.isBench).map(p => (
+                                                    <div
+                                                        key={p.name}
+                                                        className="bg-gray-800 text-yellow-500 px-3 py-1 rounded-md text-xs font-sm border border-gray-600 flex items-center"
+                                                    >
+                                                        <span>{p.name}</span>
+                                                        <PlayerBeltIcons playerName={p.name} currentBelts={currentBelts} size="xs" />
+                                                        <PlayerBadges
+                                                            playerName={p.name}
+                                                            leaderboard={leaderboard}
+                                                            matchHistory={matchHistory}
+                                                            size="xs"
+                                                            maxDisplay={1}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Randomize Again Button - only show if teams were generated randomly */}
+            {hasGeneratedTeams && teams.length > 0 && !showTeamSelector && teamGenerationMethod === 'random' && (
+                <div className="flex justify-center mb-4">
+                    <button
+                        onClick={generateRandomTeams}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        🎲 Randomize Again
+                    </button>
+                </div>
+            )}
+
             {/* Matchups Section */}
             {hasGeneratedTeams && matchups.length > 0 && !showTeamSelector && (
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
                         <h2 className="text-sm font-medium text-gray-300 uppercase tracking-wider mb-3">Matchups</h2>
-                        <div className="flex items-center space-x-3">
-                            {/* Move Randomize Again button here */}
-                            {teamGenerationMethod === 'random' && (
-                                <button
-                                    onClick={generateRandomTeams}
-                                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center text-sm"
-                                >
-                                    Randomize Again
-                                </button>
-                            )}
-                        </div>
+                        {unsavedChanges && (
+                            <div className="text-yellow-400 text-xs flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                Unsaved match results
+                            </div>
+                        )}
                     </div>
 
                     {matchups.map(([teamA, teamB], i) => {
+                        // For 1v1, use player names directly, otherwise use team names
                         const teamAName = teamA.length === 1 ? teamA[0].name : getTeamName(teamA, calculatePlayerScore || computeRating1to10);
                         const teamBName = teamB.length === 1 ? teamB[0].name : getTeamName(teamB, calculatePlayerScore || computeRating1to10);
+
                         const teamAStrength = calculateTeamStrength(teamA).toFixed(1);
                         const teamBStrength = calculateTeamStrength(teamB).toFixed(1);
+
+                        // Check if this match has unsaved/incomplete data
                         const matchIncomplete = !scores[i]?.processed && (!scores[i]?.a || !scores[i]?.b || scores[i]?.a === "" || scores[i]?.b === "");
 
                         return (
@@ -1221,48 +1240,28 @@ export default function TeamsTab({
                                 {scores[i]?.processed ? (
                                     // Read-only view for saved matches
                                     <div className="bg-gray-700 rounded-lg p-4 w-full">
-                                        <div className="flex items-start justify-between">
+                                        <div className="flex items-center justify-between">
+                                            {/* Team A Score */}
                                             <div className="text-center flex-1">
-                                                <div className="text-sm text-gray-400 mb-0">Team</div>
-                                                <div className="text-lg font-bold text-white mb-0">
-                                                    {teamA.length === 1 ? teamAName : `${teamAName}`}
+                                                <div className="text-sm text-gray-300 mb-1">
+                                                    {teamA.length === 1 ? teamAName : `Team ${teamAName}`}
                                                 </div>
-                                                <div className="text-xs text-blue-400 mb-1">Strength {teamAStrength}</div>
-                                                <div className="text-3xl font-bold text-white mb-2">{scores[i]?.a || 0}</div>
-                                                {teamA.length > 1 && (
-                                                    <div className="space-y-1">
-                                                        {teamA.map((player, idx) => (
-                                                            <div key={idx} className={`text-xs rounded px-2 py-1 ${mvpVotes[i] === player.name ? 'bg-yellow-600 text-yellow-100' : 'text-gray-400'}`}>
-                                                                {player.name}
-                                                                {mvpVotes[i] === player.name && <span className="ml-1">👑</span>}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                                <div className="text-3xl font-bold text-white">{scores[i]?.a || 0}</div>
                                             </div>
 
-                                            <div className="text-gray-500 font-medium px-4 self-center">VS</div>
+                                            {/* VS separator */}
+                                            <div className="text-gray-500 font-medium px-4">VS</div>
 
+                                            {/* Team B Score */}
                                             <div className="text-center flex-1">
-                                                <div className="text-sm text-gray-400 mb-0">Team</div>
-                                                <div className="text-lg font-bold text-white mb-0">
-                                                    {teamB.length === 1 ? teamBName : `${teamBName}`}
+                                                <div className="text-sm text-gray-300 mb-1">
+                                                    {teamB.length === 1 ? teamBName : `Team ${teamBName}`}
                                                 </div>
-                                                <div className="text-xs text-blue-400 mb-1">Strength {teamBStrength}</div>
-                                                <div className="text-3xl font-bold text-white mb-2">{scores[i]?.b || 0}</div>
-                                                {teamB.length > 1 && (
-                                                    <div className="space-y-1">
-                                                        {teamB.map((player, idx) => (
-                                                            <div key={idx} className={`text-xs rounded px-2 py-1 ${mvpVotes[i] === player.name ? 'bg-yellow-600 text-yellow-100' : 'text-gray-400'}`}>
-                                                                {player.name}
-                                                                {mvpVotes[i] === player.name && <span className="ml-1">👑</span>}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                                <div className="text-3xl font-bold text-white">{scores[i]?.b || 0}</div>
                                             </div>
                                         </div>
 
+                                        {/* MVP section */}
                                         {mvpVotes[i] && (
                                             <div className="mt-4 pt-3 border-t border-gray-600 text-center">
                                                 <span className="text-sm text-gray-400">MVP: </span>
@@ -1271,81 +1270,51 @@ export default function TeamsTab({
                                         )}
                                     </div>
                                 ) : (
-                                    // Editable view for unsaved matches
+                                    // Editable view for unsaved matches - integrated team windows with scores
                                     <div className="bg-gray-700 rounded-lg p-4 w-full">
-                                        <div className="flex items-start justify-between">
+                                        <div className="flex items-center justify-between">
+                                            {/* Team A with integrated score */}
                                             <div className="text-center flex-1">
-                                                <div className="text-sm text-gray-400 mb-0">Team</div>
-                                                <div className="text-lg font-bold text-white mb-0">
-                                                    {teamA.length === 1 ? teamAName : `${teamAName}`}
+                                                <div className="text-sm text-gray-300 mb-1 flex items-center justify-center">
+                                                    <span>{teamA.length === 1 ? teamAName : `Team ${teamAName}`}</span>
+                                                    <span className="text-xs text-blue-400 ml-2">(Str: {teamAStrength})</span>
                                                 </div>
-                                                <div className="text-xs text-blue-400 mb-1">Strength {teamAStrength}</div>
                                                 <input
                                                     type="number"
                                                     placeholder="0"
-                                                    className={`w-16 h-12 text-2xl font-bold text-white bg-gray-600 border ${matchIncomplete ? 'border-yellow-600' : 'border-gray-500'} rounded text-center focus:outline-none focus:border-blue-500 mb-2`}
+                                                    className={`w-16 h-12 text-2xl font-bold text-white bg-gray-600 border ${matchIncomplete ? 'border-yellow-600' : 'border-gray-500'} rounded text-center focus:outline-none focus:border-blue-500`}
                                                     value={scores[i]?.a || ""}
                                                     onChange={(e) => handleScoreChange(i, 'a', e.target.value)}
                                                 />
-                                                {teamA.length > 1 && (
-                                                    <div className="space-y-1">
-                                                        {teamA.map((player, idx) => (
-                                                            <div
-                                                                key={idx}
-                                                                className={`text-xs rounded px-2 py-1 cursor-pointer transition-colors ${mvpVotes[i] === player.name
-                                                                    ? 'bg-yellow-600 text-yellow-100'
-                                                                    : 'text-gray-400 bg-gray-600 hover:bg-gray-500 hover:text-white'
-                                                                    }`}
-                                                                onClick={() => handleMvpChange(i, mvpVotes[i] === player.name ? "" : player.name)}
-                                                            >
-                                                                {player.name}
-                                                                {mvpVotes[i] === player.name && <span className="ml-1">👑</span>}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
                                             </div>
 
-                                            <div className="text-gray-500 font-medium px-4 self-center">VS</div>
+                                            {/* VS separator */}
+                                            <div className="text-gray-500 font-medium px-4">VS</div>
 
+                                            {/* Team B with integrated score */}
                                             <div className="text-center flex-1">
-                                                <div className="text-sm text-gray-400 mb-0">Team</div>
-                                                <div className="text-lg font-bold text-white mb-0">
-                                                    {teamB.length === 1 ? teamBName : `${teamBName}`}
+                                                <div className="text-sm text-gray-300 mb-1 flex items-center justify-center">
+                                                    <span>{teamB.length === 1 ? teamBName : `Team ${teamBName}`}</span>
+                                                    <span className="text-xs text-blue-400 ml-2">(Str: {teamBStrength})</span>
                                                 </div>
-                                                <div className="text-xs text-blue-400 mb-1">Strength {teamBStrength}</div>
                                                 <input
                                                     type="number"
                                                     placeholder="0"
-                                                    className={`w-16 h-12 text-2xl font-bold text-white bg-gray-600 border ${matchIncomplete ? 'border-yellow-600' : 'border-gray-500'} rounded text-center focus:outline-none focus:border-blue-500 mb-2`}
+                                                    className={`w-16 h-12 text-2xl font-bold text-white bg-gray-600 border ${matchIncomplete ? 'border-yellow-600' : 'border-gray-500'} rounded text-center focus:outline-none focus:border-blue-500`}
                                                     value={scores[i]?.b || ""}
                                                     onChange={(e) => handleScoreChange(i, 'b', e.target.value)}
                                                 />
-                                                {teamB.length > 1 && (
-                                                    <div className="space-y-1">
-                                                        {teamB.map((player, idx) => (
-                                                            <div
-                                                                key={idx}
-                                                                className={`text-xs rounded px-2 py-1 cursor-pointer transition-colors ${mvpVotes[i] === player.name
-                                                                    ? 'bg-yellow-600 text-yellow-100'
-                                                                    : 'text-gray-400 bg-gray-600 hover:bg-gray-500 hover:text-white'
-                                                                    }`}
-                                                                onClick={() => handleMvpChange(i, mvpVotes[i] === player.name ? "" : player.name)}
-                                                            >
-                                                                {player.name}
-                                                                {mvpVotes[i] === player.name && <span className="ml-1">👑</span>}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
 
+                                        {/* MVP section and controls below the teams */}
                                         <div className="mt-4 pt-3 border-t border-gray-600">
-                                            {teamA.length === 1 && teamB.length === 1 ? (
-                                                <div className="flex items-center justify-center space-x-3 mb-3">
-                                                    <label className="text-xs text-gray-400">MVP:</label>
-                                                    {(() => {
+                                            {/* MVP selection */}
+                                            <div className="flex items-center justify-center space-x-3 mb-3">
+                                                <label className="text-xs text-gray-400">MVP:</label>
+                                                {teamA.length === 1 && teamB.length === 1 ? (
+                                                    // 1v1 MVP logic
+                                                    (() => {
                                                         const playerA = teamA[0];
                                                         const playerB = teamB[0];
                                                         const ovrA = playerOVRs[playerA.name] || computeRating1to10(playerA);
@@ -1353,6 +1322,7 @@ export default function TeamsTab({
                                                         const scoreA = parseInt(scores[i]?.a) || 0;
                                                         const scoreB = parseInt(scores[i]?.b) || 0;
 
+                                                        // Determine MVP eligibility based purely on OVR difference
                                                         let eligibleMvp = null;
                                                         let eligibilityMessage = "";
 
@@ -1361,6 +1331,7 @@ export default function TeamsTab({
                                                         if (ovrDifference <= 1) {
                                                             eligibilityMessage = "Neither player eligible for MVP (OVR within 1 point)";
                                                         } else {
+                                                            // The lower-rated player is eligible for MVP if they win
                                                             if (ovrA < ovrB) {
                                                                 eligibleMvp = playerA.name;
                                                                 eligibilityMessage = `${playerA.name} eligible for MVP if wins (${ovrA.toFixed(1)} vs ${ovrB.toFixed(1)})`;
@@ -1370,6 +1341,7 @@ export default function TeamsTab({
                                                             }
                                                         }
 
+                                                        // Only auto-set MVP if eligible player actually wins
                                                         if (eligibleMvp && scoreA && scoreB && scoreA !== scoreB) {
                                                             const eligiblePlayerWon =
                                                                 (eligibleMvp === playerA.name && scoreA > scoreB) ||
@@ -1392,21 +1364,25 @@ export default function TeamsTab({
                                                                 </div>
                                                             </div>
                                                         );
-                                                    })()}
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center justify-center space-x-3 mb-3">
-                                                    <label className="text-xs text-gray-400">MVP:</label>
-                                                    <div className="text-xs text-gray-400">
-                                                        {mvpVotes[i] ? (
-                                                            <span className="text-yellow-400">{mvpVotes[i]} 👑</span>
-                                                        ) : (
-                                                            "Click a player's name to assign MVP"
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
+                                                    })()
+                                                ) : (
+                                                    // Regular multi-player MVP selection
+                                                    <StyledSelect
+                                                        value={mvpVotes[i] || ""}
+                                                        onChange={(e) => handleMvpChange(i, e.target.value)}
+                                                        className="flex-grow"
+                                                    >
+                                                        <option value="">-- Select MVP --</option>
+                                                        {[...teamA, ...teamB].map((p) => (
+                                                            <option key={p.name} value={p.name}>
+                                                                {p.name}
+                                                            </option>
+                                                        ))}
+                                                    </StyledSelect>
+                                                )}
+                                            </div>
 
+                                            {/* Date/Time Input */}
                                             <div className="flex items-center justify-center space-x-3 mb-3">
                                                 <label className="text-xs text-gray-400">Match Date:</label>
                                                 <input
@@ -1423,6 +1399,7 @@ export default function TeamsTab({
                                                 })()}
                                             </div>
 
+                                            {/* Save button centered */}
                                             <div className="flex justify-center">
                                                 <button
                                                     onClick={() => saveMatchResults(i, matchDateTime)}
@@ -1437,6 +1414,14 @@ export default function TeamsTab({
                             </div>
                         );
                     })}
+
+                    {unsavedChanges && (
+                        <div className="bg-yellow-800 bg-opacity-20 border border-yellow-700 rounded p-3 mt-2">
+                            <p className="text-yellow-400 text-sm">
+                                Make sure to save match results before leaving this tab or generating new teams.
+                            </p>
+                        </div>
+                    )}
                 </div>
             )}
 
