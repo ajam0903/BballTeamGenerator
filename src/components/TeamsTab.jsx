@@ -44,6 +44,14 @@ export default function TeamsTab({
     prepareDataForFirestore,
     setHasPendingMatchups,
     getUserPlayerPreference,
+    isFirstRound,
+    setIsFirstRound,
+    tournamentResults,
+    setTournamentResults,
+    showTournamentComplete,
+    setShowTournamentComplete,
+    waitingTeam,
+    setWaitingTeam,
 }) {
     const getActivePlayersForUser = () => {
         return players.filter(p => p.active);  // Use global active
@@ -61,6 +69,9 @@ export default function TeamsTab({
     const [recentlyActivated, setRecentlyActivated] = useState(new Set());
     const playerListRef = useRef(null);
     const [matchDateTime, setMatchDateTime] = useState(new Date().toISOString().slice(0, 16));
+    const [showMatchupSelector, setShowMatchupSelector] = useState(false);
+    const [availableTeamsForMatchup, setAvailableTeamsForMatchup] = useState([]);
+    const [selectedMatchupTeams, setSelectedMatchupTeams] = useState([]);
 
 
     const validateMatchDate = (dateString) => {
@@ -749,19 +760,104 @@ export default function TeamsTab({
             }
         }
 
-        // Create matchups from the manual teams
-        const newMatchups = [];
-        for (let i = 0; i < manualTeams.length - 1; i += 2) {
-            newMatchups.push([manualTeams[i], manualTeams[i + 1] || []]);
+        // Check if we have an odd number of teams
+        const validTeams = manualTeams.filter(team => team.length > 0);
+
+        if (validTeams.length % 2 !== 0 && validTeams.length >= 3) {
+            // Odd number of teams - show matchup selector
+            setAvailableTeamsForMatchup(validTeams);
+            setShowMatchupSelector(true);
+            return;
         }
 
-        setTeams(manualTeams);
+        // Even number of teams - proceed normally
+        proceedWithMatchupCreation(validTeams);
+    };
+
+    const proceedWithMatchupCreation = (teamsToUse) => {
+        const newMatchups = [];
+        for (let i = 0; i < teamsToUse.length - 1; i += 2) {
+            newMatchups.push([teamsToUse[i], teamsToUse[i + 1] || []]);
+        }
+
+        setTeams(teamsToUse);
         setMatchups(newMatchups);
         setMvpVotes(Array(newMatchups.length).fill(""));
         setScores(Array(newMatchups.length).fill({ a: "", b: "" }));
         setShowTeamSelector(false);
+        setShowMatchupSelector(false);
         setHasGeneratedTeams(true);
         setTeamGenerationMethod('custom');
+        setIsFirstRound(false);
+        setWaitingTeam(null);
+    };
+
+    const createFirstRoundMatchup = () => {
+        if (selectedMatchupTeams.length !== 2) return;
+
+        // Find the waiting team
+        const waiting = availableTeamsForMatchup.find(team =>
+            !selectedMatchupTeams.includes(team)
+        );
+
+        // Create first matchup with selected teams
+        const firstMatchup = [selectedMatchupTeams[0], selectedMatchupTeams[1]];
+
+        setTeams(availableTeamsForMatchup);
+        setMatchups([firstMatchup]);
+        setMvpVotes([""]);
+        setScores([{ a: "", b: "" }]);
+        setShowTeamSelector(false);
+        setShowMatchupSelector(false);
+        setHasGeneratedTeams(true);
+        setTeamGenerationMethod('custom');
+        setIsFirstRound(true);
+        setWaitingTeam(waiting);
+
+        const waitingTeamName = waiting.length === 1 ? waiting[0]?.name : getTeamName(waiting, calculatePlayerScore || computeRating1to10);
+        setToastMessage(`${waitingTeamName} will play the winner of this match!`);
+        setTimeout(() => setToastMessage(""), 5000);
+    };
+
+    // Function to create the next round with the winner
+    const createNextRoundWithWinner = (winnerTeam, waitingTeam) => {
+        const nextRoundMatchup = [winnerTeam, waitingTeam];
+
+        setMatchups([nextRoundMatchup]);
+        setMvpVotes([""]);
+        setScores([{ a: "", b: "" }]);
+
+        setToastMessage("Championship match created!");
+        setTimeout(() => setToastMessage(""), 3000);
+    };
+
+    const createChampionshipMatch = (winnerTeamIndex) => {
+        const winnerTeam = matchups[0][winnerTeamIndex];
+        const loserTeam = matchups[0][winnerTeamIndex === 0 ? 1 : 0];
+
+        // Store the first round result
+        const firstRoundResult = {
+            round: "Semi-Final",
+            teamA: matchups[0][0],
+            teamB: matchups[0][1],
+            scoreA: scores[0].a,
+            scoreB: scores[0].b,
+            mvp: mvpVotes[0] || "",
+            winner: winnerTeam
+        };
+
+        setTournamentResults([firstRoundResult]);
+
+        const championshipMatchup = [winnerTeam, waitingTeam];
+
+        setMatchups([championshipMatchup]);
+        setMvpVotes([""]);
+        setScores([{ a: "", b: "" }]);
+        setIsFirstRound(false);
+
+        const waitingTeamName = waitingTeam.length === 1 ? waitingTeam[0]?.name : getTeamName(waitingTeam, calculatePlayerScore || computeRating1to10);
+        setToastMessage(`Championship match: ${getTeamName(winnerTeam)} vs ${waitingTeamName}`);
+        setTimeout(() => setToastMessage(""), 3000);
     };
 
     // Check if an active player is not assigned to any team
@@ -1081,6 +1177,85 @@ export default function TeamsTab({
                         })}
                     </div>
 
+                    {/* Matchup Selector for Uneven Teams */}
+                    {showMatchupSelector && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                            <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-bold text-white">Choose First Matchup</h3>
+                                    <button
+                                        onClick={() => {
+                                            setShowMatchupSelector(false);
+                                            setSelectedMatchupTeams([]);
+                                        }}
+                                        className="text-gray-400 hover:text-white"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+
+                                <p className="text-gray-300 text-sm mb-4">
+                                    You have {availableTeamsForMatchup.length} teams. Select 2 teams to play first.
+                                    The winner will advance to play the remaining team.
+                                </p>
+
+                                <div className="space-y-3 mb-6">
+                                    {availableTeamsForMatchup.map((team, index) => {
+                                        const teamName = team.length === 1 ? team[0]?.name : getTeamName(team, calculatePlayerScore || computeRating1to10);
+                                        const teamStrength = calculateTeamStrength(team).toFixed(1);
+                                        const isSelected = selectedMatchupTeams.includes(team);
+
+                                        return (
+                                            <div
+                                                key={index}
+                                                onClick={() => {
+                                                    if (isSelected) {
+                                                        setSelectedMatchupTeams(prev => prev.filter(t => t !== team));
+                                                    } else if (selectedMatchupTeams.length < 2) {
+                                                        setSelectedMatchupTeams(prev => [...prev, team]);
+                                                    }
+                                                }}
+                                                className={`p-3 rounded-lg border cursor-pointer transition-colors ${isSelected
+                                                        ? 'border-blue-500 bg-blue-900 bg-opacity-30'
+                                                        : 'border-gray-600 bg-gray-700 hover:bg-gray-600'
+                                                    }`}
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <div className="text-white font-medium">{teamName}</div>
+                                                        <div className="text-xs text-blue-400">Strength: {teamStrength}</div>
+                                                        <div className="text-xs text-gray-400">
+                                                            Players: {team.map(p => p.name).join(', ')}
+                                                        </div>
+                                                    </div>
+                                                    {isSelected && (
+                                                        <div className="text-blue-400 font-bold">✓</div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="text-center">
+                                    <div className="text-xs text-gray-400 mb-3">
+                                        Selected: {selectedMatchupTeams.length}/2 teams
+                                    </div>
+                                    <button
+                                        onClick={createFirstRoundMatchup}
+                                        disabled={selectedMatchupTeams.length !== 2}
+                                        className={`px-4 py-2 rounded-lg transition-colors ${selectedMatchupTeams.length === 2
+                                                ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                                                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                            }`}
+                                    >
+                                        Create First Round Matchup
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Available players section */}
                     <div className="mt-4">
                         <h4 className="text-sm font-medium text-gray-300 mb-2">Available Players</h4>
@@ -1174,7 +1349,10 @@ export default function TeamsTab({
                                     : "text-gray-500 bg-gray-700 cursor-not-allowed opacity-60"
                                     }`}
                             >
-                                Create Matchups
+                                {manualTeams.filter(team => team.length > 0).length % 2 !== 0
+                                    ? "Setup Tournament"
+                                    : "Create Matchups"
+                                }
                             </button>
                         </div>
                     </div>
@@ -1423,14 +1601,16 @@ export default function TeamsTab({
                                                 })()}
                                             </div>
 
-                                            <div className="flex justify-center">
-                                                <button
-                                                    onClick={() => saveMatchResults(i, matchDateTime)}
-                                                    className="px-4 py-2 text-sm text-white bg-green-600 rounded-md hover:bg-green-500 font-medium transition-colors"
-                                                >
-                                                    Save Result
-                                                </button>
-                                            </div>
+                                                {/* Save button */}
+                                                <div className="flex justify-center">
+                                                    <button
+                                                        onClick={() => saveMatchResults(i, matchDateTime)}
+                                                        className="px-4 py-2 text-sm text-white bg-green-600 rounded-md hover:bg-green-500 font-medium transition-colors"
+                                                    >
+                                                        {isFirstRound && waitingTeam ? "Save & Advance" : "Save Result"}
+                                                    </button>
+                                                </div>
+
                                         </div>
                                     </div>
                                 )}

@@ -122,11 +122,6 @@ export default function App() {
     const [enhancedPlayers, setEnhancedPlayers] = useState([]);
     const [minGamesFilter, setMinGamesFilter] = useState(0);
     const [userPlayerPreferences, setUserPlayerPreferences] = useState({});
-    const [waitingTeam, setWaitingTeam] = useState(null);
-    const [isFirstRound, setIsFirstRound] = useState(false);
-    const [tournamentResults, setTournamentResults] = useState([]);
-    const [showTournamentComplete, setShowTournamentComplete] = useState(false);
-    const [currentRematchTeams, setCurrentRematchTeams] = useState(null);
 
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -843,24 +838,22 @@ export default function App() {
             return (score && score.a && score.b) ? idx : null;
         }).filter(idx => idx !== null);
 
-        // Only show match results modal if there are multiple completed matches
-        if (completedMatchIndices.length > 1) {
-            // Prepare ALL completed match results for the celebration modal
-            const matchResultsToShow = completedMatchIndices.map(idx => {
-                return {
-                    teams: matchups[idx],
-                    score: scores[idx],
-                    mvp: mvpVotes[idx] || "",
-                    date: new Date().toISOString()
-                };
-            });
+        // Prepare ALL completed match results for the celebration modal
+        const matchResultsToShow = completedMatchIndices.map(idx => {
+            return {
+                teams: matchups[idx],
+                score: scores[idx],
+                mvp: mvpVotes[idx] || "",
+                date: new Date().toISOString()
+            };
+        });
 
-            // Save completed matches to show in the modal
-            setCompletedMatchResults(matchResultsToShow);
+        // Save completed matches to show in the modal
+        setCompletedMatchResults(matchResultsToShow);
 
-            // Show the match results modal
-            setShowMatchResultsModal(true);
-        }
+        // Show the match results modal
+        setShowMatchResultsModal(true);
+
         // If we have any completed matches, we want to archive just those
         if (completedMatchIndices.length > 0) {
             // First, archive the completed matches to match history
@@ -1133,7 +1126,7 @@ export default function App() {
 
     const handleRematchYes = async () => {
         // Create a new match with the same teams
-        const newMatchup = [currentRematchTeams]; // Use the teams that triggered the rematch
+        const newMatchup = [matchups[matchups.length - 1]]; // Copy the last matchup
         const newScore = [{ a: "", b: "" }];
         const newMvpVote = [""];
 
@@ -1143,7 +1136,6 @@ export default function App() {
         setMvpVotes([...mvpVotes, ...newMvpVote]);
 
         setShowRematchPrompt(false);
-        setCurrentRematchTeams(null); // Clear the rematch teams
 
         // Save to Firestore
         const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
@@ -2877,79 +2869,21 @@ export default function App() {
             // Calculate leaderboard updates from this match only AFTER saving
             await calculateMatchLeaderboard(matchIndex);
 
-            // Tournament logic
-            if (isFirstRound && waitingTeam) {
-                // This is the first round - automatically create championship match
-                const teamAScore = parseInt(scores[matchIndex].a) || 0;
-                const teamBScore = parseInt(scores[matchIndex].b) || 0;
-                const winnerTeam = teamAScore > teamBScore ? matchups[matchIndex][0] : matchups[matchIndex][1];
-                const loserTeam = teamAScore > teamBScore ? matchups[matchIndex][1] : matchups[matchIndex][0];
+            // Check for rematch prompt logic...
+            const currentMatchupTeams = JSON.stringify(matchups[matchIndex].map(team => team.map(p => p.name).sort()));
+            const allMatchesForTheseTeams = matchups
+                .map((matchup, idx) => ({
+                    index: idx,
+                    teams: JSON.stringify(matchup.map(team => team.map(p => p.name).sort()))
+                }))
+                .filter(m => m.teams === currentMatchupTeams);
 
-                // Store the first round result
-                const firstRoundResult = {
-                    round: "Semi-Final",
-                    teamA: matchups[matchIndex][0],
-                    teamB: matchups[matchIndex][1],
-                    scoreA: scores[matchIndex].a,
-                    scoreB: scores[matchIndex].b,
-                    mvp: mvpVotes[matchIndex] || "",
-                    winner: winnerTeam
-                };
+            const allMatchesCompleted = allMatchesForTheseTeams.every(m =>
+                updatedScores[m.index]?.processed
+            );
 
-                setTournamentResults([firstRoundResult]);
-
-                // Create championship matchup
-                const championshipMatchup = [winnerTeam, waitingTeam];
-
-                setMatchups([championshipMatchup]);
-                setMvpVotes([""]);
-                setScores([{ a: "", b: "" }]);
-                setIsFirstRound(false);
-
-                const waitingTeamName = waitingTeam.length === 1 ? waitingTeam[0]?.name : getTeamName(waitingTeam, calculatePlayerScore || computeRating1to10);
-                const winnerTeamName = winnerTeam.length === 1 ? winnerTeam[0]?.name : getTeamName(winnerTeam, calculatePlayerScore || computeRating1to10);
-
-                setToastMessage(`Championship match: ${winnerTeamName} vs ${waitingTeamName}!`);
-                setTimeout(() => setToastMessage(""), 5000);
-
-            } else if (!isFirstRound && tournamentResults.length > 0) {
-                // This is the championship match
-                const championshipResult = {
-                    round: "Championship",
-                    teamA: matchups[matchIndex][0],
-                    teamB: matchups[matchIndex][1],
-                    scoreA: scores[matchIndex].a,
-                    scoreB: scores[matchIndex].b,
-                    mvp: mvpVotes[matchIndex] || "",
-                    winner: scores[matchIndex].a > scores[matchIndex].b ? matchups[matchIndex][0] : matchups[matchIndex][1]
-                };
-
-                setTournamentResults(prev => [...prev, championshipResult]);
-                setShowTournamentComplete(true);
-                setToastMessage("🏆 Tournament Complete!");
-                setTimeout(() => setToastMessage(""), 3000);
-
-            } else {
-                // Regular match - check for rematch logic
-                const currentMatchupTeams = JSON.stringify(matchups[matchIndex].map(team => team.map(p => p.name).sort()));
-                const allMatchesForTheseTeams = matchups
-                    .map((matchup, idx) => ({
-                        index: idx,
-                        teams: JSON.stringify(matchup.map(team => team.map(p => p.name).sort()))
-                    }))
-                    .filter(m => m.teams === currentMatchupTeams);
-
-                const allMatchesCompleted = allMatchesForTheseTeams.every(m =>
-                    updatedScores[m.index]?.processed
-                );
-
-                if (allMatchesCompleted) {
-                    setCurrentRematchTeams(matchups[matchIndex]);
-                    setShowRematchPrompt(true);
-                }
-
-                setToastMessage("✅ Match result saved!");
-                setTimeout(() => setToastMessage(""), 3000);
+            if (allMatchesCompleted) {
+                setShowRematchPrompt(true);
             }
 
             // Log the activity
@@ -2978,44 +2912,14 @@ export default function App() {
                 true
             );
 
+            setToastMessage("✅ Match result saved!");
+            setTimeout(() => setToastMessage(""), 3000);
+
         } catch (error) {
             console.error("Error saving match result:", error);
             setToastMessage("❌ Error saving match result");
             setTimeout(() => setToastMessage(""), 3000);
         }
-    };
-
-    const getTeamName = (team, calculatePlayerScoreFn = null) => {
-        if (!team || team.length === 0) return "Team";
-
-        // For 1v1 matches, just return the player's name directly
-        if (team.length === 1) {
-            return team[0].name || "Player";
-        }
-
-        // For multi-player teams, find the best player
-        const scoreFn = calculatePlayerScoreFn || calculatePlayerScore;
-        const bestPlayer = team.reduce((best, current) => {
-            try {
-                const bestScore = scoreFn(best);
-                const currentScore = scoreFn(current);
-                return currentScore > bestScore ? current : best;
-            } catch (e) {
-                console.error("Error calculating player score:", e);
-                return best;
-            }
-        }, team[0]);
-
-        if (!bestPlayer) return "Team";
-
-        // Format the player name (capitalize first letter of each word)
-        const formatName = (name) => {
-            return name.split(' ').map(word =>
-                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-            ).join(' ');
-        };
-
-        return formatName(bestPlayer.name);
     };
 
     // Function to copy invite code to clipboard
@@ -3197,90 +3101,6 @@ export default function App() {
                     )}
                 </div>
 
-                {/* Tournament Complete Modal */}
-                {showTournamentComplete && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-xl font-bold text-white">🏆 Tournament Complete!</h3>
-                                <button
-                                    onClick={() => {
-                                        setShowTournamentComplete(false);
-                                        setTournamentResults([]);
-                                        setWaitingTeam(null);
-                                        setIsFirstRound(false);
-                                    }}
-                                    className="text-gray-400 hover:text-white"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-
-                            <div className="space-y-4">
-                                {tournamentResults.map((result, index) => {
-                                    const teamAName = result.teamA.length === 1 ? result.teamA[0]?.name : `Team ${getTeamName(result.teamA)}`;
-                                    const teamBName = result.teamB.length === 1 ? result.teamB[0]?.name : `Team ${getTeamName(result.teamB)}`;
-                                    const winnerName = result.winner.length === 1 ? result.winner[0]?.name : `Team ${getTeamName(result.winner)}`;
-
-                                    return (
-                                        <div key={index} className="bg-gray-700 rounded-lg p-4">
-                                            <div className="text-center mb-3">
-                                                <h4 className="text-lg font-semibold text-white">{result.round}</h4>
-                                            </div>
-
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="text-center flex-1">
-                                                    <div className="text-sm text-gray-300">{teamAName}</div>
-                                                    <div className="text-2xl font-bold text-white">{result.scoreA}</div>
-                                                </div>
-
-                                                <div className="text-gray-500 font-medium px-4">VS</div>
-
-                                                <div className="text-center flex-1">
-                                                    <div className="text-sm text-gray-300">{teamBName}</div>
-                                                    <div className="text-2xl font-bold text-white">{result.scoreB}</div>
-                                                </div>
-                                            </div>
-
-                                            <div className="text-center">
-                                                <div className="text-green-400 font-semibold">Winner: {winnerName}</div>
-                                                {result.mvp && (
-                                                    <div className="text-yellow-400 text-sm mt-1">MVP: {result.mvp} 👑</div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            <div className="mt-6 text-center">
-                                <div className="text-2xl font-bold text-yellow-400 mb-2">
-                                    🏆 Champion: {tournamentResults[tournamentResults.length - 1]?.winner.length === 1
-                                        ? tournamentResults[tournamentResults.length - 1]?.winner[0]?.name
-                                        : `Team ${getTeamName(tournamentResults[tournamentResults.length - 1]?.winner)}`}
-                                </div>
-                                <button
-                                    onClick={() => {
-                                        setShowTournamentComplete(false);
-                                        setTournamentResults([]);
-                                        setWaitingTeam(null);
-                                        setIsFirstRound(false);
-                                        // Reset to team selection
-                                        setHasGeneratedTeams(false);
-                                        setMatchups([]);
-                                        setTeams([]);
-                                        setScores([]);
-                                        setMvpVotes([]);
-                                    }}
-                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
-                                >
-                                    Start New Tournament
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 {/* Main content area with bottom padding to prevent content being hidden behind nav */}
                 <div className="pb-20">
                     {activeTab === "players" && (
@@ -3324,14 +3144,6 @@ export default function App() {
                                     prepareDataForFirestore={prepareDataForFirestore}
                                     setHasPendingMatchups={setHasPendingMatchups}
                                     getUserPlayerPreference={getUserPlayerPreference}
-                                    isFirstRound={isFirstRound}
-                                    setIsFirstRound={setIsFirstRound}
-                                    tournamentResults={tournamentResults}
-                                    setTournamentResults={setTournamentResults}
-                                    showTournamentComplete={showTournamentComplete}
-                                    setShowTournamentComplete={setShowTournamentComplete}
-                                    waitingTeam={waitingTeam}
-                                    setWaitingTeam={setWaitingTeam}
 
                                 />
                             </ErrorBoundary>
