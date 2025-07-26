@@ -1,23 +1,27 @@
 // playerStatsCalculator.js
+import { isPlayerMatch, getCanonicalName } from '../utils/nameMapping';
 
 // Calculate stats from match history with name consolidation
 export const calculatePlayerStatsFromHistory = (playerName, matchHistory = []) => {
     const stats = { _w: 0, _l: 0, MVPs: 0 };
 
+    // Normalize the player name we're looking for
+    const canonicalPlayerName = getCanonicalName(playerName);
+
     matchHistory.forEach(match => {
-        let teamA = [];  // Add this line
-        let teamB = [];  // Add this line
+        let teamA = [];
+        let teamB = [];
         let scoreA = 0;
         let scoreB = 0;
         let mvp = "";
 
-        // Extract teams and scores depending on the format
+        // Extract teams and normalize names immediately
         if (match.teams && Array.isArray(match.teams)) {
-            teamA = match.teams[0].map(p => p.name);
-            teamB = match.teams[1].map(p => p.name);
+            teamA = match.teams[0].map(p => getCanonicalName(p.name));
+            teamB = match.teams[1].map(p => getCanonicalName(p.name));
         } else if (match.teamA && match.teamB) {
-            teamA = match.teamA.map(p => p.name);
-            teamB = match.teamB.map(p => p.name);
+            teamA = match.teamA.map(p => getCanonicalName(p.name));
+            teamB = match.teamB.map(p => getCanonicalName(p.name));
         }
 
         if (match.score) {
@@ -25,11 +29,11 @@ export const calculatePlayerStatsFromHistory = (playerName, matchHistory = []) =
             scoreB = parseInt(match.score.b) || 0;
         }
 
-        mvp = match.mvp || "";
+        mvp = getCanonicalName(match.mvp || "");
 
-        // Check if player participated
-        const playerInTeamA = teamA.includes(playerName);
-        const playerInTeamB = teamB.includes(playerName);
+        // Check if player participated (now comparing canonical names)
+        const playerInTeamA = teamA.includes(canonicalPlayerName);
+        const playerInTeamB = teamB.includes(canonicalPlayerName);
 
         if (playerInTeamA || playerInTeamB) {
             // Determine if player won
@@ -43,7 +47,7 @@ export const calculatePlayerStatsFromHistory = (playerName, matchHistory = []) =
             }
 
             // Check if player is MVP
-            if (mvp === playerName) {
+            if (mvp === canonicalPlayerName) {
                 stats.MVPs += 1;
             }
         }

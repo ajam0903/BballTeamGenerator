@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { beltCategories } from "./BeltsSystem";
 import BeltVotingModal from "./BeltVotingModal";
 import { StyledButton } from "./UIComponents";
+import { getCanonicalName } from '../utils/nameMapping';
 
 export default function BeltsTab({
     players = [],
@@ -50,12 +51,13 @@ export default function BeltsTab({
     const getBeltVoteBreakdown = (beltId) => {
         const votes = {};
 
-        // Count all votes for this belt
+        // Count all votes for this belt with name normalization
         Object.values(beltVotes).forEach(userVotesObj => {
             const vote = userVotesObj[beltId];
             if (vote) {
-                // Just use the vote directly
-                votes[vote] = (votes[vote] || 0) + 1;
+                // Normalize the player name before counting
+                const canonicalName = getCanonicalName(vote);
+                votes[canonicalName] = (votes[canonicalName] || 0) + 1;
             }
         });
 

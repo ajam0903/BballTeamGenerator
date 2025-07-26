@@ -4,6 +4,7 @@ import AdminNotifications from './AdminNotifications';
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { doc, getDoc, setDoc, collection, getDocs, query, where } from "firebase/firestore";
+import PlayerNameRecoveryTool from './PlayerNameRecoveryTool';
 
 export default function UserMenu({
     user,
@@ -297,6 +298,30 @@ export default function UserMenu({
                     )}
 
                     {/* Preferences Section - Only for Admins */}
+                    {isAdmin && (
+                        <button
+                            onClick={recalculateLeaderboardFromHistory}
+                            className="block px-4 py-2 text-sm text-white hover:bg-gray-700 w-full text-left"
+                        >
+                            Recalculate All Stats
+                        </button>
+                    )}
+                    {isAdmin && (
+                        <PlayerNameRecoveryTool
+                            currentLeagueId={currentLeagueId}
+                            db={db}
+                            isAdmin={isAdmin}
+                        />
+                    )}
+
+                    {isAdmin && (
+                        <button
+                            onClick={() => migrateBeltVotes(db, currentLeagueId, currentSet)}
+                            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded mt-2"
+                        >
+                            Migrate Belt Votes (One-Time)
+                        </button>
+                    )}
 
                     {isAdmin && (
                         <>

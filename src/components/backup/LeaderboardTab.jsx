@@ -1,6 +1,7 @@
 ﻿// Updated LeaderboardTab.jsx with just number values for abilities
 import React, { useState, useEffect } from "react";
 import { StyledButton, StyledInput } from "./UIComponents";
+import { isPlayerMatch, nameVariations, getCanonicalName } from '../utils/nameMapping';
 
 
 
@@ -153,12 +154,12 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
 
             if (match.teams && Array.isArray(match.teams) && match.teams.length >= 2) {
                 // App format: teams[0] and teams[1] - NORMALIZE NAMES
-                teamA = match.teams[0].map(p => p.name);
-                teamB = match.teams[1].map(p => p.name);
+                teamA = match.teams[0].map(p => getCanonicalName(p.name));
+                teamB = match.teams[1].map(p => getCanonicalName(p.name));
             } else if (match.teamA && match.teamB) {
                 // Firestore format: teamA and teamB - NORMALIZE NAMES
-                teamA = match.teamA.map(p => p.name);
-                teamB = match.teamB.map(p => p.name);
+                teamA = match.teamA.map(p => getCanonicalName(p.name));
+                teamB = match.teamB.map(p => getCanonicalName(p.name));
             } else {
                 // Skip if no valid team data
                 continue;
@@ -177,7 +178,7 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                     (playerTeam === 'B' && scoreB > scoreA);
 
                 // Check if player is MVP
-                const normalizedMvp = match.mvp || '';
+                const normalizedMvp = getCanonicalName(match.mvp || '');
                 const isMVP = normalizedMvp === playerName;
 
                 playerGames.push({ won, isMVP });
@@ -373,12 +374,13 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
             let scoreB = 0;
             let mvp = "";
 
+            // Extract teams and scores depending on the format - USE getCanonicalName
             if (match.teams && Array.isArray(match.teams)) {
-                teamA = match.teams[0].map(p => p.name);
-                teamB = match.teams[1].map(p => p.name);
+                teamA = match.teams[0].map(p => getCanonicalName(p.name));
+                teamB = match.teams[1].map(p => getCanonicalName(p.name));
             } else if (match.teamA && match.teamB) {
-                teamA = match.teamA.map(p => p.name);
-                teamB = match.teamB.map(p => p.name);
+                teamA = match.teamA.map(p => getCanonicalName(p.name));
+                teamB = match.teamB.map(p => getCanonicalName(p.name));
             }
 
             if (match.score) {
@@ -386,7 +388,7 @@ export default function LeaderboardTab({ leaderboard, resetLeaderboardData, isAd
                 scoreB = parseInt(match.score.b) || 0;
             }
 
-            mvp = match.mvp || "";
+            mvp = getCanonicalName(match.mvp || "");
 
             // Initialize ALL players in this match
             [...teamA, ...teamB].forEach(playerName => {

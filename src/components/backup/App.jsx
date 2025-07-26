@@ -42,6 +42,7 @@ import LeagueSelector from "./components/LeagueSelector";
 import PlayerNameMatcher from './components/PlayerNameMatcher';
 import AdminNotifications from './components/AdminNotifications';
 import PlayerCardClaimModal from './components/PlayerCardClaimModal';
+import { getCanonicalName } from './utils/nameMapping';
 
 // This helps hide the default scrollbar while maintaining scroll functionality
 const scrollbarHideStyles = `
@@ -2058,6 +2059,170 @@ export default function App() {
             }
         }
     };
+
+    const recalculateLeaderboardFromHistory = async () => {
+        if (!currentLeagueId || !matchHistory || matchHistory.length === 0) {
+            setToastMessage("No match history to recalculate from");
+            return;
+        }
+
+        console.log("=== STARTING LEADERBOARD RECALCULATION ===");
+
+        // First, show current leaderboard state
+        console.log("\n=== CURRENT LEADERBOARD (BEFORE) ===");
+        Object.entries(leaderboard || {}).forEach(([name, stats]) => {
+            if (name.toLowerCase().includes('hus') || name.toLowerCase().includes('shahzad')) {
+                console.log(`"${name}": W=${stats._w}, L=${stats._l}, MVP=${stats.MVPs || stats.mvps || 0}`);
+            }
+        });
+
+        // Show all unique names and mappings
+        const allNames = new Set();
+        matchHistory.forEach((match) => {
+            let players = [];
+            if (Array.isArray(match.teams) && match.teams.length >= 2) {
+                players = [
+                    ...match.teams[0].map(p => typeof p === 'string' ? p : p.name),
+                    ...match.teams[1].map(p => typeof p === 'string' ? p : p.name)
+                ];
+            } else if (match.teamA && match.teamB) {
+                players = [
+                    ...match.teamA.map(p => typeof p === 'string' ? p : p.name),
+                    ...match.teamB.map(p => typeof p === 'string' ? p : p.name)
+                ];
+            }
+            if (match.mvp) players.push(match.mvp);
+            players.forEach(name => { if (name) allNames.add(name); });
+        });
+
+        console.log("\n=== NAME MAPPING PREVIEW ===");
+        Array.from(allNames).sort().forEach(name => {
+            if (name.toLowerCase().includes('hus') || name.toLowerCase().includes('shahzad')) {
+                const mapped = getCanonicalName(name);
+                console.log(`"${name}" → "${mapped}" ${name === mapped ? '❌ NOT MAPPED' : '✅ MAPPED'}`);
+            }
+        });
+
+        const newLeaderboard = {};
+
+        console.log("\n=== PROCESSING MATCHES ===");
+
+        // Process EVERY match in history
+        matchHistory.forEach((match, index) => {
+            let teamA = [];
+            let teamB = [];
+            let scoreA = 0;
+            let scoreB = 0;
+            let mvp = "";
+
+            // Handle different match formats - normalize names immediately
+            if (Array.isArray(match.teams) && match.teams.length >= 2) {
+                teamA = match.teams[0].map(p => {
+                    const name = typeof p === 'string' ? p : p.name;
+                    const canonical = getCanonicalName(name);
+                    if (name !== canonical && (name.toLowerCase().includes('hus') || name.toLowerCase().includes('shahzad'))) {
+                        console.log(`Match ${index}: Mapping "${name}" → "${canonical}"`);
+                    }
+                    return canonical;
+                });
+                teamB = match.teams[1].map(p => {
+                    const name = typeof p === 'string' ? p : p.name;
+                    const canonical = getCanonicalName(name);
+                    if (name !== canonical && (name.toLowerCase().includes('hus') || name.toLowerCase().includes('shahzad'))) {
+                        console.log(`Match ${index}: Mapping "${name}" → "${canonical}"`);
+                    }
+                    return canonical;
+                });
+            } else if (match.teamA && match.teamB) {
+                teamA = match.teamA.map(p => {
+                    const name = typeof p === 'string' ? p : p.name;
+                    const canonical = getCanonicalName(name);
+                    if (name !== canonical && (name.toLowerCase().includes('hus') || name.toLowerCase().includes('shahzad'))) {
+                        console.log(`Match ${index}: Mapping "${name}" → "${canonical}"`);
+                    }
+                    return canonical;
+                });
+                teamB = match.teamB.map(p => {
+                    const name = typeof p === 'string' ? p : p.name;
+                    const canonical = getCanonicalName(name);
+                    if (name !== canonical && (name.toLowerCase().includes('hus') || name.toLowerCase().includes('shahzad'))) {
+                        console.log(`Match ${index}: Mapping "${name}" → "${canonical}"`);
+                    }
+                    return canonical;
+                });
+            }
+
+            if (match.score) {
+                scoreA = parseInt(match.score.a) || 0;
+                scoreB = parseInt(match.score.b) || 0;
+            }
+
+            // Normalize MVP name
+            const originalMvp = match.mvp || "";
+            mvp = getCanonicalName(originalMvp);
+            if (originalMvp && originalMvp !== mvp && (originalMvp.toLowerCase().includes('hus') || originalMvp.toLowerCase().includes('shahzad'))) {
+                console.log(`Match ${index}: MVP mapping "${originalMvp}" → "${mvp}"`);
+            }
+
+            // Initialize ALL players in this match (now using canonical names)
+            [...teamA, ...teamB].forEach(playerName => {
+                if (playerName && !newLeaderboard[playerName]) {
+                    newLeaderboard[playerName] = { _w: 0, _l: 0, MVPs: 0 };
+                }
+            });
+
+            // Process winners and losers
+            if (scoreA !== scoreB) {
+                const winners = scoreA > scoreB ? teamA : teamB;
+                const losers = scoreA > scoreB ? teamB : teamA;
+
+                winners.forEach(playerName => {
+                    if (playerName && newLeaderboard[playerName]) {
+                        newLeaderboard[playerName]._w += 1;
+                    }
+                });
+
+                losers.forEach(playerName => {
+                    if (playerName && newLeaderboard[playerName]) {
+                        newLeaderboard[playerName]._l += 1;
+                    }
+                });
+            }
+
+            // Award MVP (now using canonical name)
+            if (mvp && newLeaderboard[mvp]) {
+                newLeaderboard[mvp].MVPs += 1;
+            }
+        });
+
+        // Show final results
+        console.log("\n=== NEW LEADERBOARD (AFTER) ===");
+        Object.entries(newLeaderboard).forEach(([name, stats]) => {
+            if (name.toLowerCase().includes('hus') || name.toLowerCase().includes('shahzad')) {
+                console.log(`"${name}": W=${stats._w}, L=${stats._l}, MVP=${stats.MVPs}`);
+            }
+        });
+
+        console.log("\n=== SUMMARY ===");
+        console.log("Players in new leaderboard:", Object.keys(newLeaderboard).length);
+        console.log("Players in old leaderboard:", Object.keys(leaderboard || {}).length);
+
+        // Save to Firestore
+        const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            await firestoreSetDoc(docRef, {
+                ...data,
+                leaderboard: newLeaderboard
+            });
+            setLeaderboard(newLeaderboard);
+            setToastMessage("✅ Leaderboard recalculated from match history!");
+            setTimeout(() => setToastMessage(""), 3000);
+        }
+    };
+
     useEffect(() => {
         if (!currentLeagueId) return;
 
@@ -2924,6 +3089,8 @@ export default function App() {
         }
 
         try {
+            // Normalize the player name before saving
+            const canonicalName = getCanonicalName(playerName);
 
             const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
             const docSnap = await getDoc(docRef);
@@ -2937,7 +3104,7 @@ export default function App() {
                     ...currentVotes,
                     [user.uid]: {
                         ...(currentVotes[user.uid] || {}),
-                        [beltId]: playerName
+                        [beltId]: canonicalName  // Use canonical name here
                     }
                 };
 
@@ -2997,6 +3164,7 @@ export default function App() {
                             onPlayerClaimRequest={handlePlayerClaimRequest}
                             minGamesFilter={minGamesFilter}
                             onMinGamesFilterChange={handleMinGamesFilterChange}
+                            recalculateLeaderboardFromHistory={recalculateLeaderboardFromHistory}
                         />
                     </div>
  {user && currentLeague && (

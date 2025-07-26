@@ -1,4 +1,4 @@
-
+import { getCanonicalName } from '../utils/nameMapping';
 
 export const beltCategories = {
     // Negative belts
@@ -96,10 +96,12 @@ export const calculateBeltStandings = (allVotes, currentBeltHolders = {}) => {
             }
 
             // Normalize the player name before counting
-            if (!beltVotes[beltId][playerName]) {
-                beltVotes[beltId][playerName] = 0;
+            const canonicalName = getCanonicalName(playerName);
+
+            if (!beltVotes[beltId][canonicalName]) {
+                beltVotes[beltId][canonicalName] = 0;
             }
-            beltVotes[beltId][playerName]++;
+            beltVotes[beltId][canonicalName]++;
         });
     });
 

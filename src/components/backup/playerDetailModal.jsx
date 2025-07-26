@@ -6,6 +6,7 @@ import { getPlayerBadges, getBadgeProgress, badgeCategories, calculatePlayerStat
 import Badge from "./Badge";
 import PlayerCardClaimModal from './PlayerCardClaimModal';
 import { StyledButton } from './UIComponents';
+import { getCanonicalName } from '../utils/nameMapping';
 import { calculatePlayerStatsFromHistory } from '../utils/playerStatsCalculator';
 
 function getCategoryIcon(categoryName) {
@@ -38,6 +39,7 @@ export default function PlayerDetailModal({
     if (!isOpen || !player) return null;
 
     // Calculate stats the same way as LeaderboardTab
+
     const playerStats = calculatePlayerStatsFromHistory(player.name, matchHistory);
 
     // For badges and progress, we need to be more selective about what we override
