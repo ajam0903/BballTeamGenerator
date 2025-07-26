@@ -2898,6 +2898,55 @@ export default function App() {
 
                 setTournamentResults([firstRoundResult]);
 
+                // ONLY FOR TOURNAMENT: Add to match history since tournament matches don't go through normal flow
+                const matchHistoryEntry = {
+                    teamA: matchups[matchIndex][0].map(player => ({
+                        name: player.name,
+                        active: player.active !== undefined ? player.active : true,
+                        isBench: player.isBench || false,
+                        scoring: player.scoring || 0,
+                        defense: player.defense || 0,
+                        rebounding: player.rebounding || 0,
+                        playmaking: player.playmaking || 0,
+                        stamina: player.stamina || 0,
+                        physicality: player.physicality || 0,
+                        xfactor: player.xfactor || 0
+                    })),
+                    teamB: matchups[matchIndex][1].map(player => ({
+                        name: player.name,
+                        active: player.active !== undefined ? player.active : true,
+                        isBench: player.isBench || false,
+                        scoring: player.scoring || 0,
+                        defense: player.defense || 0,
+                        rebounding: player.rebounding || 0,
+                        playmaking: player.playmaking || 0,
+                        stamina: player.stamina || 0,
+                        physicality: player.physicality || 0,
+                        xfactor: player.xfactor || 0
+                    })),
+                    score: {
+                        a: parseInt(scores[matchIndex].a),
+                        b: parseInt(scores[matchIndex].b)
+                    },
+                    mvp: mvpVotes[matchIndex] || "",
+                    date: matchDate,
+                    teamSize: teamSize
+                };
+
+                // Add to match history in Firestore
+                await updateDoc(docRef, {
+                    matchHistory: arrayUnion(matchHistoryEntry)
+                });
+
+                // Update local match history
+                setMatchHistory(prev => [...prev, {
+                    teams: [matchups[matchIndex][0], matchups[matchIndex][1]],
+                    score: { a: parseInt(scores[matchIndex].a), b: parseInt(scores[matchIndex].b) },
+                    mvp: mvpVotes[matchIndex] || "",
+                    date: matchDate,
+                    teamSize: teamSize
+                }]);
+
                 // Create championship matchup
                 const championshipMatchup = [winnerTeam, waitingTeam];
 
@@ -2925,12 +2974,62 @@ export default function App() {
                 };
 
                 setTournamentResults(prev => [...prev, championshipResult]);
+
+                // ONLY FOR TOURNAMENT: Add championship match to history
+                const championshipHistoryEntry = {
+                    teamA: matchups[matchIndex][0].map(player => ({
+                        name: player.name,
+                        active: player.active !== undefined ? player.active : true,
+                        isBench: player.isBench || false,
+                        scoring: player.scoring || 0,
+                        defense: player.defense || 0,
+                        rebounding: player.rebounding || 0,
+                        playmaking: player.playmaking || 0,
+                        stamina: player.stamina || 0,
+                        physicality: player.physicality || 0,
+                        xfactor: player.xfactor || 0
+                    })),
+                    teamB: matchups[matchIndex][1].map(player => ({
+                        name: player.name,
+                        active: player.active !== undefined ? player.active : true,
+                        isBench: player.isBench || false,
+                        scoring: player.scoring || 0,
+                        defense: player.defense || 0,
+                        rebounding: player.rebounding || 0,
+                        playmaking: player.playmaking || 0,
+                        stamina: player.stamina || 0,
+                        physicality: player.physicality || 0,
+                        xfactor: player.xfactor || 0
+                    })),
+                    score: {
+                        a: parseInt(scores[matchIndex].a),
+                        b: parseInt(scores[matchIndex].b)
+                    },
+                    mvp: mvpVotes[matchIndex] || "",
+                    date: matchDate,
+                    teamSize: teamSize
+                };
+
+                // Add to match history in Firestore
+                await updateDoc(docRef, {
+                    matchHistory: arrayUnion(championshipHistoryEntry)
+                });
+
+                // Update local match history
+                setMatchHistory(prev => [...prev, {
+                    teams: [matchups[matchIndex][0], matchups[matchIndex][1]],
+                    score: { a: parseInt(scores[matchIndex].a), b: parseInt(scores[matchIndex].b) },
+                    mvp: mvpVotes[matchIndex] || "",
+                    date: matchDate,
+                    teamSize: teamSize
+                }]);
+
                 setShowTournamentComplete(true);
                 setToastMessage("🏆 Tournament Complete!");
                 setTimeout(() => setToastMessage(""), 3000);
 
             } else {
-                // Regular match - check for rematch logic
+                // Regular match - check for rematch logic (NO MATCH HISTORY ADDITION - already handled by existing system)
                 const currentMatchupTeams = JSON.stringify(matchups[matchIndex].map(team => team.map(p => p.name).sort()));
                 const allMatchesForTheseTeams = matchups
                     .map((matchup, idx) => ({
