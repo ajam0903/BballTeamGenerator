@@ -373,6 +373,9 @@ export default function PlayerCardClaimModal({
             // Upload photo if user selected a file
             if (useFileUpload && photoFile) {
                 photoURL = await uploadPhoto(photoFile);
+            } else if (!photoPreview && !customPhoto) {
+                // Photo was deleted
+                photoURL = null;
             }
 
             const userRef = doc(db, "users", user.uid);
@@ -467,6 +470,19 @@ export default function PlayerCardClaimModal({
             case 'rejected': return 'Rejected ✗';
             case 'pending': return 'Pending Review ⏳';
             default: return '';
+        }
+    };
+
+    const handleDeletePhoto = () => {
+        setPhotoFile(null);
+        setPhotoPreview("");
+        setCustomPhoto("");
+        setUploadProgress(0);
+
+        // Clear the file input
+        const fileInput = document.querySelector('input[type="file"]');
+        if (fileInput) {
+            fileInput.value = '';
         }
     };
 
@@ -604,14 +620,27 @@ export default function PlayerCardClaimModal({
                     )}
 
                     {/* Photo Preview */}
+                    {/* Photo Preview */}
                     {photoPreview && (
-                        <div className="mt-2 flex justify-center">
-                            <img
-                                src={photoPreview}
-                                alt="Preview"
-                                className="w-20 h-20 rounded-full object-cover border-2 border-gray-600"
-                                onError={() => setPhotoPreview("")}
-                            />
+                        <div className="mt-2">
+                            <div className="flex justify-center">
+                                <img
+                                    src={photoPreview}
+                                    alt="Preview"
+                                    className="w-20 h-20 rounded-full object-cover border-2 border-gray-600"
+                                    onError={() => setPhotoPreview("")}
+                                />
+                            </div>
+                            <div className="flex justify-center mt-2">
+                                <button
+                                    type="button"
+                                    onClick={handleDeletePhoto}
+                                    className="text-red-400 hover:text-red-300 text-sm underline"
+                                    disabled={isLoading || isProcessingFile}
+                                >
+                                    Remove Photo
+                                </button>
+                            </div>
                         </div>
                     )}
 

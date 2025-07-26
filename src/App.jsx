@@ -127,6 +127,7 @@ export default function App() {
     const [tournamentResults, setTournamentResults] = useState([]);
     const [showTournamentComplete, setShowTournamentComplete] = useState(false);
     const [currentRematchTeams, setCurrentRematchTeams] = useState(null);
+    const [showProfilePhotoNotification, setShowProfilePhotoNotification] = useState(false);
 
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -2066,6 +2067,40 @@ export default function App() {
             }
         }
     };
+
+    const checkForMissingProfilePhoto = async () => {
+        if (!user || !currentLeagueId) {
+            setShowProfilePhotoNotification(false);
+            return;
+        }
+
+        try {
+            const userRef = doc(db, "users", user.uid);
+            const userDoc = await getDoc(userRef);
+
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                const claimedPlayers = userData.claimedPlayers || [];
+
+                // Check if user has approved claims in current league without photos
+                const claimsWithoutPhoto = claimedPlayers.filter(
+                    claim => claim.leagueId === currentLeagueId &&
+                        claim.status === 'approved' &&
+                        !claim.customPhotoURL
+                );
+
+                setShowProfilePhotoNotification(claimsWithoutPhoto.length > 0);
+            }
+        } catch (error) {
+            console.error("Error checking for missing photos:", error);
+            setShowProfilePhotoNotification(false);
+        }
+    };
+
+    useEffect(() => {
+        checkForMissingProfilePhoto();
+    }, [user, currentLeagueId]);
+
     useEffect(() => {
         if (!currentLeagueId) return;
 
@@ -3250,7 +3285,51 @@ export default function App() {
         currentLeagueId={currentLeagueId}
         db={db}
     />
-)} 
+                    )}
+
+                    {/* Profile Photo Notification */}
+                    {showProfilePhotoNotification && user && currentLeague && (
+                        <div className="bg-purple-900 bg-opacity-20 border border-purple-500 rounded-lg p-4 mb-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <span className="mr-2 text-purple-400">📸</span>
+                                    <div>
+                                        <h3 className="text-purple-400 font-medium">
+                                            Add Profile Photo
+                                        </h3>
+                                        <p className="text-sm text-gray-300">
+                                            Hey, You're not that ugly. Why not add a profile photo?
+                                        </p>
+                                    </div>
+                                </div>
+                                <StyledButton
+                                    onClick={() => {
+                                        // Find first claim without photo and open modal for it
+                                        const userRef = doc(db, "users", user.uid);
+                                        getDoc(userRef).then(userDoc => {
+                                            if (userDoc.exists()) {
+                                                const userData = userDoc.data();
+                                                const claimedPlayers = userData.claimedPlayers || [];
+                                                const claimWithoutPhoto = claimedPlayers.find(
+                                                    claim => claim.leagueId === currentLeagueId &&
+                                                        claim.status === 'approved' &&
+                                                        !claim.customPhotoURL
+                                                );
+
+                                                if (claimWithoutPhoto) {
+                                                    handlePlayerClaimRequest(claimWithoutPhoto.playerName);
+                                                }
+                                            }
+                                        });
+                                    }}
+                                    className="bg-purple-600 hover:bg-purple-700 text-sm px-4 py-2"
+                                >
+                                    Add Profile Photo
+                                </StyledButton>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Rematch Prompt */}
                     {showRematchPrompt && (
                         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -3546,6 +3625,9 @@ export default function App() {
                     onClaimSuccess={() => {
                         // Refresh player data to show updated claim status
                         window.location.reload();
+
+                        // Refresh the profile photo notification
+                        checkForMissingProfilePhoto();
                     }}
                 />
 
