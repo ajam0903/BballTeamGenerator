@@ -2305,33 +2305,50 @@ export default function App() {
         if (!currentLeagueId || !user) return;
 
         const fetchSet = async () => {
+            console.log("=== fetchSet START ===");
+            console.log("fetchSet running for league:", currentLeagueId, "user:", user.uid);
+
             const docRef = doc(db, "leagues", currentLeagueId, "sets", currentSet);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 const data = convertFirestoreDataToAppFormat(docSnap.data());
 
-                // Wait for user preferences to be loaded first
-                let userPrefs = userPlayerPreferences[user.uid];
-                if (!userPrefs) {
-                    // If preferences aren't loaded yet, load them now
+                // ALWAYS load preferences fresh for the current league
+                console.log("Loading user preferences for current league:", currentLeagueId);
+                let userPrefs = {};
+
+                try {
                     const prefsDocRef = doc(db, "leagues", currentLeagueId, "userPreferences", user.uid);
                     const prefsDocSnap = await getDoc(prefsDocRef);
                     if (prefsDocSnap.exists()) {
                         userPrefs = prefsDocSnap.data().playerPreferences || {};
-                        setUserPlayerPreferences(prev => ({
-                            ...prev,
+                        console.log("Loaded fresh userPrefs from Firestore:", userPrefs);
+
+                        // Update state for other components
+                        setUserPlayerPreferences({
                             [user.uid]: userPrefs
-                        }));
+                        });
                     } else {
+                        console.log("No user preferences found, using empty object");
                         userPrefs = {};
+                        setUserPlayerPreferences({
+                            [user.uid]: {}
+                        });
                     }
+                } catch (error) {
+                    console.error("Error loading user preferences in fetchSet:", error);
+                    userPrefs = {};
                 }
+
+                console.log("About to process", data.players?.length || 0, "players");
 
                 const averagedPlayers = (data.players || []).map((player) => {
                     const submissions = player.submissions || [];
+                    const isActive = userPrefs[player.name] || false;
+
                     const avgStats = {
                         name: player.name,
-                        active: userPrefs[player.name] || false, // Use loaded user preference
+                        active: isActive,
                         scoring: 0,
                         defense: 0,
                         rebounding: 0,
@@ -2340,6 +2357,11 @@ export default function App() {
                         physicality: 0,
                         xfactor: 0,
                     };
+
+                    if (isActive) {
+                        console.log("Setting player", player.name, "to active");
+                    }
+
                     submissions.forEach((s) => {
                         avgStats.scoring += s.scoring;
                         avgStats.defense += s.defense;
@@ -2360,20 +2382,22 @@ export default function App() {
                 });
 
                 const enhancedPlayers = await enhancePlayersWithClaimData(averagedPlayers);
+                const finalActivePlayers = enhancedPlayers.filter(p => p.active).map(p => p.name);
+                console.log("Final active players being set:", finalActivePlayers);
+
                 setPlayers(enhancedPlayers);
                 setMvpVotes(data.mvpVotes || []);
                 setScores(data.scores || []);
-
                 if (data.leaderboard && Object.keys(data.leaderboard).length > 0) {
                     setLeaderboard(data.leaderboard);
                 } else if ((data.scores?.length || 0) > 0 && (data.matchups?.length || 0) > 0) {
                     setTimeout(() => calculateLeaderboard(), 100);
                 }
             }
+            console.log("=== fetchSet END ===");
         };
-
         fetchSet();
-    }, [currentLeagueId, currentSet, user]); // Remove userPlayerPreferences dependency to avoid loops
+    }, [currentLeagueId, currentSet, user]);
 
     useEffect(() => {
         if (teams && teams.length > 0) {
@@ -2514,43 +2538,55 @@ export default function App() {
 
     useEffect(() => {
         const loadUserPlayerPreferences = async () => {
+            console.log("=== loadUserPlayerPreferences START ===");
+            console.log("user:", user?.uid);
+            console.log("currentLeagueId:", currentLeagueId);
+
             if (!user || !currentLeagueId) {
+                console.log("Missing user or leagueId, clearing preferences");
                 setUserPlayerPreferences({});
                 return;
             }
 
             try {
                 const docRef = doc(db, "leagues", currentLeagueId, "userPreferences", user.uid);
-                const docSnap = await getDoc(docRef);
+                console.log("Fetching preferences from:", `leagues/${currentLeagueId}/userPreferences/${user.uid}`);
 
+                const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     const prefs = data.playerPreferences || {};
-                    setUserPlayerPreferences(prev => ({
-                        ...prev,
+                    console.log("Found preferences:", prefs);
+                    console.log("Active players from prefs:", Object.keys(prefs).filter(key => prefs[key]));
+
+                    // Clear previous league's preferences and set only the current league's
+                    setUserPlayerPreferences({
                         [user.uid]: prefs
-                    }));
+                    });
 
                     // If we have players but they don't have the right active states, update them
                     if (players.length > 0) {
+                        console.log("Updating", players.length, "players with preferences");
                         const updatedPlayers = players.map(player => ({
                             ...player,
                             active: prefs[player.name] || false
                         }));
+                        const activePlayers = updatedPlayers.filter(p => p.active).map(p => p.name);
+                        console.log("Setting these players to active:", activePlayers);
                         setPlayers(updatedPlayers);
                     }
                 } else {
-                    // Initialize empty preferences for this user
-                    setUserPlayerPreferences(prev => ({
-                        ...prev,
+                    console.log("No preferences document found, initializing empty");
+                    // Initialize empty preferences for this user, clearing any previous data
+                    setUserPlayerPreferences({
                         [user.uid]: {}
-                    }));
+                    });
                 }
             } catch (error) {
                 console.error("Error loading user player preferences:", error);
             }
+            console.log("=== loadUserPlayerPreferences END ===");
         };
-
         loadUserPlayerPreferences();
     }, [user, currentLeagueId]);
 
