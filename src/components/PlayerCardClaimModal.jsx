@@ -5,6 +5,7 @@ import { storage } from "../firebase"; // Make sure to import storage from your 
 import { StyledButton, StyledInput } from "./UIComponents";
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
+import heic2any from 'heic2any';
 
 export default function PlayerCardClaimModal({
     isOpen,
@@ -50,6 +51,7 @@ export default function PlayerCardClaimModal({
     });
     const [completedCrop, setCompletedCrop] = useState(null);
     const [previewCanvasRef, setPreviewCanvasRef] = useState(null);
+    const [isProcessingFile, setIsProcessingFile] = useState(false);
 
     useEffect(() => {
         if (isOpen && user && playerName) {
@@ -135,12 +137,57 @@ export default function PlayerCardClaimModal({
         }
     };
 
-    const handlePhotoFileChange = (e) => {
+    const convertHeicToJpeg = async (heicFile) => {
+        try {
+            // Convert HEIC to JPEG using heic2any library
+            const jpegBlob = await heic2any({
+                blob: heicFile,
+                toType: "image/jpeg",
+                quality: 0.9
+            });
+
+            // Create a new File object with JPEG type
+            const jpegFile = new File([jpegBlob], heicFile.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+            });
+
+            // Create data URL for cropping
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setImageToCrop(e.target.result);
+                setShowCropModal(true);
+                setIsProcessingFile(false); // Hide loading indicator
+            };
+            reader.readAsDataURL(jpegFile);
+
+        } catch (error) {
+            console.error('HEIC conversion error:', error);
+            alert('Unable to process HEIC file. Please convert to JPEG/PNG and try again.');
+            setIsProcessingFile(false); // Hide loading indicator on error
+        }
+    };
+
+    const handlePhotoFileChange = async (e) => {
         const file = e.target.files[0];
         if (file) {
-            // Validate file type
-            if (!file.type.startsWith('image/')) {
-                alert('Please select an image file');
+            // Supported image formats including HEIC
+            const supportedFormats = [
+                'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
+                'image/webp', 'image/bmp', 'image/svg+xml',
+                'image/heic', 'image/heif'
+            ];
+
+            // Check file extension for HEIC files (since MIME type might not be properly set)
+            const fileExtension = file.name.toLowerCase().split('.').pop();
+            const supportedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic', 'heif'];
+
+            // Validate file type by MIME type or extension
+            const isValidMimeType = file.type && supportedFormats.includes(file.type.toLowerCase());
+            const isValidExtension = supportedExtensions.includes(fileExtension);
+
+            if (!isValidMimeType && !isValidExtension) {
+                alert('Please select a supported image file (JPEG, PNG, GIF, WebP, BMP, SVG, HEIC, HEIF)');
                 return;
             }
 
@@ -150,13 +197,32 @@ export default function PlayerCardClaimModal({
                 return;
             }
 
-            // Create image URL for cropping
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                setImageToCrop(e.target.result);
-                setShowCropModal(true);
-            };
-            reader.readAsDataURL(file);
+            // Show loading indicator
+            setIsProcessingFile(true);
+
+            try {
+                // Handle HEIC/HEIF files differently
+                const isHeicFile = fileExtension === 'heic' || fileExtension === 'heif' ||
+                    file.type === 'image/heic' || file.type === 'image/heif';
+
+                if (isHeicFile) {
+                    // For HEIC files, convert to JPEG before cropping
+                    await convertHeicToJpeg(file);
+                } else {
+                    // For other formats, proceed with normal cropping
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        setImageToCrop(e.target.result);
+                        setShowCropModal(true);
+                        setIsProcessingFile(false);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            } catch (error) {
+                console.error('Error processing file:', error);
+                alert('Failed to process image. Please try again.');
+                setIsProcessingFile(false);
+            }
         }
     };
 
@@ -322,7 +388,7 @@ export default function PlayerCardClaimModal({
                     leagueId: currentLeagueId,
                     playerName: playerName,
                     claimedAt: new Date().toISOString(),
-                    status: 'pending',
+                    status: isAlreadyClaimed && claimStatus === 'approved' ? 'approved' : 'pending',
                     height: formattedHeight,
                     weight: weight.trim(),
                     customPhotoURL: photoURL || null
@@ -338,8 +404,7 @@ export default function PlayerCardClaimModal({
                     updatedClaimedPlayers = [...claimedPlayers];
                     updatedClaimedPlayers[existingClaimIndex] = {
                         ...updatedClaimedPlayers[existingClaimIndex],
-                        ...claimData,
-                        status: claimStatus === 'approved' ? 'approved' : 'pending'
+                        ...claimData
                     };
                 } else {
                     updatedClaimedPlayers = [...claimedPlayers, claimData];
@@ -512,10 +577,19 @@ export default function PlayerCardClaimModal({
 
                     <input
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/bmp,image/svg+xml,image/heic,image/heif,.heic,.heif"
                         onChange={handlePhotoFileChange}
-                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-blue-600 file:text-white hover:file:bg-blue-700"
+                        disabled={isProcessingFile}
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-blue-600 file:text-white hover:file:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
+
+                    {/* File Processing Indicator */}
+                    {isProcessingFile && (
+                        <div className="mt-2 flex items-center space-x-2 text-blue-400">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                            <span className="text-sm">Processing image...</span>
+                        </div>
+                    )}
 
                     {uploadProgress > 0 && uploadProgress < 100 && (
                         <div className="mt-2">
@@ -542,7 +616,7 @@ export default function PlayerCardClaimModal({
                     )}
 
                     <p className="text-xs text-gray-400 mt-1">
-                        Upload an image file (max 5MB). You can crop it after selection.
+                        Upload an image file (max 5MB). Supported formats: JPEG, PNG, GIF, WebP, BMP, SVG, HEIC, HEIF. You can crop it after selection.
                     </p>
                 </div>
 

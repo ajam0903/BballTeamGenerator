@@ -2493,7 +2493,6 @@ export default function App() {
                                 submissions: []
                             };
                         }
-
                         // Calculate averages from submissions
                         const avgStats = {
                             name: player.name || "Unknown",
@@ -2525,7 +2524,11 @@ export default function App() {
                         return avgStats;
                     });
 
-                    setPlayers(averagedPlayers);
+                    // ADD THIS: Enhance players with claim data (photos, etc.)
+                    const enhancedPlayers = await enhancePlayersWithClaimData(averagedPlayers);
+
+                    setPlayers(enhancedPlayers);
+                    setEnhancedPlayers(enhancedPlayers); // Also update enhancedPlayers state
                 }
             }
         };
