@@ -53,14 +53,14 @@ export default function Tooltip({ text, position = "top" }) {
             onClick={() => setShow(true)} // show on mobile click
         >
             <QuestionMarkCircleIcon className="w-4 h-4 text-blue-400 cursor-pointer inline" />
-
             {/* Tooltip container with dynamic positioning */}
             <div
                 className={`fixed z-[1000] w-64 bg-black text-white text-sm px-3 py-2 rounded shadow-lg ${show ? "block" : "hidden"
                     }`}
                 style={{
-                    left: show ? window.event?.clientX + 10 : 0,
-                    top: show ? window.event?.clientY - 10 : 0,
+                    left: show && window.event?.clientX && !isNaN(window.event.clientX) ? window.event.clientX + 10 : '50%',
+                    top: show && window.event?.clientY && !isNaN(window.event.clientY) ? window.event.clientY - 10 : '50%',
+                    transform: (!window.event?.clientX || isNaN(window.event.clientX)) ? 'translate(-50%, -50%)' : 'none'
                 }}
             >
                 {text}

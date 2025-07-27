@@ -1762,15 +1762,7 @@ export default function App() {
                     physicality: updatedPlayer.physicality,
                     xfactor: updatedPlayer.xfactor,
                     submissions: existingSubmissions, // Preserve the existing submissions
-                    rating: (
-                        updatedPlayer.scoring +
-                        updatedPlayer.defense +
-                        updatedPlayer.rebounding +
-                        updatedPlayer.playmaking +
-                        updatedPlayer.stamina +
-                        updatedPlayer.physicality +
-                        updatedPlayer.xfactor
-                    ) / 7
+                    rating: calculateWeightedRating(updatedPlayer)
                 };
 
                 // Handle name change in leaderboard
@@ -1866,7 +1858,7 @@ export default function App() {
                 await logActivity(
                     db,
                     currentLeagueId,
-                    isEditingExisting ? "player_updated" : "player_added",
+                    "player_updated",
                     {
                         name: updatedPlayer.name,
                         originalName: originalName,
@@ -1899,12 +1891,102 @@ export default function App() {
 
                 setToastMessage("✅ Player completely updated!");
                 setTimeout(() => setToastMessage(""), 3000);
+            } else {
+                // Handle adding a new player (when originalName is empty/null)
+
+                // Check if player name already exists
+                const existingPlayer = updatedPlayers.find(
+                    p => p.name && p.name.toLowerCase() === updatedPlayer.name.toLowerCase()
+                );
+
+                if (existingPlayer) {
+                    setToastMessage("⚠️ Player name already exists");
+                    setTimeout(() => setToastMessage(""), 3000);
+                    return;
+                }
+
+                // Create new player object
+                // Create new player object
+                const newPlayer = {
+                    name: updatedPlayer.name,
+                    active: updatedPlayer.active !== undefined ? updatedPlayer.active : true,
+                    submissions: [],
+                    rating: calculateWeightedRating(updatedPlayer),
+                    scoring: updatedPlayer.scoring,
+                    defense: updatedPlayer.defense,
+                    rebounding: updatedPlayer.rebounding,
+                    playmaking: updatedPlayer.playmaking,
+                    stamina: updatedPlayer.stamina,
+                    physicality: updatedPlayer.physicality,
+                    xfactor: updatedPlayer.xfactor
+                };
+
+                // ADD THIS: Create a rating submission if user provided ratings different from default (5)
+                if (user && user.email) {
+                    const hasCustomRatings = updatedPlayer.scoring !== 5 ||
+                        updatedPlayer.defense !== 5 ||
+                        updatedPlayer.rebounding !== 5 ||
+                        updatedPlayer.playmaking !== 5 ||
+                        updatedPlayer.stamina !== 5 ||
+                        updatedPlayer.physicality !== 5 ||
+                        updatedPlayer.xfactor !== 5;
+
+                    if (hasCustomRatings) {
+                        const ratingSubmission = {
+                            submittedBy: user.email,
+                            submittedAt: new Date(),
+                            scoring: updatedPlayer.scoring,
+                            defense: updatedPlayer.defense,
+                            rebounding: updatedPlayer.rebounding,
+                            playmaking: updatedPlayer.playmaking,
+                            stamina: updatedPlayer.stamina,
+                            physicality: updatedPlayer.physicality,
+                            xfactor: updatedPlayer.xfactor
+                        };
+
+                        newPlayer.submissions = [ratingSubmission];
+                    }
+                }
+
+                updatedPlayers.push(newPlayer);
+
+                await firestoreSetDoc(docRef, { ...data, players: updatedPlayers });
+
+                // Enhance players with claim data
+                const enhancedPlayers = await enhancePlayersWithClaimData(updatedPlayers);
+                setPlayers(enhancedPlayers);
+
+                // Log player addition
+                await logActivity(
+                    db,
+                    currentLeagueId,
+                    "player_added",
+                    {
+                        playerName: updatedPlayer.name,
+                        name: updatedPlayer.name,
+                        playerData: {
+                            scoring: updatedPlayer.scoring,
+                            defense: updatedPlayer.defense,
+                            rebounding: updatedPlayer.rebounding,
+                            playmaking: updatedPlayer.playmaking,
+                            stamina: updatedPlayer.stamina,
+                            physicality: updatedPlayer.physicality,
+                            xfactor: updatedPlayer.xfactor
+                        }
+                    },
+                    user,
+                    true // Undoable
+                );
+
+                setToastMessage("✅ Player added!");
+                setTimeout(() => setToastMessage(""), 3000);
             }
         }
 
         // Close the modal
         closeEditModal();
     };
+
     const enhancePlayersWithClaimData = async (players) => {
         if (!players || players.length === 0) return players;
 
