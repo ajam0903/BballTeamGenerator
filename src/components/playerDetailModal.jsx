@@ -7,6 +7,7 @@ import Badge from "./Badge";
 import PlayerCardClaimModal from './PlayerCardClaimModal';
 import { StyledButton } from './UIComponents';
 import { calculatePlayerStatsFromHistory } from '../utils/playerStatsCalculator';
+import { calculateWeightedRating } from '../utils/ratingUtils';
 
 function getCategoryIcon(categoryName) {
     const iconMap = {
@@ -484,11 +485,7 @@ export default function PlayerDetailModal({
                                                     {/* Overall Rating */}
                                                     <div className="text-right">
                                                         <div className="text-lg font-bold text-blue-400">
-                                                            {(
-                                                                (submission.scoring + submission.defense + submission.rebounding +
-                                                                    submission.playmaking + submission.stamina + submission.physicality +
-                                                                    submission.xfactor) / 7
-                                                            ).toFixed(1)}
+                                                            {calculateWeightedRating(submission).toFixed(1)}
                                                         </div>
                                                         <div className="text-xs text-gray-400">Overall</div>
                                                     </div>

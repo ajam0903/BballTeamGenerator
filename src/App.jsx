@@ -42,6 +42,7 @@ import LeagueSelector from "./components/LeagueSelector";
 import PlayerNameMatcher from './components/PlayerNameMatcher';
 import AdminNotifications from './components/AdminNotifications';
 import PlayerCardClaimModal from './components/PlayerCardClaimModal';
+import { calculateWeightedRating, calculatePlayerRatingFromSubmissions, RATING_WEIGHTINGS } from './utils/ratingUtils';
 
 // This helps hide the default scrollbar while maintaining scroll functionality
 const scrollbarHideStyles = `
@@ -85,15 +86,7 @@ export default function App() {
     const [currentLeagueId, setCurrentLeagueId] = useState(null);
     const pendingTabRef = useRef(null);
     const [currentLeague, setCurrentLeague] = useState(null);
-    const weightings = {
-        scoring: 0.25,
-        defense: 0.2,
-        rebounding: 0.15,
-        playmaking: 0.15,
-        stamina: 0.1,
-        physicality: 0.1,
-        xfactor: 0.05,
-    };
+    const weightings = RATING_WEIGHTINGS;
     const [showRematchPrompt, setShowRematchPrompt] = useState(false);
     const [matchHistory, setMatchHistory] = useState([]);
     const [hasGeneratedTeams, setHasGeneratedTeams] = useState(false);
@@ -1299,13 +1292,7 @@ export default function App() {
                     name: newRating.name,
                     active: true,
                     submissions: [submission],
-                    rating: (submission.scoring +
-                        submission.defense +
-                        submission.rebounding +
-                        submission.playmaking +
-                        submission.stamina +
-                        submission.physicality +
-                        submission.xfactor) / 7,
+                    rating: calculateWeightedRating(submission),
                     // Add individual stats explicitly
                     scoring: submission.scoring,
                     defense: submission.defense,
@@ -1439,10 +1426,7 @@ export default function App() {
                     };
 
                     // Calculate overall rating
-                    const overallRating = (
-                        Object.values(ratingData).reduce((sum, val) => sum + val, 0) /
-                        Object.values(ratingData).length
-                    ).toFixed(1);
+                    const overallRating = calculateWeightedRating(ratingData).toFixed(1);
 
                     // Get previous rating from the player's current data BEFORE the update
                     let previousRatingForLog = null;

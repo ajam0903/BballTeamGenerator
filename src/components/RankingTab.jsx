@@ -14,6 +14,7 @@ import PlayerBeltIcons from "./PlayerBeltIcons";
 import { badgeCategories } from "./badgeSystem.jsx";
 import PlayerBadges from "./playerBadges";
 import UnratedPlayersNotification from './UnratedPlayersNotification';
+import { calculatePlayerRatingFromSubmissions, calculateWeightedRating, getPercentageFromRating, RATING_WEIGHTINGS } from '../utils/ratingUtils';
 
 export default function RankingTab({
     players,
@@ -225,48 +226,14 @@ export default function RankingTab({
     const computeRating = (p) => {
         // If player has submissions, calculate from them
         if (p.submissions && p.submissions.length > 0) {
-            const weightings = {
-                scoring: 0.25,
-                defense: 0.2,
-                rebounding: 0.15,
-                playmaking: 0.15,
-                stamina: 0.1,
-                physicality: 0.1,
-                xfactor: 0.05,
-            };
-
-            const total = p.submissions.reduce((sum, sub) => {
-                const weightedAvg = (
-                    (sub.scoring || 5) * weightings.scoring +
-                    (sub.defense || 5) * weightings.defense +
-                    (sub.rebounding || 5) * weightings.rebounding +
-                    (sub.playmaking || 5) * weightings.playmaking +
-                    (sub.stamina || 5) * weightings.stamina +
-                    (sub.physicality || 5) * weightings.physicality +
-                    (sub.xfactor || 5) * weightings.xfactor
-                );
-                return sum + weightedAvg;
-            }, 0);
-
-            return (total / p.submissions.length).toFixed(2);
+            return calculatePlayerRatingFromSubmissions(p.submissions);
         }
 
         // Fallback to individual stats if no submissions
-        return (
-            (p.scoring || 5) * 0.25 +
-            (p.defense || 5) * 0.2 +
-            (p.rebounding || 5) * 0.15 +
-            (p.playmaking || 5) * 0.15 +
-            (p.stamina || 5) * 0.1 +
-            (p.physicality || 5) * 0.1 +
-            (p.xfactor || 5) * 0.05
-        ).toFixed(2);
+        return calculateWeightedRating(p);
     };
 
-    const getPercentage = (rating) => {
-        // rating is from 0–10, so rating=5 => 50%
-        return (rating / 10) * 100;
-    };
+    const getPercentage = getPercentageFromRating;
 
     const [sortedPlayers, setSortedPlayers] = useState([]);
 

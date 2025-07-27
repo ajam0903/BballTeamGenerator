@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from "react";
 import { collection, doc, getDoc, setDoc, query, orderBy, limit, getDocs, deleteDoc, where } from "firebase/firestore";
 import { StyledButton } from "./UIComponents";
+import { calculateAverageStatsFromSubmissions, calculateWeightedRating, RATING_WEIGHTINGS } from '../utils/ratingUtils';
 
 export default function LogTab({
     currentLeagueId,
@@ -529,50 +530,27 @@ export default function LogTab({
 
                 if (updatedSubmissions.length > 0) {
                     // Calculate averages for each individual stat
-                    const totals = { scoring: 0, defense: 0, rebounding: 0, playmaking: 0, stamina: 0, physicality: 0, xfactor: 0 };
+                    const averageStats = calculateAverageStatsFromSubmissions(updatedSubmissions);
 
-                    updatedSubmissions.forEach(sub => {
-                        totals.scoring += sub.scoring || 5;
-                        totals.defense += sub.defense || 5;
-                        totals.rebounding += sub.rebounding || 5;
-                        totals.playmaking += sub.playmaking || 5;
-                        totals.stamina += sub.stamina || 5;
-                        totals.physicality += sub.physicality || 5;
-                        totals.xfactor += sub.xfactor || 5;
-                    });
-
-                    const len = updatedSubmissions.length;
-                    newPlayerData.scoring = parseFloat((totals.scoring / len).toFixed(2));
-                    newPlayerData.defense = parseFloat((totals.defense / len).toFixed(2));
-                    newPlayerData.rebounding = parseFloat((totals.rebounding / len).toFixed(2));
-                    newPlayerData.playmaking = parseFloat((totals.playmaking / len).toFixed(2));
-                    newPlayerData.stamina = parseFloat((totals.stamina / len).toFixed(2));
-                    newPlayerData.physicality = parseFloat((totals.physicality / len).toFixed(2));
-                    newPlayerData.xfactor = parseFloat((totals.xfactor / len).toFixed(2));
-
-                    // Calculate weighted rating
-                    const weightings = { scoring: 0.25, defense: 0.2, rebounding: 0.15, playmaking: 0.15, stamina: 0.1, physicality: 0.1, xfactor: 0.05 };
-                    newPlayerData.rating = parseFloat((
-                        newPlayerData.scoring * weightings.scoring +
-                        newPlayerData.defense * weightings.defense +
-                        newPlayerData.rebounding * weightings.rebounding +
-                        newPlayerData.playmaking * weightings.playmaking +
-                        newPlayerData.stamina * weightings.stamina +
-                        newPlayerData.physicality * weightings.physicality +
-                        newPlayerData.xfactor * weightings.xfactor
-                    ).toFixed(2));
+                    newPlayerData = {
+                        ...newPlayerData,
+                        ...averageStats,
+                        rating: calculateWeightedRating(averageStats)
+                    };
                 } else {
                     // Default values if no submissions
-                    newPlayerData.scoring = 5;
-                    newPlayerData.defense = 5;
-                    newPlayerData.rebounding = 5;
-                    newPlayerData.playmaking = 5;
-                    newPlayerData.stamina = 5;
-                    newPlayerData.physicality = 5;
-                    newPlayerData.xfactor = 5;
-                    newPlayerData.rating = 5;
+                    newPlayerData = {
+                        ...newPlayerData,
+                        scoring: 5,
+                        defense: 5,
+                        rebounding: 5,
+                        playmaking: 5,
+                        stamina: 5,
+                        physicality: 5,
+                        xfactor: 5,
+                        rating: 5
+                    };
                 }
-
                 updatedPlayers[playerIndex] = newPlayerData;
             }
         } else {
