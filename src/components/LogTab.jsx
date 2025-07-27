@@ -12,6 +12,7 @@ export default function LogTab({
     updatePlayers,
     setToastMessage,
     updateMatchHistory,
+    shareDailyMatchLogs,
 }) {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -23,6 +24,7 @@ export default function LogTab({
     const [logsPerPage] = useState(10);
     const [totalLogs, setTotalLogs] = useState(0);
     const [hasMoreLogs, setHasMoreLogs] = useState(true);
+    const [shareDateFilter, setShareDateFilter] = useState(new Date().toISOString().split('T')[0]);
 
     const teamARef = useRef(null);
     const teamBRef = useRef(null);
@@ -1106,6 +1108,63 @@ export default function LogTab({
                                     🔄 Refresh
                                 </button>
                             </div>
+
+                            {/* Daily Share Section - Only show when filter is "matches" */}
+                            {filter === "matches" && (
+                                <div className="mb-4 p-3 bg-gray-800 rounded-lg">
+                                    <h3 className="text-sm font-semibold text-white mb-2">📱 Share Daily Matches</h3>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="date"
+                                            value={shareDateFilter}
+                                            onChange={(e) => setShareDateFilter(e.target.value)}
+                                            className="px-3 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        <button
+                                            onClick={() => shareDailyMatchLogs(logs, shareDateFilter)}
+                                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors flex items-center gap-1"
+                                        >
+                                            📤 Share Matches
+                                        </button>
+                                    </div>
+                                    <div className="flex justify-between items-center mt-2">
+                                        <p className="text-xs text-blue-400">
+                                            {(() => {
+                                                // Debug: Show all match logs and their dates
+                                                const matchLogs = logs.filter(log => ["match_result_saved", "match_completed"].includes(log.action));
+
+                                                // Parse the selected date properly to avoid timezone issues
+                                                const [year, month, day] = shareDateFilter.split('-').map(Number);
+
+                                                const matchesOnDate = matchLogs.filter(log => {
+                                                    const logDate = log.timestamp?.toDate ? log.timestamp.toDate() : new Date(log.timestamp);
+                                                    const logYear = logDate.getFullYear();
+                                                    const logMonth = logDate.getMonth() + 1; // getMonth() returns 0-11, so add 1
+                                                    const logDay = logDate.getDate();
+
+                                                    return logYear === year && logMonth === month && logDay === day;
+                                                });
+
+                                                // Debug info
+                                                console.log('Debug Share Filter:');
+                                                console.log('Selected date:', shareDateFilter);
+                                                console.log('Parsed date:', year, month, day);
+                                                console.log('Total match logs:', matchLogs.length);
+                                                console.log('Match logs with dates:', matchLogs.map(log => ({
+                                                    action: log.action,
+                                                    timestamp: log.timestamp?.toDate ? log.timestamp.toDate() : new Date(log.timestamp),
+                                                    year: (log.timestamp?.toDate ? log.timestamp.toDate() : new Date(log.timestamp)).getFullYear(),
+                                                    month: (log.timestamp?.toDate ? log.timestamp.toDate() : new Date(log.timestamp)).getMonth() + 1,
+                                                    day: (log.timestamp?.toDate ? log.timestamp.toDate() : new Date(log.timestamp)).getDate()
+                                                })));
+                                                console.log('Matches on selected date:', matchesOnDate.length);
+
+                                                return `${matchesOnDate.length} match${matchesOnDate.length !== 1 ? 'es' : ''} on this date`;
+                                            })()}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                     {/* Logs display */}
                     {getFilteredLogs().map(log => (

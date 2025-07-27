@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { isPlayerMatch, nameVariations } from '../utils/nameMapping';
 import { getCanonicalName } from './utils/nameMapping';
+
+const [shareDateFilter, setShareDateFilter] = useState(new Date().toISOString().split('T')[0]);
 // Add team naming utility functions
 const getFormattedPlayerName = (fullName) => {
     if (!fullName) return "Team";
@@ -76,7 +78,7 @@ const updateMatchHistoryNames = async () => {
     }
 };
 
-export default function MatchHistoryTab({ matchHistory, calculatePlayerScore, weightings }) {
+export default function MatchHistoryTab({ matchHistory, calculatePlayerScore, weightings, shareDailyMatches, }) {
     const [filter, setFilter] = useState("all");
     const [searchTerm, setSearchTerm] = useState("");
 

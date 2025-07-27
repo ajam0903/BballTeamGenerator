@@ -25,6 +25,7 @@ import MatchResultsModal from "./components/MatchResultsModal";
 import {
     onAuthStateChanged,
     signInWithPopup,
+    signInWithRedirect,
     GoogleAuthProvider,
     signOut,
 } from "firebase/auth";
@@ -93,12 +94,6 @@ export default function App() {
     const [isEditingExisting, setIsEditingExisting] = useState(false);
     const [isEditingLeagueName, setIsEditingLeagueName] = useState(false);
     const [editedLeagueName, setEditedLeagueName] = useState("");
-    const handleLogin = () => {
-        const provider = new GoogleAuthProvider();
-        signInWithPopup(auth, provider).catch((error) => {
-            console.error("Login failed:", error);
-        });
-    };
     const [showMatchResultsModal, setShowMatchResultsModal] = useState(false);
     const [forceTabChange, setForceTabChange] = useState(false);
     const [completedMatchResults, setCompletedMatchResults] = useState([]);
@@ -121,6 +116,24 @@ export default function App() {
     const [showTournamentComplete, setShowTournamentComplete] = useState(false);
     const [currentRematchTeams, setCurrentRematchTeams] = useState(null);
     const [showProfilePhotoNotification, setShowProfilePhotoNotification] = useState(false);
+
+    const handleLogin = () => {
+        const provider = new GoogleAuthProvider();
+        // ADD THIS: Force account selection to avoid state issues
+        provider.setCustomParameters({
+            prompt: 'select_account'
+        });
+
+        signInWithPopup(auth, provider)
+            .catch((error) => {
+                console.error("Login failed:", error);
+                // ADD THIS: If popup fails, try redirect as fallback
+                if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+                    console.log('Popup blocked, trying redirect...');
+                    signInWithRedirect(auth, provider);
+                }
+            });
+    };
 
     const isRematch = (teamA, teamB) => {
         if (!matchHistory || matchHistory.length === 0) return false;
@@ -2313,6 +2326,16 @@ export default function App() {
                 setCurrentLeague(null);
             }
         });
+        auth.onAuthStateChanged((user) => {
+            if (!user) {
+                // Clear any authentication state that might be corrupted
+                try {
+                    sessionStorage.removeItem('firebase:authUser:' + auth.app.options.apiKey + ':[DEFAULT]');
+                } catch (e) {
+                    console.warn('Could not clear auth session storage:', e);
+                }
+            }
+        });
         return () => unsubscribe();
     }, [currentLeagueId]); // Add currentLeagueId as dependency
 
@@ -3234,6 +3257,243 @@ export default function App() {
         }
     };
 
+    // Function to copy daily matches to clipboard
+    const shareDailyMatches = (targetDate) => {
+        const matches = getMatchesFromDate(targetDate);
+        const shareText = formatMatchesForSharing(matches, targetDate);
+
+        navigator.clipboard.writeText(shareText)
+            .then(() => {
+                setToastMessage("📋 Daily matches copied to clipboard!");
+                setTimeout(() => setToastMessage(""), 3000);
+            })
+            .catch(err => {
+                console.error('Failed to copy: ', err);
+                setToastMessage("❌ Failed to copy matches");
+                setTimeout(() => setToastMessage(""), 3000);
+            });
+    };
+
+
+    // Function to get matches from logs for a specific date (timezone-safe)
+    const getMatchLogsFromDate = (logs, targetDate) => {
+        if (!logs || logs.length === 0) return [];
+
+        // Parse the date string properly to avoid timezone issues
+        const [year, month, day] = targetDate.split('-').map(Number);
+
+        console.log('Filtering for date:', year, month, day);
+
+        return logs.filter(log => {
+            if (!["match_result_saved", "match_completed"].includes(log.action)) return false;
+
+            const logDate = log.timestamp?.toDate ? log.timestamp.toDate() : new Date(log.timestamp);
+            const logYear = logDate.getFullYear();
+            const logMonth = logDate.getMonth() + 1; // getMonth() returns 0-11, so add 1
+            const logDay = logDate.getDate();
+
+            console.log('Log date:', logYear, logMonth, logDay, 'Match:', logYear === year && logMonth === month && logDay === day);
+
+            return logYear === year && logMonth === month && logDay === day;
+        }).sort((a, b) => {
+            const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp);
+            const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp);
+            return dateA - dateB; // Sort chronologically (oldest to newest)
+        });
+    };
+
+    // Function to format match logs for sharing
+    const formatMatchLogsForSharing = (matchLogs, shareDate) => {
+        if (!matchLogs || matchLogs.length === 0) {
+            return `No matches found for ${new Date(shareDate).toLocaleDateString()} 🏀`;
+        }
+
+        const dateStr = new Date(shareDate).toLocaleDateString();
+        let shareText = `🏀 *${currentLeague?.name || 'Basketball'} Matches - ${dateStr}*\n\n`;
+
+        // Track player stats for biggest winner/loser
+        const playerStats = {};
+
+        // First pass: collect all player stats
+        matchLogs.forEach((log) => {
+            const details = log.details || {};
+            const scoreA = parseInt(details.scoreA) || 0;
+            const scoreB = parseInt(details.scoreB) || 0;
+            const teamAWon = scoreA > scoreB;
+            const teamBWon = scoreB > scoreA;
+
+            const teamA = details.teamA || [];
+            const teamB = details.teamB || [];
+
+            // Track player wins/losses for stats
+            teamA.forEach(player => {
+                const playerName = typeof player === 'string' ? player : player.name || 'Player';
+                if (!playerStats[playerName]) {
+                    playerStats[playerName] = { wins: 0, losses: 0, mvps: 0 };
+                }
+                if (teamAWon) {
+                    playerStats[playerName].wins++;
+                } else if (teamBWon) {
+                    playerStats[playerName].losses++;
+                }
+                if (details.mvp === playerName) {
+                    playerStats[playerName].mvps++;
+                }
+            });
+
+            teamB.forEach(player => {
+                const playerName = typeof player === 'string' ? player : player.name || 'Player';
+                if (!playerStats[playerName]) {
+                    playerStats[playerName] = { wins: 0, losses: 0, mvps: 0 };
+                }
+                if (teamBWon) {
+                    playerStats[playerName].wins++;
+                } else if (teamAWon) {
+                    playerStats[playerName].losses++;
+                }
+                if (details.mvp === playerName) {
+                    playerStats[playerName].mvps++;
+                }
+            });
+        });
+
+        // Find biggest winner and loser
+        let biggestWinner = null;
+        let biggestLoser = null;
+        let mostWins = 0;
+        let mostLosses = 0;
+        let mostMVPs = 0;
+        let mvpKing = null;
+
+        Object.entries(playerStats).forEach(([playerName, stats]) => {
+            const totalGames = stats.wins + stats.losses;
+            if (totalGames > 0) {
+                if (stats.wins > mostWins) {
+                    mostWins = stats.wins;
+                    biggestWinner = playerName;
+                }
+                if (stats.losses > mostLosses) {
+                    mostLosses = stats.losses;
+                    biggestLoser = playerName;
+                }
+                if (stats.mvps > mostMVPs) {
+                    mostMVPs = stats.mvps;
+                    mvpKing = playerName;
+                }
+            }
+        });
+
+        // Add daily summary at the top
+        shareText += `📊 *DAILY SUMMARY*\n`;
+        shareText += `🎮 ${matchLogs.length} games played\n`;
+
+        if (biggestWinner && mostWins > 0) {
+            const winnerStats = playerStats[biggestWinner];
+            const winRate = Math.round((winnerStats.wins / (winnerStats.wins + winnerStats.losses)) * 100);
+            shareText += `🔥 *Hot Hand:* ${biggestWinner} (${mostWins}W-${winnerStats.losses}L, ${winRate}%)\n`;
+        }
+
+        if (biggestLoser && mostLosses > 0 && biggestLoser !== biggestWinner) {
+            const loserStats = playerStats[biggestLoser];
+            shareText += `❄️ *Tough Day:* ${biggestLoser} (${loserStats.wins}W-${mostLosses}L)\n`;
+        }
+
+        if (mvpKing && mostMVPs > 0) {
+            shareText += `👑 *MVP Leader:* ${mvpKing} (${mostMVPs} MVP${mostMVPs !== 1 ? 's' : ''})\n`;
+        }
+
+        shareText += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+        // Second pass: format each game
+        matchLogs.forEach((log, index) => {
+            const details = log.details || {};
+            const scoreA = parseInt(details.scoreA) || 0;
+            const scoreB = parseInt(details.scoreB) || 0;
+            const teamAWon = scoreA > scoreB;
+            const teamBWon = scoreB > scoreA;
+
+            const teamA = details.teamA || [];
+            const teamB = details.teamB || [];
+
+            // Format match time
+            const logDate = log.timestamp?.toDate ? log.timestamp.toDate() : new Date(log.timestamp);
+            const matchTime = logDate.toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            // Game header
+            shareText += `*Game ${index + 1}* (${matchTime})\n`;
+
+            // Score line with indicators
+            const teamAIndicator = teamAWon ? '🟢' : teamBWon ? '🔴' : '🤝';
+            const teamBIndicator = teamBWon ? '🟢' : teamAWon ? '🔴' : '🤝';
+
+            shareText += `Team A ${teamAIndicator} *${scoreA}* - *${scoreB}* Team B ${teamBIndicator}\n\n`;
+
+            // Team A players
+            shareText += `🔵 *Team A:*\n`;
+            teamA.forEach(player => {
+                const playerName = typeof player === 'string' ? player : player.name || 'Player';
+                const mvpIndicator = details.mvp === playerName ? ' 👑' : '';
+                shareText += `   • ${playerName}${mvpIndicator}\n`;
+            });
+
+            shareText += `\n🟠 *Team B:*\n`;
+            teamB.forEach(player => {
+                const playerName = typeof player === 'string' ? player : player.name || 'Player';
+                const mvpIndicator = details.mvp === playerName ? ' 👑' : '';
+                shareText += `   • ${playerName}${mvpIndicator}\n`;
+            });
+
+            shareText += `\n`;
+        });
+
+        return shareText;
+    };
+
+    // Function to share daily match logs with native share or fallback to clipboard
+    const shareDailyMatchLogs = async (logs, targetDate) => {
+        const matchLogs = getMatchLogsFromDate(logs, targetDate);
+        const shareText = formatMatchLogsForSharing(matchLogs, targetDate);
+
+        // Check if native sharing is supported
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: `${currentLeague?.name || 'Basketball'} Matches - ${new Date(targetDate).toLocaleDateString()}`,
+                    text: shareText,
+                });
+                setToastMessage("📱 Matches shared successfully!");
+                setTimeout(() => setToastMessage(""), 3000);
+            } catch (err) {
+                // User cancelled or error occurred
+                if (err.name !== 'AbortError') {
+                    console.error('Error sharing:', err);
+                    // Fallback to clipboard
+                    fallbackToCopy(shareText);
+                }
+            }
+        } else {
+            // Fallback to clipboard for unsupported browsers
+            fallbackToCopy(shareText);
+        }
+    };
+
+    // Fallback function for clipboard copy
+    const fallbackToCopy = (shareText) => {
+        navigator.clipboard.writeText(shareText)
+            .then(() => {
+                setToastMessage("📋 Daily matches copied to clipboard!");
+                setTimeout(() => setToastMessage(""), 3000);
+            })
+            .catch(err => {
+                console.error('Failed to copy: ', err);
+                setToastMessage("❌ Failed to copy matches");
+                setTimeout(() => setToastMessage(""), 3000);
+            });
+    };
+
     // If no league is selected, show the LeagueLandingPage
     if (!currentLeagueId) {
         return (
@@ -3640,6 +3900,7 @@ export default function App() {
                             updatePlayers={setPlayers}
                             setToastMessage={setToastMessage}
                             updateMatchHistory={setMatchHistory}
+                            shareDailyMatchLogs={shareDailyMatchLogs}
                         />
                     )}
                 </div>

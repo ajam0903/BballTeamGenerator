@@ -359,9 +359,22 @@ export default function LeagueLandingPage({ user, onSelectLeague }) {
                         <button
                             onClick={() => {
                                 const provider = new GoogleAuthProvider();
+                                // ADD THESE LINES:
+                                provider.setCustomParameters({
+                                    prompt: 'select_account'
+                                });
+
                                 signInWithPopup(auth, provider).catch((error) => {
                                     console.error("Login failed:", error);
                                     setErrorMessage("Failed to sign in. Please try again.");
+
+                                    // ADD THIS: Clear any corrupted auth state
+                                    try {
+                                        sessionStorage.clear();
+                                        localStorage.removeItem("lastUsedLeagueId");
+                                    } catch (e) {
+                                        console.warn('Could not clear storage:', e);
+                                    }
                                 });
                             }}
                             className="w-full max-w-sm bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center mx-auto"
