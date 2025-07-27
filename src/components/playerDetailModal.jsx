@@ -331,23 +331,25 @@ export default function PlayerDetailModal({
                             {Object.keys(badges).length > 0 && (
                                 <div className="bg-gray-700 p-4 rounded-lg">
                                     <h3 className="text-lg font-semibold text-white mb-3">Recent Achievements</h3>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-3">
                                         {Object.values(badges).slice(0, 4).map((badge, index) => {
-                                            const categoryIcon = getCategoryIcon(badge.categoryName);
-
                                             return (
-                                                <div key={index} className="flex items-center bg-gray-600 p-3 rounded">
-                                                    <Badge
-                                                        badge={badge}
-                                                        categoryId={getCategoryIcon(badge.categoryName)}
-                                                        size="normal"
-                                                        showTooltip={false}
-                                                    />
-                                                    <div className="ml-4">
-                                                        <div className={`text-white font-medium ${badge.color}`}>
-                                                            {badge.name}
+                                                <div key={index} className="bg-gray-600 p-4 rounded-lg">
+                                                    <div className="flex items-center mb-2">
+                                                        <Badge
+                                                            badge={badge}
+                                                            categoryId={getCategoryIcon(badge.categoryName)}
+                                                            size="small"
+                                                            showTooltip={false}
+                                                        />
+                                                        <div className="ml-4">
+                                                            <div className={`text-white font-medium ${badge.color}`}>
+                                                                {badge.name}
+                                                            </div>
+                                                            <div className="text-sm text-gray-400">
+                                                                {badge.currentValue} {badge.categoryName.toLowerCase()}
+                                                            </div>
                                                         </div>
-                                                        <div className="text-xs text-gray-400">{badge.categoryName}</div>
                                                     </div>
                                                 </div>
                                             );

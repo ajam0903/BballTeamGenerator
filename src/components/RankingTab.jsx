@@ -441,7 +441,7 @@ export default function RankingTab({
                                             leaderboard={leaderboard}
                                             matchHistory={matchHistory}
                                             size="xs"
-                                            maxDisplay={3}
+                                            maxDisplay={null}
                                         />
                                     </div>
 

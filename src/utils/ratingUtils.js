@@ -7,12 +7,12 @@
 
 // Single source of truth for weightings
 export const RATING_WEIGHTINGS = {
-    scoring: 0.25,
-    defense: 0.2,
+    scoring: 0.30,
+    defense: 0.15,
     rebounding: 0.15,
-    playmaking: 0.15,
-    stamina: 0.1,
-    physicality: 0.1,
+    playmaking: 0.10,
+    stamina: 0.10,
+    physicality: 0.15,
     xfactor: 0.05,
 };
 
